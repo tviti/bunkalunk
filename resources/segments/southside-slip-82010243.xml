@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="openstreetmap-cgimap 2.1.0 (1494291 spike-06.openstreetmap.org)" copyright="OpenStreetMap and contributors" attribution="http://www.openstreetmap.org/copyright" license="http://opendatacommons.org/licenses/odbl/1-0/">
+ <way id="82010243" visible="true" version="16" changeset="150153965" timestamp="2024-04-18T03:40:13Z" user="jmarchon" uid="9473778">
+  <nd ref="955603430"/>
+  <nd ref="955603432"/>
+  <nd ref="955603433"/>
+  <nd ref="955603434"/>
+  <nd ref="955603435"/>
+  <nd ref="955603436"/>
+  <nd ref="955603437"/>
+  <nd ref="955603438"/>
+  <nd ref="955603439"/>
+  <nd ref="955603440"/>
+  <nd ref="955603441"/>
+  <nd ref="955603442"/>
+  <nd ref="955603443"/>
+  <nd ref="955603444"/>
+  <nd ref="955603445"/>
+  <nd ref="955603446"/>
+  <nd ref="955603447"/>
+  <nd ref="955603448"/>
+  <nd ref="955603449"/>
+  <nd ref="955603450"/>
+  <nd ref="955603451"/>
+  <nd ref="955603452"/>
+  <nd ref="955603453"/>
+  <nd ref="955603454"/>
+  <nd ref="955603455"/>
+  <nd ref="955603456"/>
+  <nd ref="955603457"/>
+  <nd ref="955603458"/>
+  <nd ref="955603459"/>
+  <nd ref="955603460"/>
+  <nd ref="955603461"/>
+  <nd ref="955603462"/>
+  <nd ref="955603463"/>
+  <nd ref="955603464"/>
+  <nd ref="7840482660"/>
+  <nd ref="955603465"/>
+  <nd ref="955603466"/>
+  <nd ref="955603467"/>
+  <nd ref="955603468"/>
+  <nd ref="7840521386"/>
+  <nd ref="955603469"/>
+  <nd ref="955603470"/>
+  <nd ref="955603471"/>
+  <nd ref="955603472"/>
+  <nd ref="955603473"/>
+  <nd ref="955603474"/>
+  <nd ref="955603475"/>
+  <nd ref="955603476"/>
+  <nd ref="955603477"/>
+  <nd ref="955603478"/>
+  <nd ref="955603479"/>
+  <nd ref="955603480"/>
+  <nd ref="955603481"/>
+  <nd ref="955603482"/>
+  <nd ref="955603483"/>
+  <nd ref="955603484"/>
+  <nd ref="955603485"/>
+  <nd ref="955603486"/>
+  <nd ref="955603487"/>
+  <nd ref="955603488"/>
+  <nd ref="955603489"/>
+  <nd ref="8723408480"/>
+  <nd ref="955603490"/>
+  <nd ref="955603491"/>
+  <nd ref="955603492"/>
+  <nd ref="955603493"/>
+  <nd ref="955603494"/>
+  <nd ref="948088364"/>
+  <tag k="access" v="private"/>
+  <tag k="highway" v="path"/>
+  <tag k="mtb:scale" v="4"/>
+  <tag k="mtb:scale:imba" v="4"/>
+  <tag k="mtb:scale:uphill" v="5"/>
+  <tag k="mtb:type" v="crosscountry"/>
+  <tag k="name" v="Southside Slip"/>
+  <tag k="sac_scale" v="mountain_hiking"/>
+ </way>
+</osm>

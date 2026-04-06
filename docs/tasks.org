@@ -1,0 +1,140 @@
+#+TITLE: Project Tasks
+#+STARTUP: overview
+#+TODO: TODO(t) WAITING(w@/!) | DONE(d!) CANCELLED(c@)
+#+STARTUP: logdrawer
+#+PROPERTY: LOG_INTO_DRAWER t
+
+* Introduction
+
+This file tracks tasks and issues for GISDB development. It is an
+[[https://orgmode.org][org-mode]] file, edited primarily using [[https://www.gnu.org/software/emacs/][GNU Emacs]], but is also a plain
+text file that can be edited with any text editor. Since it's a
+plain-text file, the hope is that this will be easy for contributors
+to edit, and if necessary, easy to migrate to another platform.
+
+* Task tracking system overview
+
+The task tracking system is minimal by design, to minimize maintenance
+overhead, and more importantly to facilitate future migration to other
+task tracking systems (e.g. GitHub issues). Headings are declared with
+preceding =*= characters, with the number of asterisks indicating the
+heading's level. A heading should be formatted with the necessary
+number of preceding asterisks, followed by a single space character,
+followed by a =TODO= state, then another space, and then the heading
+text. After the heading, you should write a descriptive body that
+describes the task.
+
+The =TODO= states defined are:
+- =TODO=: Incomplete
+- =WAITING=: Something is holding this task up
+- =DONE=: Task has been completed
+- =CANCELLED=: Task has been canceled
+
+State changes should be recorded with a logdrawer entry. The [[https://orgmode.org/manual/Tracking-TODO-state-changes.html][org-mode
+manual page for tracking TODO state transitions]] describes how these
+should be formatted. If you are using Emacs to edit this file, the
+formatting will be applied automatically (provided you use ~M-x
+org-todo~ or ~C-c C-t~ to carry out the state transition). If you are
+using some other text editor, the following two example tasks show the
+format you should follow. You should try to include some prose in the
+state-transition entry describing why the transition occurred, but
+this is not required.
+
+Two top-level headings are provided for organizing tasks: =Tasks= and
+=Issues=.
+- =Tasks=: Anything that needs to be done; intentionally kept
+  general. Tasks can be features, maintenance items, or even vague
+  ideas about how the system could be changed in the future
+- =Issues=: Genuine problems with the system (i.e. bugs and defects) 
+
+Tasks should also include a timestamp indicating their creation date,
+following [[https://orgmode.org/manual/Timestamps.html][org-modes inactive-timestamp format]]. A blank line should
+follow the timestamp.
+
+** DONE Example task
+:LOGBOOK:
+- State "DONE"       from "WAITING"    [2026-04-02 Thu 21:55]
+- State "WAITING"    from "TODO"       [2026-04-02 Thu 21:55] \\
+  Implemented, but still waiting on unit tests to be written
+- State "TODO"       from "WAITING"    [2026-04-02 Thu 21:55]
+- State "WAITING"    from "TODO"       [2026-04-02 Thu 21:53] \\
+  Can't finish this until the example subroutine is completed
+:END:
+[2026-04-03 Fri]
+
+This is an example task that has transitioned through multiple
+states. It started as a =TODO=, then went into =WAITING= (with a note
+included to explain why), then went back into =TODO=, but then was
+blocked again and went back to =WAITING=, until finally being
+completed.
+
+** CANCELLED Example abandoned task
+:LOGBOOK:
+- State "CANCELLED"  from "TODO"       [2026-04-02 Thu 21:56] \\
+  Client no longer requires this functionality
+:END:
+[2026-04-03 Fri]
+
+This is an example task that became canceled for some reason. A note
+was included explaining why.
+
+* Tasks
+
+** TODO Build SQLite database API
+[2026-04-12 Sat]
+
+Implement the minimal SQLite access layer using the standard library
+`sqlite3` module exclusively, as specified in the technology stack. This
+includes:
+
+- `db/schema.py` — table definitions and schema versioning
+- `db/migrations.py` — schema upgrade logic
+- `db/queries.py` — centralized SQL statements
+- `db/types.py` — dataclasses and row/result types
+- `db/conn.py` — connection setup and transaction helpers
+
+Tables to implement:
+- `source_files`
+- `activities`
+- `segments`
+- `segment_efforts`
+- `extension_field_catalog`
+
+** TODO Add test FIT files
+[2026-04-12 Sat]
+
+Add sample FIT files for testing the FIT decoder and database ingestion.
+These files should cover:
+
+- Basic activity with GPS track points
+- Activity with heart rate data
+- Activity with extension fields (if available)
+
+Place test files in `tests/fixtures/` or similar location.
+
+** TODO Add unit tests for fingerprint function
+[2026-04-12 Sat]
+
+Write unit tests for the SHA-256 content fingerprint computation function.
+Tests should verify:
+
+- Correct SHA-256 hash computation for known input
+- Consistent results for identical file content
+- Different hashes for different file content
+- Handling of empty files
+- Handling of binary data
+
+Place tests in `tests/` directory.
+
+** TODO Define decoder interface
+[2026-04-12 Sat]
+
+Create a common decoder interface to simplify adding new file formats in
+the future. The interface should abstract the steps needed to parse a
+source file, extract core fields into the canonical schema, and handle
+extension fields.
+
+This will make it easier to add support for additional formats like
+.TCX and GPX without duplicating logic.
+
+* Issues

@@ -1,0 +1,1940 @@
+* Project abstract
+[2026-04-05 Sun]
+
+A framework for analyzing a database of activity data, initially targeted at
+segment-time analysis.
+
+* Notes
+** Delineation of responsibilities
+[2026-04-16 Thu]
+Claude sonnet-4.6
+
+#+begin_src markdown
+### I have a couple of thoughts about the spec that I want to discuss. First, is that CLI might need a subcommand for selecting different groups of statistics (for example, a subcommand [ride|segment]). Maybe the bigger need this reveals is for the scope of an "app" in the bunkalunk framework to be better defined. This shouldn't be an outright requirement/constraint, but I think it will help guide design. For example, we could intend that apps are "unitary" in that they serve a single, well defined purpose. Then, "lunk" is strictly a plumbing command, and the applications are fired from separate commands like "leaderboard" for segment leaderboards, "ride-analysis" for a document with overall stats for an entire ride, etc. The other thought that is a little separate, is that there isn't a well defined mechanism for linking the Python and Julia sqlite modules (I don't want to end up maintaining two different entrypoints for the DB).
+
+Both thoughts are worth taking seriously. Let me work through them.
+
+---
+
+## On the app/command structure
+
+The instinct here is right. `lunk show <segment>` already feels like it's doing two different things — it's a query interface *and* a presentation layer — and once you add ride-level stats, power analysis, or anything else, you'll be stacking subcommands onto a single CLI that has no coherent identity.
+
+The "unitary app" framing is a good one. The idea would be:
+
+- **`bunk`** is the cache manager. One job: get data in, keep the cache healthy.
+- **`lunk`** is the analysis plumbing. One job: run computations (segment matching, derived stats, etc.) and write results to SQLite. It doesn't own presentation.
+- **Apps** are thin, purpose-built CLI tools that read from SQLite and present results. `leaderboard`, `ride-summary`, etc.
+
+This keeps `lunk` stable and narrow — it's the engine. Apps are cheap to add, cheap to change, and don't destabilize the core. If a leaderboard format changes or you want a new view, you don't touch `lunk`.
+
+The question is where apps live. A few options:
+
+1. **Scripts in `bin/` or `tools/`** — dead simple, low ceremony, each one is just a small Python script that queries SQLite and formats output. Easy to add.
+2. **A thin `apps/` package** — same idea but with a bit more structure if they grow.
+3. **Named entry points in `pyproject.toml`** — `leaderboard`, `ride-summary` etc. become real commands without needing to live in the same source hierarchy.
+
+Option 1 or 3 is probably right for now. The spec doesn't need to mandate much here — just establish the principle that apps are consumers of SQLite, not owners of analysis logic, and that `lunk` is the thing that produces the data they read.
+
+---
+
+## On the Python/Julia SQLite boundary
+
+This is the more structurally important one. Right now the spec implies that Julia writes segment efforts to SQLite and Python owns the schema. That's two writers with no defined coordination mechanism — which is fine until the schema changes, and then it's a maintenance headache.
+
+A few ways to think about this:
+
+**Option A: Python owns all SQLite writes, Julia is read-only**
+
+Julia computes results and returns them to a Python caller, which writes to SQLite. Clean boundary: one writer, one schema owner. The cost is that you need a Python/Julia interop layer (subprocess call, shared data format like JSON/msgpack over stdout, or something like `PyJulia`). Subprocess with structured output (JSON lines or similar) is the most boring and probably most robust option.
+
+**Option B: Julia owns its own writes, shares the schema definition**
+
+You maintain the schema in one place (a SQL file or Python schema module) and Julia reads that canonical definition. Julia gets its own connection and writes its own tables. The risk is drift — if Python migrates the schema, Julia has to be updated in sync.
+
+**Option C: Julia never touches SQLite directly — all persistence goes through `lunk` as a plumbing layer**
+
+Julia computes, emits structured results, `lunk` (Python) handles all reads and writes. `lunk` becomes the single SQLite gatekeeper. This is essentially Option A but with the boundary made explicit in the architecture: Julia is a pure computation engine, Python handles all I/O with the operational database.
+
+**My inclination is Option C.** It's the most boring, it eliminates the two-entrypoint problem entirely, and it maps cleanly onto the existing split: Python does I/O and orchestration, Julia does computation. The spec already gestures at this but doesn't make it explicit enough. Making it a stated design principle — *Julia emits results, Python persists them* — closes the ambiguity.
+
+The one thing to nail down then is the interchange format between Julia and Python. Newline-delimited JSON over stdout is boring and it works. You could also consider a temporary SQLite write by Julia into a scratch table or file that Python then reads and commits — but that's more moving parts than you need.
+
+---
+
+## Suggested spec changes
+
+1. Add a design principle along the lines of: *"Python is the sole writer to the operational SQLite database. Julia emits structured results; Python persists them."*
+2. Define "apps" as a concept: thin, purpose-built consumers of SQLite data, distinct from `lunk`'s analysis pipeline. Name a few likely ones (`leaderboard`, `ride-summary`) without over-specifying them.
+3. Clarify that `lunk` is plumbing — it runs computations and writes results — and apps are what users actually invoke for presentation.
+
+None of this is a big structural change; it's mostly making implicit assumptions explicit before they become implicit bugs.
+
+### One thing that's making me uncomfortable about the "unitary apps" design, is that now we're decoupling analysis-processing from presentation in an awkward way. By making this split, we're severely restricting what an "app" can ever be in the future. If an "app" ever wants to implement interesting exploratory data analysis (which honestly feels like the biggest use case for the apps!), there is now a separate state manager (lunk) that needs to coordinate with the app.
+
+That's a sharp observation and I think you're right to be uncomfortable. The split creates a hidden coupling that looks like decoupling on the surface. An app that can only read pre-computed results from SQLite isn't really an independent analysis tool — it's a report renderer. And the moment an exploratory app wants to ask a question that `lunk` hasn't already answered and persisted, you're stuck either extending `lunk`'s scope or breaking the model.
+
+The "unitary app" framing was trying to solve the right problem — keeping `bunk` narrow and preventing `lunk` from becoming a sprawling multi-purpose CLI — but it solved it by drawing the boundary in the wrong place.
+
+Let me restate what the actual problem was: **`lunk show <segment>` conflates computation and presentation in a single command with no clear identity.** The solution isn't necessarily to separate computation from presentation at the architectural level — it's to give apps full access to the data they need to be genuinely useful.
+
+So maybe the right reframe is:
+
+- **`bunk`** is still narrow: cache management, that's it.
+- **Apps are first-class tools** that own their full stack — they can read HDF5 directly, query SQLite, run their own analysis, and present results however they want. They're not restricted to reading pre-computed rows.
+- **`lunk` either disappears as a concept**, or it becomes something much more specific: a batch pre-computation runner for results that are expensive enough to warrant caching (segment matching being the obvious example). But it's not a gatekeeper.
+
+The honest question to ask is: does `lunk` need to exist as a standalone command at all? The segment-matching pipeline is the primary analysis product right now, and it's expensive enough that pre-computation makes sense. But that could just be `leaderboard --recompute` or `leaderboard match`, rather than a separate tool that apps depend on.
+
+The cleaner model might be:
+
+- **`bunk`**: file registration and decode cache management.
+- **Apps**: own their analysis and presentation. Can read HDF5 and SQLite directly. May trigger computation or read cached results depending on what they need.
+- **Shared library**: the Python/Julia analysis code that apps call into, rather than a CLI they invoke.
+
+That way apps aren't constrained, the library is reusable, and there's no coordination problem between a state manager and an explorer. The "apps are thin report renderers" constraint never gets introduced in the first place.
+
+The spec should probably reflect this: drop or demote `lunk` as a CLI concept, define apps as full-stack tools, and move the shared analysis code into a library that apps consume directly.
+
+### Or, and I think this is what the original design was going for and maybe it just drifted in my head: we accept that "lunk" has a very narrow scope, in that it is simply "the first app" for the toolchain. It calculates and presents segment statistics, maybe shows all segment stats for a single ride, and that's it. The full scope of lunk isn't evident to me just yet (should it dabble in heartrate stats too?), but lunk is simply a bare-bones, CLI replica of the garmin-connect/strava ride/segment pages. Anything outside of that scope becomes a separate app. Re the julia interop: I like option C, it seems like the main potential gotcha is that it's not computationally efficient to plumb data through STDIO like that, but maybe that's fine for the project scope?
+
+That reframe is clean and I think it's right. `lunk` as "CLI replica of the Garmin/Strava activity and segment pages" is a well-defined scope with a natural boundary. If Strava shows it on the activity summary or segment leaderboard pages, it's in scope for `lunk`. Heart rate stats? Probably yes — normalized power, time in zones, that kind of thing all live on those pages. Exotic terrain analysis or custom interval detection? That's a different app. The Strava/Garmin mental model gives you a ready-made answer to "does this belong in `lunk`?" without needing to over-specify it in the spec.
+
+On the Julia interop — I think you're right that it's fine for this scope. The computational cost is in the analysis itself, not in serializing results. Segment matching runs once per activity per segment and writes a handful of rows. You're not streaming gigabytes through stdio. The awkward case would be if an app ever wanted tight interactive iteration over large decoded datasets — but that's an exploratory data analysis tool problem, not a `lunk` problem, and by the time you're building that you'll know enough to make a more informed interop decision. Committing to JSON-over-stdout now doesn't close that door.
+
+The one thing worth capturing in the spec is the subprocess boundary explicitly — Julia is invoked as a subprocess by Python, emits structured results to stdout, Python handles all SQLite writes. That way it's a documented decision rather than an emergent implementation detail that someone has to reverse-engineer later.
+
+For the spec I'd suggest:
+
+- Tighten the `lunk` description to reflect the Strava/Garmin framing — it's the activity summary and segment leaderboard CLI. That's its identity.
+- Add a note that other analysis tools are out of scope for `lunk` but are valid future apps in the broader framework.
+- Add the Julia interop principle explicitly: Julia is a pure computation subprocess, Python owns all SQLite I/O.
+
+Want me to draft updated spec language for those three things?
+
+### Let's get back on the same page with the julia interop, I think we're diverging. So it's actually bunk that is the db entrypoint now, correct? And we interface the db with julia by having a thin wrapper API over lunk that uses Julia's `run` function? Does Julia's native python interop layer give us an option to import bunk as a lib instead?
+
+Let me make sure I'm getting this right before we go further, because I want to be precise about the data flow.
+
+Current understanding:
+
+- `bunk` owns the SQLite schema and is the sole writer
+- `lunk` is a Julia program (or Julia-primary?) that does analysis and calls into `bunk`'s DB layer somehow
+- The question is *how* `lunk` reaches `bunk`'s DB API
+
+Is that accurate? Because I realize I've been loosely assuming `lunk` is Python with Julia called as a subprocess, but re-reading the spec and your question, it sounds like it might be the other way around — `lunk` is Julia-primary and needs to reach back into the Python DB layer.
+
+On Julia's Python interop: yes, `PythonCall.jl` (or the older `PyCall.jl`) can import a Python module directly into a Julia process. So `lunk` could literally `import bunk` as a library and call into its DB API without a subprocess boundary at all. That's actually a much cleaner option than stdio if Julia is the orchestrator — you get direct function calls, proper error propagation, and no serialization overhead.
+
+The `run()`-based wrapper is simpler to reason about but you'd essentially be reimplementing a little RPC layer for no good reason if PythonCall is available.
+
+Which direction is the orchestration actually flowing? That changes the answer significantly.
+
+### Yes, my thinking was that `lunk` (and *apps* in general) are Julia programs. I think we should document that `PythonCall.jl` is the interop layer between `bunk` and `lunk`, and that this design is intentional, to encapsulate the SQL schema with its interactions (I'm wording that poorly)
+
+That makes sense and I think the wording you're reaching for is something like: **`bunk` is the single owner of the SQLite schema and the sole authorized writer to the operational database. Apps access the database exclusively through `bunk`'s Python API, imported via `PythonCall.jl`, rather than writing SQL directly. This ensures the schema has one owner and one set of access patterns to maintain.**
+
+That's the key architectural decision: it's not just a convenience interop choice, it's a schema encapsulation boundary. Julia apps never express SQL — they call `bunk` functions. If the schema changes, you fix it in one place.
+
+A few things worth confirming before we write this into the spec:
+
+1. Does `bunk` expose a clean enough library API (not just a CLI) to make this work? Right now the spec describes it primarily as a CLI tool. It probably needs to be explicitly designed as a library with a CLI on top, rather than a CLI that happens to have importable internals.
+
+2. Are we comfortable with `PythonCall.jl` as a hard dependency for all apps? It's not a huge burden but it's worth stating intentionally.
+
+3. Does this mean `lunk` and other apps are Julia packages/projects with their own `Project.toml`, pulling in `PythonCall` and calling into `bunk` as a library? That has implications for the directory layout.
+
+If the answer to (1) is yes, that's actually a meaningful spec change — `bunk` becomes a library-first tool with a CLI surface, not just a CLI.
+
+### (1) I think I might be using "bunk" as a blanket statement for the python layer. If you look at the spec, there's already a db module defined that would probably be the natural place to expose the SQL boundary. (2) Is PythonCall.jl stdlib? I'd prefer to keep this stdlib as much as possible, even if that means going back to the `run` design. (3) Yes, I think that's where we're going with this. apps are essentially the point where something else imports bunkalunk as a framework instead of using it as a tool. The alternative would be to have an "apps" directory, but that's significant friction to create an app because then it has to be designed to fit into bunkalunk (when it should be the other way around). Do let me know if you see other options.
+
+On (1) — yes, you're right, the `db/` module is the natural boundary. The Python layer as a whole is the library, and `db/` is the part that apps actually need to import via PythonCall. That's a cleaner way to think about it than "`bunk` as a library."
+
+On (2) — `PythonCall.jl` is not stdlib, it's a registered package. So if stdlib purity matters, the `run()`-based approach is actually the right call. The tradeoff is real though: you lose the clean function-call interface and have to define a serialization contract over stdio. But given that the DB access patterns are probably not that complex at this stage — read activities, write segment efforts, that kind of thing — a thin subprocess wrapper over a well-defined set of Python CLI commands might be entirely sufficient and arguably more explicit about the boundary anyway.
+
+On (3) — agreed, and I think this is the right framing. Apps are independent Julia projects that depend on bunkalunk as a framework. The directory layout implication is that `lunk` probably lives outside the main repo, or in a clearly separated top-level directory that signals "this is a consumer, not part of the framework." An `apps/` directory inside the repo creates exactly the friction you're describing.
+
+One other option worth naming: Julia's `Pkg` supports local path dependencies in `Project.toml`. So an app can be a completely independent Julia project that declares a local path dependency on the bunkalunk Julia package. That keeps apps fully decoupled while still being convenient for local development without publishing anything to a registry.
+
+### Re (2) let's just use a thin API so the details don't actually matter, then we can change course if run() gets annoying. (3) I'm thinking that "lunk", as the "first ever bunkalunk app", gets to live in the project still. If you're a coder or a data analyst and you want to write your own analysis apps, then you import bunkalunk, and if you're a rider and you just want to see your results than you install bunkalunk and run lunk. If lunk gets too heavy duty it's easy enough to split it off into a package later on. Agree or disagree.
+
+Agree completely. `lunk` living in the repo as the reference app makes total sense — it's the thing that proves the framework works, it's what a non-coding rider actually installs and runs, and it sets the precedent for how an app is supposed to be structured. Splitting it out later is a trivial git operation if it ever needs to happen. Keeping it in now costs nothing and gains a lot.
+
+The thin API point is also the right call. Define a clean Python subprocess interface at the `db/` boundary, keep the contract simple and explicit, and if `PythonCall` or something else becomes obviously better down the road the internals can change without the apps noticing.
+
+So the picture that's emerging for the spec is:
+
+- The Python layer (primarily `db/`) exposes a thin, stable API that is the sole interface to SQLite
+- Apps call that API via a subprocess boundary — implementation details deferred
+- `lunk` is the reference app, lives in the repo, is what riders actually use
+- Independent apps import bunkalunk as a framework via local path dependency in their own `Project.toml`
+- The framework never needs to know about external apps
+
+Want to go ahead and draft the spec changes that capture all of this, including the earlier decisions about `lunk`'s scope and the app model?
+
+### Yes, draft the spec changes into a brief workplan that an AI agent can use to carry out the update. Be specific, include the exact diffs that should occur.
+
+## Workplan: Spec Update
+
+### 1. Update the Technology Stack section
+
+Add `PythonCall.jl` as a listed Julia dependency with a note that it is the candidate interop layer but the boundary is intentionally thin and implementation may use `run()`.
+
+Remove `requests` from the stack — it was listed as "available for future network-adjacent tooling" which contradicts the narrow scope principle. If it's needed later it can be added later.
+
+**Diff:**
+
+```diff
+- - `requests`
+-   - available in the Python environment for future network-adjacent tooling,
+-     though Bunkalunk itself is not a vendor API client
+```
+
+```diff
+  - `ArchGDAL`
+    - Julia dependency available in the analysis environment
++ - `PythonCall`
++   - Julia interop layer for calling into the Python `db/` API from Julia apps
++   - the interop mechanism is intentionally thin; implementation may use
++     `PythonCall.jl` or `run()`-based subprocess calls depending on what
++     proves practical
+```
+
+---
+
+### 2. Add a Design Principle
+
+Add to the Design Principles section:
+
+```diff
++ - Python layer as sole DB owner: the `db/` module is the single owner of
++   the SQLite schema and the sole authorized writer to the operational
++   database. Julia apps access the database exclusively through the `db/`
++   API. No Julia code expresses SQL directly. This ensures the schema has
++   one owner and one set of access patterns to maintain.
+```
+
+---
+
+### 3. Reframe the `lunk` description
+
+Replace the current `lunk` description in the CLI Contract section:
+
+```diff
+- ### `lunk`
+- 
+- Preferred initial commands:
+- 
+- - `match <segment-name>`
+-   - compute segment efforts for decoded activities matching a specific segment
+- - `show <segment-name>`
+-   - print leaderboard for a specific segment from SQLite
+-   - may warn if results are stale
+-   - may support `--rematch` to force recomputation
+```
+
+```diff
++ ### `lunk`
++ 
++ `lunk` is the reference app for the bunkalunk framework. Its scope is a
++ CLI replica of the activity summary and segment pages familiar from
++ platforms like Strava or Garmin Connect: segment leaderboards, segment
++ efforts per ride, and activity-level summary statistics (heart rate,
++ power, etc.). If a metric appears on those pages, it is in scope for
++ `lunk`. Anything outside that scope belongs in a separate app.
++ 
++ `lunk` is also the app that non-technical riders install and run. It
++ lives in the bunkalunk repo as the reference implementation and may be
++ split into its own package later if that becomes warranted.
++ 
++ Preferred initial commands:
++ 
++ - `segment match <segment-name>`
++   - compute segment efforts for decoded activities matching a specific
++     segment
++ - `segment show <segment-name>`
++   - print leaderboard for a specific segment from SQLite
++   - may warn if results are stale
++   - may support `--rematch` to force recomputation
++ - `ride show <activity-id|ride-tag>`
++   - print activity summary statistics for a single ride
+```
+
+---
+
+### 4. Add an App Model section
+
+Insert a new section after the CLI Contract section:
+
+```diff
++ ## App Model
++ 
++ Bunkalunk is designed to be used as a framework, not only as a tool.
++ 
++ - `bunk` is the cache manager. Non-technical riders use it directly.
++ - `lunk` is the reference app. It ships with bunkalunk and covers the
++   core use case: segment leaderboards and activity summaries.
++ - Independent apps are Julia projects that declare a local or registered
++   package dependency on bunkalunk. They are not hosted inside the
++   bunkalunk repo and do not need to conform to any plugin interface.
++ 
++ An app is any Julia program that imports bunkalunk as a library. It may:
++ 
++ - read decoded activity data from HDF5
++ - call the `db/` API to read from or write to SQLite
++ - perform its own analysis, using the Julia analysis library as needed
++ - present results however it chooses
++ 
++ Apps are full-stack tools. They are not restricted to reading
++ pre-computed results. An app that wants to do exploratory data analysis
++ over raw decoded records is a valid and expected use case.
++ 
++ The `db/` API is the only sanctioned interface to SQLite. Apps must not
++ write SQL directly against the operational database.
++ 
++ The interop mechanism between Julia apps and the Python `db/` API is
++ intentionally left as an implementation detail. The current candidate is
++ a thin subprocess boundary. This may be revisited without changing the
++ app contract.
+```
+
+---
+
+### 5. Update the Directory Layout section
+
+```diff
+  - `src/`
+    - `julia/` — analysis and segment-matching code
++   - `lunk/` — reference app (segment leaderboards, activity summaries)
+    - `python/` — source-file handling and decode
+```
+
+---
+
+### 6. Update the Build Now section
+
+```diff
+  - explicit `add <path>...`
+  - decode on add
+  - one `.fit` decoder
+  - one SQLite database for source-file index and results
+  - one concrete HDF5 schema and writer
+  - extension-field payload capture in HDF5
+  - extension-field catalog in SQLite
+  - segment definitions in `resources/segments/`
+  - segment matching pipeline
+  - `lunk` leaderboard CLI
+  - explicit bulk rebuild tooling
++ - thin `db/` API surface callable from Julia via subprocess boundary
+```
+
+### One potential future pain point: the sqlite database is intentionally specc-ed to live in the project root, because system-level state-fullness is icky. I'm thinking of changing it to something like `~/.bunk/db.sqlite3` now to avoid a scenario where each app needs to build its own database (which honestly is a legit use case but probably not what most people will expect). What do you think?
+
+I think you're right to change it, and better to do it now than after someone has built a workflow around the project-root assumption.
+
+The project-root placement made sense when bunkalunk was purely a local tool you ran from a working directory, but the moment `lunk` is a thing a rider installs and runs from anywhere, and independent apps are importing the framework from their own project directories, a project-root database breaks down immediately. Every app would either get its own isolated database (confusing) or need to know where "the right" project root is (fragile).
+
+`~/.bunk/` is the natural answer. It's the standard convention for user-level tool state, it's what riders will expect if they've used any similar CLI tool, and it means every app that imports bunkalunk is automatically talking to the same operational database regardless of where it's invoked from.
+
+The one thing worth being deliberate about is making the path configurable via an environment variable (something like `BUNK_HOME`) so that:
+
+- developers can point at a test database without touching their real data
+- power users can have multiple "vaults" if that ever becomes useful
+- CI can run without polluting or depending on a real `~/.bunk/`
+
+That's a small addition to the spec but it closes an otherwise annoying gap. The default is `~/.bunk/`, the override is `BUNK_HOME`, and the `db/` layer resolves the path at startup. Apps never hardcode it.
+
+Want me to add this to the workplan as a seventh diff?
+
+### Let's do
+- default is ~/.bunk/db.sqlite3
+- app-level override is BUNK_HOME
+- the bunk CLI also exposes an arg --db-root (or something similar) to change it per invocation
+
+Think about this proposal, try to find any potential future pain points or edge cases that cause it to break down or become annoying.
+
+The proposal is solid. Let me think through the edge cases.
+
+**The flag name `--db-root` is slightly misleading.** It implies you're pointing at a directory, but the database is a single file. `--db` or `--db-path` pointing directly at the file is more honest and more flexible — you can name the file whatever you want and put it wherever you want without the tool inferring a filename inside a directory. `BUNK_HOME` as the env var is then slightly inconsistent with `--db-path`, so you might want `BUNK_DB` as the env var instead, or just accept that `BUNK_HOME` is the directory and `--db-path` is the fully qualified override.
+
+**Precedence needs to be explicit.** The natural order is: `--db-path` beats `BUNK_HOME` beats default. If that's not documented and enforced consistently across `bunk`, `lunk`, and every future app, you'll get subtle bugs where an app ignores the CLI flag because it resolved the path at import time rather than at invocation time. The `db/` layer needs to resolve the path lazily and accept it as a parameter rather than computing it once at module load.
+
+**The HDF5 store location.** Right now the spec puts `activity_store/` in the project root. If the database moves to `~/.bunk/`, the activity store should probably follow to `~/.bunk/activity_store/` or similar — otherwise you have split state, half in home directory and half wherever you ran the command from. Both should be governed by the same `BUNK_HOME` / `--db-path` resolution.
+
+**Multiple apps, one database.** This is mostly fine but SQLite's write concurrency is limited. If two apps ever write simultaneously you'll get lock contention. Probably not a real problem for this use case — riders aren't running parallel analysis pipelines — but worth a brief note in the spec so it's a known constraint rather than a surprise.
+
+**The activity store path is currently stored nowhere.** If `BUNK_HOME` changes between invocations, the database has fingerprint-named HDF5 files but no record of where the store root is. The `db/` layer should either always derive the store path from the same root as the database, or store the store path explicitly. Deriving it is simpler and less likely to get out of sync.
+
+The cleanest resolution to most of these is: **`BUNK_HOME` is the single source of truth for the directory, defaulting to `~/.bunk/`. Everything — database file, activity store — lives under it. `--db-path` is removed in favor of `--bunk-home` which overrides `BUNK_HOME` for a single invocation.** One knob, one directory, consistent naming, all state co-located.
+
+Want me to fold this into the workplan diff?
+
+### We still have a split between specifying db-dir and db-name, I don't mind the proposed resolution but it leaves no option for the user to specify a different db filename (which could be useful for testing too). On the other hand, now that we're colocating the HDF5 store, we do in fact need a BUNK_HOME default and override.
+
+You're right, and the tension is: `BUNK_HOME` governs the directory for everything (database + activity store), but there's no escape hatch for the database filename specifically.
+
+The cleanest resolution is two independent knobs:
+
+- `BUNK_HOME` / `--bunk-home` sets the directory root, defaults to `~/.bunk/`. The activity store always lives at `$BUNK_HOME/activity_store/`.
+- `BUNK_DB` / `--db` sets the database file path, defaults to `$BUNK_HOME/db.sqlite3`. If specified as an absolute path it ignores `BUNK_HOME` entirely. If specified as a relative path it's resolved relative to `BUNK_HOME`.
+
+That gives you:
+
+- **Normal rider usage**: nothing set, everything in `~/.bunk/`
+- **Testing**: set `BUNK_HOME` to a temp directory, get a fully isolated environment including the activity store
+- **Unusual db placement**: set `BUNK_DB` to an absolute path, database goes there, activity store still follows `BUNK_HOME`
+- **Full override**: set both independently
+
+The precedence chain for the database path is then: `--db` beats `BUNK_DB` beats `$BUNK_HOME/db.sqlite3`. The activity store is always `$BUNK_HOME/activity_store/` with no separate override, since there's no obvious use case for splitting it from `BUNK_HOME`.
+
+One remaining question: should `lunk` and future apps expose `--bunk-home` and `--db` as CLI args too, or only `bunk`? I'd lean toward yes — consistency across all entry points means any invocation can be redirected to a test environment without gymnastics.
+
+Want me to add this to the workplan?
+
+### This is starting to feel overengineered. Propose a simplification that leaves the possibility of adding more knobs in the future.
+
+Just use `BUNK_HOME`, defaulting to `~/.bunk/`. Everything lives under it. No CLI flag for now.
+
+That's it. If someone needs a different database filename or a split store location, that's the moment to add more knobs — not before. The env var is enough to handle testing and power-user scenarios today, and it's a well-understood convention that doesn't surprise anyone.
+
+Want me to add this to the workplan?
+
+### Almost. I don't think the lack of SQLite concurrency is a problem really, but I do want to at least do a thought experiment to see how that could potentially become a problem. Let's say in the future, somebody winds up using this tool for some more heavy-weight analysis where concurrency actually is helpful. For example, maybe a PhD student doing some kinda biomed informatics work is using bunk to aggregate heterogeneous source datatypes from many participants. Then, they have multiple time consuming analyses they want to run overnight. What's the escape hatch? Do we change the project to suite the use case (e.g. pull in a third party DB lib, move to something more featureful than sqlite)? Does the user "fork" the master dB for each parallel analysis (costs disk space and overhead to do the fork)?
+
+The honest answer is that this use case is probably out of scope for bunkalunk by design, and that's okay. The spec is explicit that this is a local, personal, single-user tool. A PhD student aggregating data from many participants is running a research pipeline, which is a fundamentally different problem with different infrastructure requirements. Trying to accommodate that use case would pull the project away from its identity.
+
+The escape hatch in that scenario isn't a bunkalunk feature — it's that bunkalunk's HDF5 cache and SQLite schema are simple and documented enough that someone can read the data out and feed it into whatever infrastructure actually fits their use case. The data isn't locked in. That's the real escape hatch, and it's already baked into the design via the local-first, file-based, open-format principles.
+
+The concurrency note in the spec is worth keeping as a known constraint rather than a warning sign, so that anyone who hits it understands it's a deliberate tradeoff and knows to look elsewhere rather than trying to scale bunkalunk horizontally.
+
+So my suggestion: add a brief line to the spec under the SQLite section acknowledging single-writer concurrency as a known constraint consistent with the single-user local-first design, and leave it at that. No escape hatch needed — the exit is just "use a different tool for a different problem."
+
+Want me to fold this into the workplan as a small addition to the SQLite section?
+
+### You're missing the point. Yes, it is out of the scope of the project, but the thought experiment is to see what would it take to make the square peg fit into the round hole, and more importantly "Is it really a square peg round hole problem? Or is the square peg actually a little more round than previously thought?"
+
+Fair point, let me actually think it through.
+
+The real bottleneck isn't SQLite's concurrency model — it's that `bunk`'s Python DB layer is the single writer by design. So parallel analyses would be contending on writes to `segment_efforts` and similar tables. SQLite with WAL mode actually handles concurrent readers and a single writer reasonably well, so the read side is probably fine. The write contention is the real issue.
+
+But here's where it gets interesting: the write patterns for analysis results are actually pretty embarrassing-parallel. Each analysis job is writing efforts for a different activity or segment combination. They're not updating shared rows, they're inserting independent rows. The only real contention is on the index. That's exactly the workload WAL mode handles well.
+
+So the square peg is actually pretty round. Enabling WAL mode on the SQLite connection might be the only thing standing between "bunkalunk as a personal tool" and "bunkalunk as a light research pipeline tool." That's a one-line change in the `db/` layer.
+
+The thing that doesn't scale is if analyses need to read intermediate results written by other in-flight analyses — that's real coordination complexity that SQLite can't solve. But for the overnight batch scenario you described, where jobs are independent and just need to write results, WAL mode probably gets you surprisingly far.
+
+Worth noting in the spec that WAL mode is the intended SQLite configuration, with a brief note on why. It's a nearly free future-proofing decision.
+
+### The "analyses read intermediate results written by other in-flight analyses" use case feels rare to me, even in a research environment (if anything, that seems like enterprise-level data analysis territory which is philosophically at odds with bunkalunk). Agree or disagree?
+
+Agree. That pattern implies a dependency graph between analyses, which means you've essentially built a pipeline orchestrator. That's Airflow or Prefect territory, not a local-first personal tool. Even in a research context, the more natural pattern is: run all ingestion first, then run analyses independently against the stable dataset. The intermediate-results-coordination problem only arises if you're doing something like online learning or iterative model refinement, which is firmly in the "different tool for a different problem" category.
+
+So the practical conclusion is: enable WAL mode, document it as an intentional configuration choice, and that's the extent of the concurrency story. The spec note becomes a positive statement — "SQLite is configured in WAL mode, which supports concurrent readers and is sufficient for the expected single-user and light multi-process workloads" — rather than a warning about limitations.
+
+Want me to add WAL mode to the workplan?
+
+### Show me the updated work plan
+
+## Workplan: Spec Update
+
+### 1. Update the Technology Stack section
+
+Remove `requests`. Add `PythonCall` as a listed Julia dependency. Add a note about WAL mode under SQLite.
+
+**Diff:**
+
+```diff
+- - `requests`
+-   - available in the Python environment for future network-adjacent tooling,
+-     though Bunkalunk itself is not a vendor API client
+```
+
+```diff
+  - `ArchGDAL`
+    - Julia dependency available in the analysis environment
++ - `PythonCall`
++   - Julia interop layer for calling into the Python `db/` API from Julia apps
++   - the interop mechanism is intentionally thin; implementation may use
++     `PythonCall.jl` or `run()`-based subprocess calls depending on what
++     proves practical
+```
+
+```diff
+  - SQLite
+    - local operational database for source-file index, decode outcomes,
+-     derived results, and extension-field discovery metadata
++     derived results, and extension-field discovery metadata
++   - configured in WAL mode, which supports concurrent readers and is
++     sufficient for expected single-user and light multi-process workloads
+```
+
+---
+
+### 2. Add Design Principles
+
+```diff
++ - Python layer as sole DB owner: the `db/` module is the single owner of
++   the SQLite schema and the sole authorized writer to the operational
++   database. Julia apps access the database exclusively through the `db/`
++   API. No Julia code expresses SQL directly. This ensures the schema has
++   one owner and one set of access patterns to maintain.
++ - Local state isolation: all bunkalunk state (SQLite database and HDF5
++   activity store) lives under a single configurable root directory,
++   defaulting to `~/.bunk/`. The root may be overridden via the `BUNK_HOME`
++   environment variable. This keeps state co-located, predictable, and
++   easy to redirect for testing or isolation.
+```
+
+---
+
+### 3. Update the Storage Model section
+
+Add a note about WAL mode and `BUNK_HOME` to the SQLite subsection. Update the HDF5 subsection to reflect the new default location.
+
+```diff
+  ### SQLite
+  
+  SQLite is the single local operational database.
++ 
++ The database file defaults to `~/.bunk/db.sqlite3`. The root directory
++ may be overridden via the `BUNK_HOME` environment variable, in which case
++ the database is at `$BUNK_HOME/db.sqlite3`.
++ 
++ SQLite is configured in WAL mode. This is an intentional choice that
++ supports concurrent readers and is sufficient for expected single-user
++ and light multi-process workloads without introducing additional
++ infrastructure.
+```
+
+```diff
+  ### HDF5
+  
+- Bunkalunk defines one canonical decoded schema. HDF5 files are ephemeral cache
+- artifacts implementing that schema...
++ The HDF5 activity store defaults to `~/.bunk/activity_store/`. It follows
++ the same `BUNK_HOME` root as the SQLite database. The store root is always
++ derived from `BUNK_HOME` and is not separately configurable.
+```
+
+---
+
+### 4. Remove the `.db.sqlite3` entry from the Directory Layout section
+
+```diff
+- - `.db.sqlite3` — SQLite database
+```
+
+Add a note at the bottom of the Directory Layout section:
+
+```diff
++ The SQLite database and HDF5 activity store are not part of the project
++ directory layout. They live under `~/.bunk/` by default, or under
++ `$BUNK_HOME` if that environment variable is set.
+```
+
+---
+
+### 5. Reframe the `lunk` description in the CLI Contract section
+
+```diff
+- ### `lunk`
+- 
+- Preferred initial commands:
+- 
+- - `match <segment-name>`
+-   - compute segment efforts for decoded activities matching a specific segment
+- - `show <segment-name>`
+-   - print leaderboard for a specific segment from SQLite
+-   - may warn if results are stale
+-   - may support `--rematch` to force recomputation
+```
+
+```diff
++ ### `lunk`
++ 
++ `lunk` is the reference app for the bunkalunk framework. Its scope is a
++ CLI replica of the activity summary and segment pages familiar from
++ platforms like Strava or Garmin Connect: segment leaderboards, segment
++ efforts per ride, and activity-level summary statistics (heart rate,
++ power, etc.). If a metric appears on those pages, it is in scope for
++ `lunk`. Anything outside that scope belongs in a separate app.
++ 
++ `lunk` is also the app that non-technical riders install and run. It
++ lives in the bunkalunk repo as the reference implementation and may be
++ split into its own package later if that becomes warranted.
++ 
++ Preferred initial commands:
++ 
++ - `segment match <segment-name>`
++   - compute segment efforts for decoded activities matching a specific
++     segment
++ - `segment show <segment-name>`
++   - print leaderboard for a specific segment from SQLite
++   - may warn if results are stale
++   - may support `--rematch` to force recomputation
++ - `ride show <activity-id|ride-tag>`
++   - print activity summary statistics for a single ride
+```
+
+---
+
+### 6. Add an App Model section
+
+Insert after the CLI Contract section:
+
+```diff
++ ## App Model
++ 
++ Bunkalunk is designed to be used as a framework, not only as a tool.
++ 
++ - `bunk` is the cache manager. Non-technical riders use it directly.
++ - `lunk` is the reference app. It ships with bunkalunk and covers the
++   core use case: segment leaderboards and activity summaries.
++ - Independent apps are Julia projects that declare a local or registered
++   package dependency on bunkalunk. They are not hosted inside the
++   bunkalunk repo and do not need to conform to any plugin interface.
++ 
++ An app is any Julia program that imports bunkalunk as a library. It may:
++ 
++ - read decoded activity data from HDF5
++ - call the `db/` API to read from or write to SQLite
++ - perform its own analysis, using the Julia analysis library as needed
++ - present results however it chooses
++ 
++ Apps are full-stack tools. They are not restricted to reading
++ pre-computed results. An app that wants to do exploratory data analysis
++ over raw decoded records is a valid and expected use case.
++ 
++ The `db/` API is the only sanctioned interface to SQLite. Apps must not
++ write SQL directly against the operational database.
++ 
++ The interop mechanism between Julia apps and the Python `db/` API is
++ intentionally thin and treated as an implementation detail. The current
++ candidate is a subprocess boundary. This may be revisited without
++ changing the app contract.
+```
+
+---
+
+### 7. Update the Directory Layout section
+
+```diff
+  - `src/`
+    - `julia/` — analysis and segment-matching code
++   - `lunk/` — reference app (segment leaderboards, activity summaries)
+    - `python/` — source-file handling and decode
+```
+
+---
+
+### 8. Update the Build Now section
+
+```diff
+  - explicit `add <path>...`
+  - decode on add
+  - one `.fit` decoder
+  - one SQLite database for source-file index and results
+  - one concrete HDF5 schema and writer
+  - extension-field payload capture in HDF5
+  - extension-field catalog in SQLite
+  - segment definitions in `resources/segments/`
+  - segment matching pipeline
+  - `lunk` leaderboard CLI
+  - explicit bulk rebuild tooling
++ - thin `db/` API surface callable from Julia via subprocess boundary
++ - SQLite configured in WAL mode
++ - all state rooted under `BUNK_HOME`, defaulting to `~/.bunk/`
+```
+
+### 
+  
+#+end_src
+** Rename =ala-hele= -> =bunkalunk=
+[2026-04-14 Tue]
+
+#+begin_src markdown
+Nice — this is the right kind of question: thinking through the experience and installation surface so the name and layout don’t hamper day‑to‑day use.
+
+Below I’ll cover the options, tradeoffs, and a recommended approach with concrete examples you can adopt immediately.
+
+High-level options
+- Direct binary per component (what you suggested): install a binary named cache-away in repo/bin and invoke it directly:
+  - ~/Source/bunkalunk/bin/cache-away add myride.fit
+  - Pros: Explicit, maps one-to-one to the Python tool.
+  - Cons: Verbose if you always call it by path; awkward for scripts/CI unless you install or alias it.
+- Installed console-script(s) (recommended): add console_scripts entry points so pip install (or pip install -e .) installs short commands into PATH:
+  - cache-away add myride.fit
+  - bunkalunk cache add myride.fit (if you also expose a top-level umbrella CLI)
+  - Pros: ergonomics are excellent, works cross-platform, easy to update with packaging tools.
+  - Cons: you need to install the package (development workflows solved by editable installs).
+- Single top-level umbrella CLI with subcommands:
+  - bunkalunk cache add myride.fit
+  - bunkalunk analyze match hawk-hill
+  - Pros: single logical entrypoint (git-style). Good discoverability and consistent UX.
+  - Cons: slightly longer primary command; you should design help/completion well.
+- Hybrid: offer both (umbrella CLI + focused component binaries). Example: install both bunkalunk and cache-away (same codebase, different console_scripts). Gives best discoverability and direct invocation.
+
+Practical details / constraints
+- Hyphens in executable names are fine. They’re common (cache-away). On Windows, pip will still generate appropriate .exe launchers for console_scripts.
+- Module names cannot contain hyphens — but console_scripts map a script name (cache-away) to a Python callable (bunkalunk.cache.cli:main), so implementation and packaging are separate.
+- For development, use pip install -e . (editable) to get scripts in PATH; or use python -m bunkalunk.cache.cli add <file> to avoid installing.
+- Consider offering a short alias (local shell alias or small shim) for power users, e.g., alias ca=cache-away or provide a tiny wrapper named bk that forwards to the umbrella CLI.
+
+Packaging example (concept)
+- pyproject.toml / setup.cfg / setup.py -> console_scripts:
+  - cache-away = bunkalunk.cache.cli:main
+  - bunkalunk = bunkalunk.cli:main
+  - (optional) bunk-leaderboard = bunkalunk.leaderboard.cli:main
+- After pip install -e ., users can run cache-away or bunkalunk directly.
+
+Suggested UX and command surface
+- Keep subcommand names short and consistent:
+  - cache manager: add, decode, rebuild, status
+  - analysis/leaderboard: match, leaderboard (or show), export
+- Example everyday workflows:
+  - Add and decode a file (short command):
+    - cache-away add myride.fit
+  - Same with umbrella CLI:
+    - bunkalunk cache add myride.fit
+  - Rebuild missing caches:
+    - cache-away rebuild --all
+  - Compute segment leaderboard:
+    - bunkalunk analyze match hawk-hill
+    - OR: bunkalunk leaderboard hawk-hill
+- Aliasing tip for frequent use:
+  - Add to your shell rc: alias ca='cache-away' or alias buk='bunkalunk'
+  - This keeps typing minimal while preserving discoverability for new users.
+
+Developer workflows
+- Local development:
+  - pip install -e .  # creates script stubs for console_scripts
+  - Run unit tests, use python -m for quick testing without installation:
+    - python -m bunkalunk.cache.cli add myride.fit
+- CI / packaging:
+  - Build a wheel and publish (if you ever publish). Reserved names (PyPI) matter, so plan package name (bunkalunk) vs script names (cache-away).
+- Windows caveat:
+  - Encourage use of the console_scripts entry points; pip will produce proper .exe wrappers. Hyphenated scripts work.
+
+Recommendation (balanced and pragmatic)
+- Repo/project name: bunkalunk (unique and memorable; keeps the cat-story identity).
+- Primary Python binary for the CAS: cache-away (console script). That’s what people will type daily and what matches the tool’s role.
+- Provide an umbrella CLI too: bunkalunk, which exposes subcommands:
+  - bunkalunk cache add ...
+  - bunkalunk cache rebuild ...
+  - bunkalunk analyze match ...
+- Create console_scripts for both so users can choose ergonomic direct calls or the umbrella experience:
+  - console_scripts = [
+      "cache-away = bunkalunk.cache.cli:main",
+      "bunkalunk = bunkalunk.cli:main",
+    ]
+- Encourage local aliasing (alias ca=cache-away) in your dotfiles for power-user ergonomics.
+
+Concrete examples to try now
+- As developer, in repo root:
+  - pip install -e .
+  - cache-away add path/to/myride.fit
+  - bunkalunk cache add path/to/myride.fit
+  - bunkalunk analyze match hawk-hill
+- As no-install invocation for testing:
+  - python -m bunkalunk.cache.cli add path/to/myride.fit
+
+If you want, I can:
+- Draft the pyproject console_scripts snippet you can drop into the repo.
+- Sketch the CLI command tree and top-level help text for bunkalunk + cache-away.
+- Produce sample shell rc aliases (bash, zsh, fish) for comfortable usage.
+
+Which of those would help you move forward fastest?
+
+...where `bunkalunk` is just the repo name and never appears in normal usage at all.
+
+**Does that framing feel right?** If so, the project name is essentially just a GitHub repo name and a directory name — in which case `bunkalunk` costs you nothing ergonomically and gains you a great story.
+
+### Ok, so what if we stick with cache-away as the python cache manager, and bunkalunk is the name of the Julia analysis framework. The framework is general, designed to be used as an exploratory data analysis tool (or a toolbox for building applications), but includes a CLI application also called bunkalunk. Initially, this is just a plain per-segment leaderboard, but maybe eventually includes other stats/derived results too. Then, the bottom half of the workflow you showed would be:
+
+bunkalunk match hawk-hill  # Look for new rides matching segment name
+bunkalunk show hawk-hill  # Pretty-print a leaderboard with stats for hawk-hill
+
+This does bring to mind, what is the UX like for the user-facing app? Are calculation and display separate verbs? Or does calculation get performed lazily when a verb requests it?
+
+Good structure. The two-tool split makes sense — `cache-away` owns the data pipeline, `bunkalunk` owns the analysis and presentation layer.
+
+On the UX question — the core tension is:
+
+**Explicit separation (`match` then `show`):**
+```
+bunkalunk match hawk-hill   # compute, write to SQLite
+bunkalunk show hawk-hill    # read SQLite, display
+```
+- User has explicit control over when computation runs
+- `show` is always fast (pure read)
+- Stale results are visible and intentional — you ran `match` last Tuesday, `show` reflects that
+- Good fit for the spec's ethos: explicit, scriptable, predictable
+- Slight friction: user has to know to run `match` first, or wonder why `show` returns nothing
+
+**Lazy compute on `show`:**
+```
+bunkalunk show hawk-hill    # computes if needed, then displays
+```
+- Lower friction for casual use
+- But "if needed" is surprisingly hard to define — needed means what exactly? New rides since last match? Changed segment definition? Changed matcher version?
+- Starts to feel like magic, which cuts against the explicit/scriptable design principle
+
+**A middle path — explicit but helpful:**
+```
+bunkalunk show hawk-hill    # displays current results, warns if stale
+bunkalunk match hawk-hill   # explicit recompute
+bunkalunk match --all       # recompute all segments
+```
+Where "stale" means something concrete and checkable — e.g. there are decoded activities in the cache with no effort row for this segment.
+
+This preserves the explicit model while giving the user actionable feedback rather than silent staleness. It also maps cleanly onto the spec's design principles: no magic, but also not unnecessarily hostile.
+
+Does the explicit-but-warns middle path feel right, or do you want even stricter separation?
+
+### I like that. We could expose a `--rematch` flag to `show` as well that force-recomputes all (it sounds fun too, in a contextually relevant way). Now how does the name `bunkalunk` fit into the usage pattern?
+
+It fits surprisingly well. The commands read naturally:
+
+```
+bunkalunk match hawk-hill
+bunkalunk show hawk-hill
+bunkalunk show hawk-hill --rematch
+bunkalunk match --all
+```
+
+The name is long enough that it has a certain deliberate, ceremonial quality — you're not dashing off a quick `ls`, you're invoking the analysis engine. That actually suits an exploratory/analytical tool better than it would suit a high-frequency plumbing command. You wouldn't want to type `bunkalunk` fifty times in a pipeline, but for "sit down and look at your ride data" workflows the cadence feels right.
+
+The contrast with `cache-away` also works well in practice:
+
+```
+cache-away add myride.fit        # plumbing, feed the pipeline
+bunkalunk show hawk-hill         # analysis, get the answer
+```
+
+They have distinct personalities that match their roles. `cache-away` sounds like something you do to data. `bunkalunk` sounds like something that thinks about it.
+
+The one thing worth considering: if `bunkalunk` is also the name of the Julia framework/library (for people building on top of it), then `bunkalunk` the CLI and `bunkalunk` the library share a name. That's common and fine — think `pandas` or `numpy` — but worth being intentional about so the docs distinguish "the framework" from "the application."
+
+### If we need a more obvious separation, we could name the package "bunkalunk", the leaderboard CLI "bunk". I like cache-away, but if we stick with the bunk-a-lunk theme, then the cache-manager could be called "chunk"
+
+`chunk` and `bunk` is a great pairing:
+
+```
+chunk add myride.fit         # feed the pipeline
+bunk show hawk-hill          # get the answer
+bunk show hawk-hill --rematch
+```
+
+The names are short, punchy, and have a satisfying internal rhyme. `chunk` evokes data ingestion naturally — you're chunking data in. `bunk` as a leaderboard command has a slightly irreverent quality that fits a personal tool well.
+
+The full naming picture would then be:
+
+- **bunkalunk** — the Julia framework/package (what you `import` or `using`)
+- **bunk** — the leaderboard/analysis CLI (what you type at the terminal)
+- **chunk** — the cache manager CLI (what you feed files to)
+
+The only thing to watch: `bunk` as a standalone word means nonsense, which is either a charming irony for a stats tool or mildly confusing depending on who's reading it. For a personal tool it reads as playful. For anything public-facing it's worth a moment's consideration.
+
+`chunk` has no such baggage — it's clean and descriptive.
+
+Do you want to lock these in and update the spec, or sit with both options (`cache-away`/`bunkalunk` vs `chunk`/`bunk`) a bit longer?
+
+### I think the bunk = nonsense confusion is legit, but if this does ever gain traction, I suspect everybody would just call it "bunkalunk" anyways ("hey, don't forget to check your stats on bunkalunk when you get home", "it's been a while since i've PR-ed on bunkalunk"). The only thing I don't like about `chunk` is it's a little bit of a misnomer. Indexing and chunking are very, very different operations
+
+Fair point — `chunk` implies splitting or partitioning data, which is essentially the opposite of what the tool does. It ingests and indexes whole files.
+
+What about `cank`? It completes the rhyme scheme (`bunk`/`cank` from bunk-a-lunk), it's short, and it doesn't carry misleading connotations. Downside: it's not a real word, so it gives no intuitive hint about function.
+
+Alternatively, leaning on the theme more loosely:
+
+- **`lunk`** — short, from the name, no misleading connotation
+- **`clunk`** — has a mechanical "receiving and processing something solid" quality that actually fits ingestion reasonably well. Feed it a file, it clunks it in.
+
+```
+clunk add myride.fit
+bunk show hawk-hill
+```
+
+`clunk` might be the strongest of these — onomatopoeically it sounds like dropping something into a hopper, which maps well to the add/index workflow, and it stays in the bunkalunk family without being a misnomer.
+
+### lunk is nice though because his full name is bunk-a-lunk. It could even be made to read sequentially, by making *bunk* the cache manager and *lunk* the leaderboard. Pulling your ride data in is a process of first *bunk*ing the data and then *lunk*ing the results.
+
+That's a really elegant resolution. The etymology does the work for you:
+
+```
+bunk add myride.fit          # ingest, index, decode
+lunk show hawk-hill          # analyze, display
+lunk show hawk-hill --rematch
+```
+
+And the narrative arc is built into the tool names — `bunk` then `lunk`, in order, just like the name. New users who know the project name can almost guess the two commands without reading the docs.
+
+The `bunk = nonsense` problem also largely dissolves in this context. `bunk add` reads as a verb ("stash it"), which is a legitimate informal meaning — you're bunking the file away for later. The nonsense connotation only really surfaces if `bunk` stands alone as a noun referring to the tool's output, which it doesn't here.
+
+The full picture:
+
+- **bunkalunk** — the Julia framework/package
+- **bunk** — cache manager CLI (ingest, index, decode)
+- **lunk** — leaderboard/analysis CLI (match, show)
+
+Clean, memorable, internally consistent, and it tells a small story. I'd lock this in.
+
+### 
+  
+#+end_src
+** Claude spec review
+[2026-04-14 Tue]
+
+#+begin_src markdown
+  ### Review the project spec.
+
+  ## Spec Review
+
+  ### Strengths
+
+  - **Scope discipline is excellent.** Non-goals, defer lists, and the
+    "not responsible for" section are explicit and consistent with each
+    other.
+  - **Storage roles are clearly separated.** SQLite as operational
+    truth, HDF5 as ephemeral cache — this distinction is stated multiple
+    times and reinforced throughout.
+  - **The CAS design is sound.** Sharding by first two hex chars of
+    SHA-256 is standard and sensible.
+  - **Decode contract is tight.** Atomic write semantics ("failed
+    decodes must not publish a final-path HDF5 file") is an important
+    correctness detail that's included.
+  - **Extension preservation is well-reasoned.** Keeping non-core fields
+    out of the canonical schema while still capturing them is a good
+    default.
+
+  ---
+
+  ### Issues and Gaps
+
+  #### Ambiguity / Underspecified
+
+  1. **`activities` table linkage to `source_files` is missing.** The
+     `activities` table has `content_fingerprint` but no explicit
+     foreign key or join path to `source_files`. The spec says
+     "activities may be keyed by content fingerprint" — this should be
+     firmed up. Is `content_fingerprint` the primary key of
+     `activities`, or is `activity_id` a surrogate? If surrogate, the
+     uniqueness constraint on `content_fingerprint` should be stated.
+
+  2. **`ride_tag` is listed but not defined.** What populates it? Is it
+     user-supplied at add time, editable later, optional forever? The
+     CLI has no `tag` command.
+
+  3. **HDF5 schema version** is mentioned ("use a single concrete HDF5
+     schema with a version integer") but the version field's location in
+     the file is not specified. Is it a root-level attribute? A dataset?
+     This matters for the `rebuild` command's compatibility check.
+
+  4. **`rebuild` compatibility check is underspecified.** It says
+     rebuild when "cache schema version is outdated/incompatible" — but
+     who defines "incompatible"? A version range? Strict equality? This
+     needs a rule.
+
+  5. **`decode [selection]` selection syntax is undefined.** Same for
+     `rebuild [selection|--all]`. Are selections source paths? Glob
+     patterns? Fingerprints? The spec doesn't say.
+
+  6. **Atomic write for HDF5 is implied but not specified.** The spec
+     says failed decodes must not publish a final-path file, but doesn't
+     mandate a write-to-temp-then-rename pattern explicitly. This is
+     implementation guidance worth stating.
+
+  #### Schema Gaps
+
+  7. **`source_files` has no timestamp fields.** `added_at` or
+     `registered_at` would be useful for ordering and diagnostics, and
+     costs nothing.
+
+  8. **`activities` has no `decoded_at` or `source_path`
+     back-reference.** If a user wants to know when an activity was
+     decoded, or which source file produced it, the schema doesn't
+     support it without a join through `content_fingerprint` — which
+     only works if `source_files.content_fingerprint` is unique (not
+     guaranteed by the spec given duplicate handling).
+
+  9. **`segment_efforts` has no `deleted_at` or invalidation
+     mechanism.** If a user re-decodes or the segment definition changes
+     version, old efforts may become stale. The `matcher_version` field
+     helps but there's no stated policy for what happens to old rows.
+
+  10. **`extension_field_catalog` has no `last_seen_at` or count.**
+      `first_seen_at` is recorded but there's no way to know if a field
+      is still appearing or was a one-time occurrence.
+
+  #### CLI Gaps
+
+  11. **No `list` or `status` command is in "Build Now."** `status` is
+      in "Possible future commands" and deferred — but without it,
+      there's no way to inspect what's registered. Even a minimal `list`
+      seems necessary for basic operability.
+
+  12. **Leaderboard CLI is underspecified.** Two commands are listed but
+      argument format, output format, and sorting are not described.
+
+  13. **Export format is explicitly unresolved** ("TODO: decide on one
+      format"). This should be resolved or removed from the spec until
+      decided.
+
+  #### Minor
+
+  14. **`requests` in the stack** is noted as "available for future
+      tooling" but Ala Hele itself won't use it. This could be dropped
+      from the spec entirely to avoid confusion.
+
+  15. **`LanguageServer` in the stack** is a development tool, not a
+      runtime dependency. It doesn't belong in the technology stack
+      section.
+
+  16. **Directory layout lists `.db.sqlite3` at repo root.** This is an
+      odd location. A path under `analysis/` or a named data directory
+      would be more consistent with the rest of the layout.
+
+  17. **"Decode on add" and "deferred decode is not the default"** are
+      stated correctly, but the `decode [selection]` command description
+      could be read as implying deferred decode is a workflow. Worth a
+      clarifying sentence.
+
+  ---
+
+  ### Summary
+
+  The spec is well-structured and the core design is sound. The main
+  weaknesses are: the `activities`↔`source_files` join path, missing
+  schema timestamps, underspecified CLI selection syntax, and a few
+  unresolved TODOs. Those are worth resolving before implementation
+  begins to avoid schema churn.
+    
+#+end_src
+** SQL Layer
+[2026-04-11 Sat]
+
+#+begin_src markdown
+### Using the stdlib sqlite library is ugly and feels fragile. Schemas and queries are stringly-typed and hence prone to annoying bugs and maintenance headaches. We could pull in a non-standard database API, which would help with type-safety and make objects/verbs first class Python citizens (also I don't have to learn SQL), however a third party library is against the stated design principles, and so should be justified. I'm tempted to stay stdlib and pay the maintenance tax. Argue with me
+
+I’d push back on “third party DB library violates the design principles” pretty hard.
+
+It only violates them if the library meaningfully increases abstraction, hides the file-based model, or makes the system less reproducible/scriptable. A small, boring query layer or lightweight toolkit can do the opposite: reduce fragility while keeping SQLite fully visible as the storage contract.
+
+## The key distinction
+
+Your spec says:
+
+- SQLite is the operational database
+- file-based workflows are preferred
+- minimal abstraction
+- stable CLI workflows
+- narrow scope
+- local-first reproducibility
+
+None of that says “must use `sqlite3` directly.”
+
+That’s an implementation preference, not an architectural principle.
+
+Using raw stdlib `sqlite3` is not automatically simpler. It is only simpler at tiny scale. Once you have:
+
+- schema creation
+- schema evolution
+- repeated inserts/updates
+- row decoding
+- invariants like:
+  - `decoded_ref` non-null iff `decode_status = decoded`
+  - `decode_error` null unless failed
+- query reuse across commands
+- tests that need fixtures and assertions
+
+…then raw SQL strings scattered through Python become their own abstraction layer, just an undocumented and weakly checked one.
+
+That’s the worst kind of abstraction: implicit, repetitive, and easy to break.
+
+## “I don’t have to learn SQL” is not the real argument
+
+I would not justify a library on “avoid learning SQL.” You should still know SQL here. The system is explicitly SQLite-centered, and your data model is relational enough that pretending otherwise will hurt later.
+
+The real argument is:
+
+- keep SQL as the storage language
+- but stop hand-rolling every boundary around it
+
+That means a library is justified if it helps with:
+
+- parameter binding
+- row mapping
+- transaction handling
+- schema declaration
+- migrations
+- typed query results
+- testability
+
+without obscuring that the underlying DB is SQLite.
+
+## Why stdlib-only will cost more than it looks
+
+With this spec, the DB layer is not trivial. You already have at least:
+
+- `source_files`
+- `activities`
+- `segments`
+- `segment_efforts`
+- `extension_field_catalog`
+
+And likely soon:
+
+- uniqueness constraints
+- indexes
+- foreign keys
+- check constraints
+- schema versioning
+- re-decode bookkeeping
+- maybe activity-to-source history or decode attempts
+
+If you stay raw `sqlite3`, you will end up building ad hoc versions of:
+
+- a schema DSL
+- row-to-object conversion
+- transaction wrappers
+- migration bookkeeping
+- query helper functions
+- invariant enforcement
+
+That is a maintenance tax whether you acknowledge it or not.
+
+And because it’s custom, it will be less documented and less battle-tested than a small external dependency.
+
+## Minimal abstraction does not mean zero abstraction
+
+Your design principle says:
+
+> prefer concrete file-based workflows, one canonical decoded schema, and a small number of storage roles
+
+That argues against:
+
+- a giant ORM
+- repository/service/factory architecture astronautics
+- backend-agnostic DB layers
+- “models” pretending SQLite/Postgres/MySQL are interchangeable
+
+It does **not** argue against:
+
+- a tiny typed query layer
+- a migration helper
+- a lightweight SQL builder
+- dataclass row mapping
+
+In fact, those are often the most *minimal* option because they remove boilerplate without changing the architecture.
+
+## What would actually violate the spirit of the spec
+
+I’d reject a library if it:
+
+- treats SQLite as just one backend among many and pushes portability you don’t need
+- hides SQL so thoroughly that debugging requires learning the library’s mini-language
+- encourages magical model lifecycle behavior
+- auto-generates schema in ways that are hard to inspect
+- makes the on-disk DB shape feel secondary to Python objects
+- adds a lot of transitive dependencies
+- complicates packaging for a local CLI tool
+
+That’s the real line.
+
+## A good justification for a third-party dependency
+
+You can justify one if you write it like this:
+
+> Ala Hele’s storage contract remains SQLite. We use a small Python library only to make schema definitions, parameterized queries, row decoding, and migrations less error-prone. The library does not change the database format, does not introduce a service boundary, and does not obscure SQL as the source of truth.
+
+That is fully aligned with the spec.
+
+## The practical question: what pain are you buying down?
+
+You mentioned:
+
+- stringly-typed schemas
+- stringly-typed queries
+- fragility
+- maintenance headaches
+
+Those are real. In this project, they’ll show up as:
+
+### 1. Column drift bugs
+You rename `decoded_ref` to `activity_ref` in one place and miss three others.
+
+### 2. Row shape bugs
+A query returns tuples, then later you reorder columns and silently misread values.
+
+### 3. Invariant bugs
+You forget to keep `decode_status`, `decoded_ref`, and `decode_error` synchronized.
+
+### 4. Transaction bugs
+Half a decode succeeds in HDF5, SQLite update fails, and now you need clean rollback semantics.
+
+### 5. Migration bugs
+You tweak schema in `CREATE TABLE` but forget upgrade logic for existing DBs.
+
+### 6. Test brittleness
+Every test has hand-written SQL setup and assertions.
+
+A small DB layer can reduce all of these.
+
+## My recommendation: don’t choose between “raw sqlite3” and “full ORM”
+
+That’s the false binary.
+
+You have at least four options:
+
+### Option A: raw `sqlite3` only
+Good if:
+- prototype only
+- one developer
+- schema still in flux
+- willing to accept some rough edges
+
+Bad because:
+- fragility grows quickly
+- you’ll invent your own conventions anyway
+
+### Option B: stdlib `sqlite3` + a very small internal typed layer
+This is the strongest default if you want to stay conservative.
+
+Use:
+- `dataclasses`
+- `typing`
+- `sqlite3.Row`
+- centralized SQL files or constants
+- one `db.py` module
+- explicit transaction helpers
+- schema version table
+- row mappers
+
+This keeps dependencies at zero while avoiding the worst chaos.
+
+Honestly, this may be the sweet spot for Ala Hele.
+
+### Option C: stdlib `sqlite3` + one tiny third-party helper
+Best if:
+- you want less boilerplate
+- you still want SQL front and center
+- you want low dependency risk
+
+This is very defensible.
+
+### Option D: full ORM
+I would not do this for Ala Hele right now.
+
+Your schema is small, SQLite-specific, and operationally concrete. A full ORM is likely more abstraction than value.
+
+## If you stay stdlib, do it intentionally, not naively
+
+If you choose stdlib, don’t “pay the maintenance tax” passively. Design around it.
+
+At minimum:
+
+- one `db.py` module as the only SQL boundary
+- no SQL outside that module
+- `sqlite3.Row` enabled everywhere
+- dataclass row mappers for each table/query result
+- named SQL constants, not inline strings all over the codebase
+- helper functions for common writes
+- explicit transaction scopes
+- `PRAGMA foreign_keys = ON`
+- schema versioning via `PRAGMA user_version` or a migrations table
+- constraints in SQL, not just Python
+- tests for schema invariants
+
+That gets you a lot of the benefit without dependencies.
+
+## But I still think a small dependency is reasonable
+
+Because your stated concern is not convenience, it’s correctness and maintainability.
+
+That is a legitimate architectural concern.
+
+A dependency is justified when it:
+
+- reduces accidental complexity
+- preserves the core storage model
+- lowers bug surface area
+- keeps the codebase easier to reason about
+
+That’s exactly the kind of trade you should make in a side project you want to keep fun.
+
+You want to spend time matching segments and riding trails, not debugging typoed column names in a hand-written `INSERT ... ON CONFLICT` six months from now.
+
+## My actual advice
+
+For this project, I’d recommend one of these two paths:
+
+### Conservative path
+Stay with stdlib SQLite, but build a disciplined internal DB layer immediately.
+
+This fits the spec perfectly and avoids premature dependency debates.
+
+### Pragmatic path
+Adopt a very small SQLite-friendly library that:
+- keeps SQL explicit
+- supports typed row mapping or schema declaration
+- does not try to be a giant ORM
+- has low dependency weight
+- is easy to remove later if needed
+
+This is also compatible with the spec, and probably the better engineering choice if you already feel the raw API is ugly.
+
+## Bottom line
+
+You should not accept raw `sqlite3` pain as some kind of architectural virtue.
+
+That’s not simplicity. That’s just moving complexity into string literals and tribal knowledge.
+
+The spec commits you to SQLite, not to suffering.
+
+If you want, I can next help you define:
+1. a “good enough” stdlib-only `db.py` shape, or
+2. criteria for selecting a minimal third-party SQLite layer without violating the spec.
+
+### Ok, so options then are rolling our own SQL layer from stdlib components or pulling in a lightweight off the shelf one. I'm leaning towards the latter, but only if we have stable defacto standard libre options.
+
+Yes — that’s the right framing.
+
+If you’re leaning third-party, I would set a very high bar:
+
+- mature
+- boring
+- widely used
+- SQLite-friendly
+- low dependency weight
+- explicit SQL, not magic
+- easy to remove later
+
+For this project, I would strongly prefer a **lightweight SQL toolkit/query layer**, not a full ORM.
+
+## What “de facto standard” should mean here
+
+Not just “popular on Hacker News,” but:
+
+- has been around for years
+- actively maintained, but not churny
+- good docs
+- predictable API
+- many users
+- works well with plain SQLite
+- doesn’t force async/web-app patterns
+- doesn’t invent a whole object lifecycle model
+- lets you inspect/debug the actual SQL easily
+
+That narrows the field a lot.
+
+## The obvious candidate: SQLAlchemy Core
+
+If you want one answer, this is probably it.
+
+Not SQLAlchemy ORM.  
+**SQLAlchemy Core.**
+
+Why it fits:
+
+- extremely established
+- libre / standard open source
+- huge user base
+- likely to outlive your side project
+- works great with SQLite
+- can be used without ORM models
+- gives you schema objects, typed columns, query construction, transactions
+- keeps the relational model visible
+- easy to drop down to raw SQL when needed
+
+Why I’d still hesitate:
+
+- it is a big library
+- API surface is much larger than you actually need
+- “Core only” requires discipline or you drift into ORM-ish patterns
+- for a tiny local CLI tool, it may feel heavier than ideal
+
+Still, if your criterion is **stable de facto standard**, SQLAlchemy Core is the safest answer by far.
+
+## The second candidate: dataset-style / tiny convenience wrappers
+
+There are smaller libraries that make SQLite nicer, but most of them fail one of these tests:
+
+- not standard enough
+- too magical
+- too underpowered
+- too tied to a particular coding style
+- unclear long-term durability
+
+For a side project, these can be pleasant.  
+For a project where you explicitly care about architecture and maintenance, I’d be cautious.
+
+The problem with “cute small DB wrappers” is that they often save 30 lines now and cost confidence later.
+
+## My recommendation hierarchy
+
+### 1. Best conservative choice
+**stdlib `sqlite3` + your own tiny internal layer**
+
+This is still honestly the best fit if:
+- schema is modest
+- you can tolerate writing a little infrastructure
+- you want zero dependency risk
+- you want total clarity
+
+You can get most of the value by standardizing:
+
+- one DB module
+- dataclass row mapping
+- transaction helpers
+- schema/migration helpers
+- centralized SQL
+- typed function boundaries
+
+This is boring in the good way.
+
+### 2. Best third-party choice
+**SQLAlchemy Core**
+
+Use it only as:
+- schema declaration
+- migrations support boundary
+- query construction where useful
+- transaction management
+- typed-ish row handling
+
+Do **not** use:
+- ORM models
+- session-heavy patterns
+- backend-agnostic architecture games
+- elaborate repository layers
+
+Treat it as a better SQLite toolkit, not as the center of your design.
+
+### 3. Avoid unless you have a very specific reason
+- full ORM stacks
+- “Python objects instead of SQL” libraries
+- niche wrappers with tiny communities
+- anything that makes generated SQL hard to inspect
+- anything optimized for web apps over local CLI workflows
+
+## Important pushback: “I don’t have to learn SQL” is still a trap
+
+Even if you adopt a library, you should still learn enough SQL to be comfortable with:
+
+- joins
+- indexes
+- constraints
+- `INSERT ... ON CONFLICT`
+- transactions
+- basic migrations
+- query plans when performance matters
+
+Because your architecture is explicitly SQLite-first.
+
+If you avoid SQL entirely, you’ll just end up learning:
+- SQL indirectly
+- plus the library’s abstraction
+- plus its failure modes
+
+That’s worse.
+
+The goal is not “no SQL.”  
+The goal is “SQL remains visible, but the Python boundary is less brittle.”
+
+## A practical selection rubric
+
+If you want to evaluate candidates, score them on:
+
+- **Longevity** — likely maintained in 5 years?
+- **SQLite fit** — designed to work naturally with SQLite?
+- **Explicitness** — can I see the SQL shape clearly?
+- **Dependency weight** — how much baggage?
+- **Typing support** — does it improve correctness at the Python boundary?
+- **Migration story** — sane schema evolution?
+- **Escape hatch** — can I drop to raw SQL easily?
+- **Removability** — if I rip it out later, is the DB still just SQLite?
+
+A library that scores high on all of those is acceptable.
+
+## My blunt opinion
+
+If you want **the** stable libre de facto standard, pick:
+
+- **SQLAlchemy Core** if you want third-party
+- otherwise **plain `sqlite3` with a disciplined internal layer**
+
+I would not spend much time shopping beyond that unless you have a very specific ergonomic need.
+
+Because every hour spent comparing DB wrappers is an hour not spent building the thing or riding bikes.
+
+## What I’d do for this project
+
+Personally, I’d choose one of two paths:
+
+### Path A: ultra-boring
+Use stdlib `sqlite3`, but immediately create:
+- `db/schema.py`
+- `db/migrations.py`
+- `db/queries.py`
+- dataclasses for row/result types
+- a tiny transaction helper
+
+This keeps the architecture pristine.
+
+### Path B: pragmatic boring
+Use **SQLAlchemy Core only**, with a strict rule:
+- no ORM
+- no sessions as domain model machinery
+- SQL schema remains inspectable
+- SQLite remains the storage contract
+
+This buys safety without changing the architecture.
+
+## Bottom line
+
+If “stable de facto standard libre option” is the requirement, the shortlist is basically:
+
+1. **No dependency: stdlib `sqlite3` + internal layer**
+2. **Dependency: SQLAlchemy Core**
+
+That’s the serious answer.
+
+If you want, I can next do one of these:
+1. sketch a minimal stdlib-only DB layer for this project, or  
+2. show what a **SQLAlchemy Core-only** version would look like without drifting into ORM nonsense.
+
+### 
+  
+#+end_src
+
+** Data Acquisition and Analysis Stack
+   [2026-04-05 Sun 08:03]
+- Use a Python tool (e.g., python-garminconnect) to mirror/download FIT files
+  from Garmin Connect. This leverages mature libraries and simplifies
+  authentication.
+- Store the original FIT files as the canonical ride database, agnostic of how
+  they are obtained.
+- Use Julia for analysis and processing of FIT files, or build a multi-language
+  stack if needed (Python for data acquisition, Julia for analysis).
+- This separation keeps each part maintainable and allows using the best tool
+  for each job.
+
+** Cache Strategy for FIT Data
+   [2026-04-05 Sun 08:57]
+- Start with an ephemeral cache: generate the cache at the start of each
+  analysis session for simplicity and safety.
+- If performance or data size becomes an issue, evolve to a persistent cache
+  that updates only when new FIT files are detected (using file hashes or
+  timestamps).
+- HDF5 is recommended as the cache format for both strategies.
+
+** Directory Layout Structure
+   [2026-04-05 Sun 08:09]
+- Use =resources/segments/= to store segment definitions and other non-code
+  assets for clarity and convention.
+
+** Segment Source Preferences
+   [2026-04-05 Sun 08:10]
+- Prefer pulling segments from non-proprietary or open sources, such as
+  OpenStreetMap (potentially via their API), or by extracting segments directly
+  from ride data, to maximize openness and reproducibility.
+
+** Python FIT File Downloader Design
+   [2026-04-05 Sun 10:30]
+
+   It should be possible to build the FIT file database using a combination of
+   manual downloads form a Garmin device, and using the garminconnect APIs to
+   access a users account data. The idea is that this project should not be tied
+   to the garminconnect service.
+
+   Typical CLI verbs for this tool:
+   - sync: Main operation, downloads new/missing files (with flags for specific IDs, filters, etc.)
+   - status: Show local database state (could be a flag or subcommand)
+   - check: Show remote state (could be a flag or subcommand)
+   - config: Manage credentials (interactive or via flags)
+   - add: Import FIT files directly from a Garmin device (preliminary; see below)
+
+   Handling direct device imports:
+   - When adding files from a device, extract key metadata (timestamp, type, etc.) and compute a hash.
+   - On sync, compare local files’ metadata/hashes with remote activities to avoid duplicate downloads.
+   - If metadata matches but hashes differ, flag for review as a potential duplicate.
+   - Domain research is needed: If device and remote files are always identical,
+     simply placing files correctly may suffice and collision handling may be
+     unnecessary.
+
+- System needs to download user's entire activity history (potentially filtered
+  by activity type to avoid unrelated activities)
+- Initial implementation uses python-garminconnect for Garmin API communication
+- Goal: Eventually reverse engineer library and implement minimum set of equivalent capabilities using requests lib
+- Requirements:
+  - Support for filtering activities by type (ride, run, etc.)
+  - Robust error handling for API rate limits and connectivity issues
+  - Progress tracking for large downloads
+  - Ability to resume partial downloads
+  - Maintaining FIT file integrity during download
+  - Secure credential handling (avoid hardcoding credentials)
+  - Compatible with existing FIT file parsing pipeline
+- Evolution path: Will become a mirroring/database system that:
+  - Observes current state of local data store
+  - Polls remote to identify newly added data not in local store
+  - Downloads only new/missing data
+  - Maintains synchronization between local and remote states
+
+Sketch: separation of concerns for Garmin API and database management
+- GarminClient (stateful wrapper around python-garminconnect)
+  - Responsibilities: auth lifecycle, list_activities(), download_activity(id) -> bytes/Path, close()
+  - API: init_noninteractive(), login_interactive(...), list_activities(filter) -> Iterable[ActivitySummary], download(id) -> bytes
+  - Keeps network/auth logic isolated from storage
+
+- DatabaseManager / ActivityRepo
+  - Responsibilities: canonical storage layout, metadata DB, deduping, import/add, sync orchestration, provenance
+  - API: add_from_file(path), import_bytes(bytes, source), has_activity(fingerprint) -> bool, record_activity(ActivityMetadata), sync_with_remote(GarminClient)
+  - Manages file placement, atomic moves, metadata indexing
+
+- Cache builder (separate module)
+  - Responsibilities: create ephemeral or persistent HDF5 cache for analysis
+  - API: build_cache(selector) -> hdf5_path
+  - Kept separate from DatabaseManager to avoid conflated responsibilities
+
+Best practices
+- Use content-addressing (sha256) + metadata (start time, duration, distance) for deduplication and fuzzy matching
+- Keep interactive login in CLI (ConfigCommand) and expose non-interactive init for services
+- Inject GarminClient into Context for commands that need remote access
+- Tests should mock GarminClient and test DatabaseManager independently
+- Logging: module-level loggers; CLI handles interactive messages
+
+Ephemeral cache writer: module or package?
+- Recommendation: separate module (ala_hele/cache.py or ala_hele/cache/)
+  - Keeps DatabaseManager focused on canonical storage and sync
+  - Cache writer can evolve independently (HDF5 schema, additional datatypes)
+  - Easier to test and swap formats later
+
+- Minimal cache API:
+  - build_cache(repo: ActivityRepo, selector: Selector, *, persistent: bool=False) -> Path
+  - add_to_cache(hdf5_path: Path, activity: Activity, metadata: dict) -> None
+  - read_cache(hdf5_path: Path, query) -> Generator[Record]
+
+- Evolution:
+  - Start as a single-file module; promote to package if it grows
+  - HDF5 schema: use groups per datatype (e.g., /tracks, /bodymetrics) for extensibility
+
+* Tasks
+  - 
+* Snippets
+** Prompt system
+[2026-04-12 Sun]
+
+#+begin_src text 
+You are a senior software developer who is also an avid mountainbiker. You are
+trying to help your colleague get a side project off the ground. You want the
+architecture to be simple and elegant, so that development and maintenance are
+frictionless as possible, and you can have more time to ride your bike.
+#+end_src
+
+** 2026-04-09 Review: copilot-instructions.md
+:PROPERTIES:
+:author: Copilot
+:END:
+Reviewed .github/copilot-instructions.md (architecture, system design, and
+implementation steps). Summary:
+- Three storage roles: raw archive, HDF5 decoded store, SQLite derived store.
+- Clear contracts: sidecars, decode boundary, reversible workflows.
+- Gaps: ingest atomicity & manifest consistency, HDF5 schema migrations,
+  error handling, concurrency, and large-archive performance.
+
+Immediate priorities:
+1. Implement atomic 'archive add': atomic copy -> streaming sha256 -> sidecar ->
+   manifest append.
+2. Add .fit decoder + versioned HDF5 writer with auxiliary lane for extensions.
+3. Create SQLite schema, segment matcher, and leaderboard CLI.
+4. Add manifest-rebuild tool, unit tests, and Nix dev entry.
+
+Committed review and recommendations.
+
+** 2026-04-10 Review: spec.md
+
+#+begin_src markdown
+### Review the spec
+
+Here’s a concise review of `docs/spec.md`.
+
+## Overall
+
+This is a strong spec: clear scope, good boundaries, sensible local-first architecture, and a disciplined separation between:
+
+- raw user-owned files
+- canonical decoded representation
+- derived/query-oriented analysis results
+
+It avoids premature abstraction well.
+
+## What’s especially good
+
+- **Scope control is excellent.** You repeatedly exclude sync, backup, archival layout, semantic deduplication, and vendor integration. That will prevent a lot of design drift.
+- **Ingestion boundary is crisp.** “Explicit user-supplied local files” is clear and actionable.
+- **Format-based decoding is the right organizing principle.**
+- **Canonical-vs-extension split is well stated.** Keeping extension payloads preserved but outside the core schema is a very good design choice.
+- **SQLite + HDF5 division makes sense.** Operational/query metadata in SQLite, decoded arrays in HDF5 is coherent.
+- **Decode-on-add matches assumptions.** Given your stated assumptions, it’s a good default.
+- **CLI surface is small.** Good restraint.
+
+## Main issues / ambiguities
+
+### 1. `source_files` key semantics are implied but not stated
+You say the model is path-oriented and each row represents one explicitly added source path, but you don’t explicitly say whether `source_path` is the primary key / unique.
+
+You should state:
+
+- whether `source_path` is unique in `source_files`
+- whether paths are stored as given, normalized, or canonicalized
+- whether they are absolute or may be relative
+
+This matters a lot for reproducibility and CLI targeting.
+
+### 2. `decoded_ref` is underspecified
+You require `decoded_ref` but never define its shape.
+
+Questions left open:
+
+- Is it an HDF5 file path?
+- An internal object/group path?
+- A stable activity identifier?
+- Can multiple source files point to the same decoded object?
+- Does re-decode replace in place or create a new object and update the ref?
+
+This should be specified more concretely.
+
+### 3. Relationship between `source_files` and `activities` is unclear
+You have both:
+
+- `source_files.source_path`
+- `activities.source_path`
+- `activities.content_fingerprint`
+- `source_files.content_fingerprint`
+
+But the cardinality is not defined.
+
+Open questions:
+
+- Does one source file always produce exactly one activity?
+- Can one source file produce multiple activities?
+- Can multiple source paths map to one activity row?
+- Why duplicate `source_path` and fingerprint into `activities` instead of linking by foreign key?
+
+Even if initial `.fit` is one-file-one-activity, the spec should state that assumption explicitly.
+
+### 4. Exact-duplicate policy is too vague
+You say exact-content duplicates at different paths “may be tolerated” and policy may later become warn-only or configurable.
+
+That leaves current behavior ambiguous. The implementation needs a definite rule now, e.g.:
+
+- allow duplicates silently
+- allow and warn
+- reject duplicates by fingerprint
+- allow but do not create a second activity row if fingerprint already exists
+
+You don’t need semantic deduplication, but exact-content behavior should be nailed down.
+
+### 5. Re-decode / rebuild behavior is not defined enough
+You mention schema evolution and manual redecode, but not the expected semantics.
+
+Need clarity on:
+
+- On re-decode, are previous decoded HDF5 records replaced, versioned, or orphaned?
+- Are derived analysis results invalidated automatically?
+- Is `match-segments` expected to recompute all efforts or only missing/stale ones?
+- How is schema version mismatch handled?
+
+Given your reproducibility goal, this is important.
+
+### 6. HDF5 layout/versioning is still too abstract
+You specify “single concrete HDF5 schema with a version integer,” which is good, but it’s still missing enough detail to guide implementation.
+
+At minimum define:
+
+- one HDF5 file or many
+- how activities are grouped/named
+- where canonical data lives
+- where extension payloads live
+- whether schema version is global or per-activity
+
+Even a minimal normative structure would help.
+
+### 7. Extension catalog identity may be too weak
+`extension_field_catalog` has:
+
+- `format`
+- `namespace`
+- `field_name`
+- `value_type`
+- `scope`
+- `first_seen_at`
+
+This is okay for discovery, but ambiguous if the same field name appears with differing shapes/units/encodings. Consider whether you also need:
+
+- cardinality / array-ness
+- units if known
+- originating message/table path for FIT
+- first-seen source/activity reference
+
+Not mandatory, but worth thinking about.
+
+## Smaller issues
+
+### 8. `decode_status` lifecycle could be stated more cleanly
+You say it is nullable before decode result exists, but decode-on-add is default. In practice, null may occur only for partial/failed interrupted workflows or manual registration paths.
+
+Consider defining the allowed states more explicitly:
+
+- `NULL` = registered but not yet attempted
+- `decoded`
+- `failed`
+
+Or just add `pending` if you want clearer state semantics.
+
+### 9. Missing operational behavior for file changes at same path
+Since the model is path-oriented, what happens if a file at an already-registered path changes?
+
+Likely desired behavior on `add path` is:
+
+- recompute fingerprint
+- update row
+- re-decode
+- possibly create/update activity linkage
+
+But that should be explicit.
+
+### 10. Unsupported extension rule may be too filename-centric
+You intentionally dispatch by extension first, which is fine, but “unsupported files are rejected up front” based only on extension may be brittle if users have uppercase extensions or odd naming.
+
+Probably specify case handling at least.
+
+### 11. Segment definition/version story is only partial
+You have `segments.version` and `definition_path`, plus `matcher_version` in efforts, which is good. But if a segment definition changes, what is expected?
+
+- overwrite old efforts?
+- recompute into a new version?
+- preserve historical results by segment version?
+
+Probably preserve by `segment_id + version`, but it should be clearer.
+
+## Suggested high-value additions
+
+I’d add short normative text for these:
+
+1. **Path storage rules**
+   - absolute vs relative
+   - normalization
+   - uniqueness
+
+2. **One-file/one-activity assumption**
+   - state whether initial `.fit` ingestion assumes exactly one activity per file
+
+3. **`decoded_ref` definition**
+   - exact meaning and stability guarantees
+
+4. **Exact duplicate behavior**
+   - current implementation rule
+
+5. **Re-decode semantics**
+   - replace vs append
+   - effect on derived results
+
+6. **Minimal HDF5 layout**
+   - enough to make the storage contract real
+
+## Recommended edits
+
+Example wording you could add:
+
+### Source path identity
+> `source_path` is stored as an absolute normalized local path string and is unique in `source_files`.
+
+### Initial activity cardinality
+> In the initial implementation, each successfully decoded source file produces exactly one activity row and one decoded activity record.
+
+### Decoded reference
+> `decoded_ref` identifies the canonical decoded activity record as `<hdf5_file_path>#<group_path>` and must be stable until the activity is re-decoded.
+
+### Exact duplicates
+> If two distinct source paths have identical content fingerprints, Ala Hele stores both source-file rows. The initial implementation should emit a warning but must not perform semantic or identity collapsing.
+
+### Re-decode semantics
+> Re-decoding a source path replaces that path’s prior decoded activity record and updates `decoded_ref`. Derived analysis rows associated with the prior decoded activity must be recomputed or invalidated before reuse.
+
+## Bottom line
+
+The spec is good and implementable, but it would benefit from tightening around:
+
+- identity
+- cardinality
+- duplicate behavior
+- redecode/rebuild semantics
+- concrete storage references
+
+If you want, I can turn this into a patch-style edit of the spec.
+#+end_src
+* Experiments
+  - 
+
+** Decoder interface spec update
+[2026-04-12 Sat]
+
+Proposed addition to spec.md under "Decode Contract" section. Needs to
+be fleshed out more - particularly should clarify what methods the
+interface requires and how extension field handling is standardized.
+
+#+begin_src markdown
+## Decoder Interface
+
+Decoders implement a common interface to ensure consistent behavior across
+file formats. Each decoder must:
+
+- Declare supported file extensions
+- Provide a parse method to read the source file
+- Extract core fields into the canonical HDF5 schema
+- Capture extension fields into the auxiliary HDF5 lane
+- Return structured data for SQLite registration
+
+This abstraction allows new formats to be added by implementing the
+interface without modifying core ingestion logic.
+#+end_src
+
+** HDF5 Cache Architecture: From Monolith to CAS
+   [2026-04-12 Sun]
+
+   The decision was made to shift the HDF5 cache from a single monolithic file to a Content Addressable Storage (CAS) mirror.
+
+   *** The Problem with the Monolith
+   - Blast Radius: Single point of failure. Corruption of the file header destroys the entire cache.
+   - Concurrency: HDF5 locking makes simultaneous read/write (e.g., analysis while ingesting) difficult without SWMR complexity.
+   - Evolution: Updating the schema for some activities requires rewriting the entire monolithic file.
+
+   *** The CAS Solution
+   - Structure: Each ride is stored as a separate HDF5 file, named by its SHA-256 content fingerprint (e.g., /cache/abc123...h5).
+   - Index as Bridge: SQLite continues to act as the operational index, mapping human-readable source paths to these fingerprints.
+   - Loader Abstraction: A dedicated loader subroutine abstracts this lookup, allowing analysis tools to request rides by path while the system retrieves them by hash.
+
+   *** Strategic Value
+   - Resilience: Corruption is localized to a single ride.
+   - Concurrency: Asynchronous access is native; adding new rides doesn't block reads of existing ones.
+   - P2P Foundation: This architecture is a prerequisite for a P2P sharing network, where rides are identified and exchanged via hashes rather than paths.
+   - Ecosystem: Decoupling the data (CAS) from the provenance (Index) allows other tools (R, Jupyter) to consume the cache without needing the full ingestion logic.
+
+** HDF5 Storage Sharding
+[2026-04-12 Sun]
+
+#+begin_src markdown
+### Avoiding Directory Proliferation
+While a single directory for all HDF5 files is sufficient for most users, it can lead to OS-level performance degradation (slow listing, inode exhaustion) at extreme scales (10k+ files).
+
+The decision is to bake in **Directory Sharding** from the start to avoid future migrations.
+
+### Implementation
+The CAS will use a prefix of the SHA-256 fingerprint to create subdirectories.
+Example: a fingerprint `af1234...` is stored at `/activity_store/af/1234...h5`.
+
+Using the first 2 characters of the hex hash provides 256 subdirectories, distributing the load and ensuring filesystem performance regardless of the total activity count.
+#+end_src
+* References
+  - 
