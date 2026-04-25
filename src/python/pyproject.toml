@@ -15,3 +15,15 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["bunkalunk*"]
+
+[tool.mypy]
+# Look in the 'typings' folder for library stubs
+# mypy_path = "./typings"
+
+# Optional: ensure mypy is strict about imports
+disallow_untyped_calls = true
+namespace_packages = true
+explicit_package_bases = true
+
+[tool.pyright]
+stubPath = "typings"

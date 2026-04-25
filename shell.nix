@@ -38,7 +38,20 @@ let
 
     };
   };
-  
+  julia-fhs = pkgs.buildFHSEnv {
+    name = "julia";
+    targetPkgs = pkgs: with pkgs; [
+      julia-bin
+      git
+      zlib
+      glib
+      stdenv.cc.cc.lib
+      sqlite
+      gdal
+      # List all system libraries your Julia packages might try to link against
+    ];
+    runScript = "julia";
+  };
   pythonEnv = myPython.withPackages (ps: with ps; [
     requests
     fitdecode
@@ -58,14 +71,24 @@ let
     mypy
   ]);
 
-
 in
 pkgs.mkShell {
-  buildInputs = [ pythonEnv ] ++ (with pkgs; [ ruff ]);
+  buildInputs = [ pythonEnv ]
+                ++ (with pkgs;
+                  [
+                    ruff
+                    julia-fhs
+                  ]);
 
+  TMPDIR = "/tmp";  # Julia tries (and fails) to write tmpdata to nix-store without this
+  
   # Setup pythonpath and db root in a shell hook
   shellHook = ''
+    export PYTHON=${pythonEnv}/bin/python  # Allows Julia to see shell's python
     export PYTHONPATH=''${PYTHONPATH}:''${PWD}/src/python
     export BUNKALUNK_DB_ROOT=''${PWD}/source_archive
+    export MYPYPATH=''${PYTHONPATH}/typings
+    export JULIA_PROJECT=''${PWD}/src/julia
+    # export JULIA_DEPOT="''${PWD}/.julia:"
   '';
 }
