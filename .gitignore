@@ -5,3 +5,5 @@
 /docs/private
 /src/python/typings/
 /scratch/
+/.direnv/
+/src/python/bunkalunk.egg-info/

@@ -1,0 +1,71 @@
+import h5py
+import pytest
+from numpy.testing import assert_equal
+
+from bunkalunk import cache
+from bunkalunk.cache import CacheData, write_cache, _write_cache_file
+
+
+# TODO: Monkeypatch
+_CACHE_VERSION = 19991230
+
+def test_write_cache(tmp_path, monkeypatch):
+    file_path = tmp_path / "test.hdf5"
+    data = CacheData(latitude=[1.0, 1.1, 1.2],
+                     longitude=[2.0, 2.1, 2.2],
+                     time=[0.0, 1.0, 2.0],
+                     start_time='2026-01-01')
+
+    monkeypatch.setattr(cache, "CACHE_VERSION", _CACHE_VERSION)
+
+    write_cache(file_path, data)
+
+    with h5py.File(file_path, 'r') as cache_file:
+        assert_equal(cache_file['latitude'][:], [1.0, 1.1, 1.2])
+        assert_equal(cache_file['longitude'][:], [2.0, 2.1, 2.2])
+        assert_equal(cache_file['time'][:], [0.0, 1.0, 2.0])
+        assert_equal(cache_file.attrs['start_time'], '2026-01-01')
+        assert cache_file.attrs['cache_version'] == 19991230
+
+
+def test_write_cache_unequal_length_arrays(tmp_path, monkeypatch):
+    file_path = tmp_path / "test.hdf5"
+    data = CacheData(latitude=[1.0, 1.1, 1.2],
+                     longitude=[2.0, 2.1],
+                     time=[0.0],
+                     start_time='2026-01-01')
+
+    monkeypatch.setattr(cache, "CACHE_VERSION", _CACHE_VERSION)
+
+    with pytest.raises(ValueError, match="Unequal length"):
+        write_cache(file_path, data)
+        
+
+def test_write_cache_cleanup(tmp_path, monkeypatch):
+    file_path = tmp_path / "test.hdf5"
+    data = CacheData(latitude=[1.0, 1.1, 1.2],
+                     longitude=[2.0, 2.1, 2.2],
+                     time=[0.0, 1.0, 2.0],
+                     start_time='2026-01-01')
+
+    def mock_write(file_path, data):
+        _write_cache_file(file_path, data)
+        raise RuntimeError("mock failure")
+    
+    monkeypatch.setattr(cache, "_write_cache_file", mock_write)
+
+    ls_before = [f for f in file_path.parent.iterdir()]
+    with pytest.raises(RuntimeError, match="mock failure"):
+        write_cache(file_path, data)
+    ls_after = [f for f in file_path.parent.iterdir()]
+    assert ls_before == ls_after
+
+
+def test_resolve_cache_path_creates_parents(tmp_path):
+    fingerprint = "abcdef123456"
+    shard_dir = tmp_path / fingerprint[0:2]
+    assert not shard_dir.exists()
+    result = cache.resolve_cache_path(fingerprint, tmp_path)
+    expected = tmp_path / fingerprint[0:2] / f"{fingerprint}.h5"
+    assert result == expected
+    assert expected.parent.exists()

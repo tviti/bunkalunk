@@ -75,7 +75,6 @@ queries and writes to a narrow set of analysis-owned tables.
 - One source file decodes to exactly one activity. 
 - `.fit` is the only supported format initially.
 - Explicit file paths only; no recursive directory ingestion.
-- Decode on add is the default; deferred decode is not supported.
 
 ## Input Contract
 
@@ -85,6 +84,33 @@ queries and writes to a narrow set of analysis-owned tables.
 
 ## Storage Model
 
+The system uses two storage mechanisms because it manages two distinct kinds of
+data.
+
+SQLite stores cross-activity relational state:
+- source-file registration
+- decode status and errors
+- activity metadata
+- segment definitions
+- computed segment efforts
+
+HDF5 stores per-activity decoded payloads:
+- canonical time-series arrays such as timestamps, position, elevation,
+  distance, heart rate, and speed
+
+This split is intentional. SQLite is the catalog and result store; HDF5 is the
+decoded artifact store. The project does not treat either as interchangeable
+with the other.
+
+A file-only design would turn cross-activity metadata and analysis results into
+an ad hoc database. A SQLite-only design would force large decoded time-series
+payloads into a relational store that is not the natural representation for
+them.
+
+Therefore the architecture intentionally keeps:
+- SQLite for queryable metadata and derived state
+- HDF5 for canonical decoded activity artifacts
+
 ### SQLite
 
 Minimum tables:
@@ -93,14 +119,15 @@ Minimum tables:
   - `source_path`
   - `content_fingerprint` (FK → `activities.source_fingerprint`)
   - `decode_state`
-  - `last_decode_error` (nullable)
-  - `last_decode_error_at` (nullable)
+  - `decode_error` (nullable)
 
 - `activities` — Python-owned, Julia-readable
   - `activity_id`
   - `source_fingerprint` (CAS address; unique)
   - `start_time`
+  - `cache_version`
   - `ride_tag` (nullable)
+  - `sport` (nullable)
 
 - `segments` — analysis-owned
   - `segment_id`
@@ -121,19 +148,22 @@ Minimum tables:
 `activities.source_fingerprint` is the SHA-256 fingerprint of the source file
 bytes and serves as the CAS address for the decoded HDF5 artifact.
 
-`activities.start_time` must be indexed for efficient timestamp-based
-lookup. `activities.source_fingerprint` must have a unique constraint.
+`activities.source_fingerprint` must have a unique constraint.
 Exact-content duplicates in `source_files` naturally share a single `activities`
 row via their common `source_fingerprint`. In other words, multiple
 `source_files` rows may share the same `content_fingerprint`; the schema is
 intentionally designed to allow this.
+
+`decode_state` should take only the following values:
+- "pending"
+- "success"
+- "error"
 
 ### HDF5
 
 Each decoded activity is stored as a single HDF5 file named by the
 source file's SHA-256 fingerprint, sharded by the first two
 characters of that fingerprint.
-
 
 Each HDF5 file carries a `schema_version` integer attribute. If the
 version does not match the current expected version, the cache entry
@@ -145,10 +175,7 @@ The canonical schema includes:
 
 - timestamps (required)
 - latitude / longitude (required)
-- elevation (nullable)
-- distance (nullable)
 - heart rate (nullable)
-- speed (nullable)
 
 Failed or interrupted decodes must not leave a completed artifact at
 the final path.
@@ -177,10 +204,11 @@ On `bunk add <path>`:
 
 ### `bunk`
 
-- `add <path>...` — register and decode files immediately
-- `decode [path]...` — manually re-decode previously added files; use this to
+- `add <path>` — register and decode file at `<path>` immediately
+- `decode [path]` — manually re-decode previously added files; use this to
   replace stale, missing, or corrupt cache entries (e.g. after a schema bump, or
-  a write failure).
+  a write failure). Takes one or zero paths (zero paths rebuilds the entire
+  store).
   
 `bunk decode` is idempotent and safe to run at any time.
 
@@ -221,7 +249,12 @@ State lives under `~/.bunk/` by default, or `$BUNK_HOME` if set.
 The project directory contains no runtime state.
 
 ## Deferred
-
+- The cache schema should include:
+	- elevation (nullable)
+	- distance (nullable)
+	- speed (nullable)
+- `activities.start_time` should be indexed for efficient timestamp-based
+  lookup.
 - Additional format decoders (`.tcx`, `.gpx`): the initial data
   corpus contains many files in these formats. `.fit` is the MVP
   target, but `.tcx` and `.gpx` support is an early priority, not
@@ -229,6 +262,7 @@ The project directory contains no runtime state.
 - Recursive directory ingestion
 - Extension field capture and catalog
 - Automatic cache rebuild on schema version change
+- Error timestamp tracking (`decode_error_at` in `source_files`)
 - WAL mode
 - Richer status reporting
 - Semantic deduplication

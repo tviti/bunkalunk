@@ -90,5 +90,6 @@ pkgs.mkShell {
     export MYPYPATH=''${PYTHONPATH}/typings
     export JULIA_PROJECT=''${PWD}/src/julia
     # export JULIA_DEPOT="''${PWD}/.julia:"
+    export PYTEST_DIR=''${PWD}/src/python/tests
   '';
 }
