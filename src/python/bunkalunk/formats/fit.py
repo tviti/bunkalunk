@@ -23,7 +23,7 @@ class FitData():
     timestamp: list[datetime] = field(default_factory=list)
     position_long: list[float] = field(default_factory=list)
     position_lat: list[float] = field(default_factory=list)
-    sport: str = field(default_factory=str)
+    sport: str | None = None
 
     start_time: datetime | None = None
 
@@ -74,6 +74,11 @@ def read_fit(fit_path: BinaryIO, *, logger: logging.Logger | None = None) -> Fit
     fit_data_fieldnames: set[str] = {f.name for f in fields(fit_data)}
     file_id = None
 
+    # In general, it isn't a good idea to rely on frames/fields in any sort of
+    # FIT file. Each FIT file type does have a small set of required frame
+    # types, and those in turn have a small set of required fields, but the
+    # protocol seems to be intentionally designed to have a loose standard.
+
     with FitReader(fit_path, processor=StandardUnitsDataProcessor()) as fit:
         for frame in fit:
             # Skip till we've hit the start of a file in the stream
@@ -86,13 +91,15 @@ def read_fit(fit_path: BinaryIO, *, logger: logging.Logger | None = None) -> Fit
                 continue
 
             if _is_data(frame) and frame.name == 'sport':
-                fit_data.sport = frame.get_value('name')
+                fit_data.sport = frame.get_value('sport')
 
             if _is_data(frame) and frame.name == 'session':
                 # A Session message is a Summary message type. Start Time, Total
                 # Elapsed Time, Total Timer Time, and Timestamp are required
                 # fields for all summary messages.
                 fit_data.start_time = frame.get_value('start_time')
+                sport = frame.get_value('sport')
+                fit_data.sport = sport or fit_data.sport
                 
             if _is_data(frame) and frame.name == 'record':
                 _append_fit_data(frame, fit_data_fieldnames, fit_data)

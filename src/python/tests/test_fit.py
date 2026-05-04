@@ -46,7 +46,7 @@ def test_read_fit(fit_path):
     n_lon = len(fit_data.position_long)
 
     assert 2148 == n_timestamp == n_lat == n_lon
-    assert fit_data.sport == "MTB"
+    assert fit_data.sport == "cycling"
     assert fit_data.start_time.isoformat() == "2023-11-16T20:37:44+00:00"
     assert fit_data.heart_rate is not None and len(fit_data.heart_rate) > 0
 
@@ -87,7 +87,7 @@ def _make_activity_fit_fields():
                               fields=session_fields,
                               frame_type=fitdecode.FIT_FRAME_DATAMESG)
 
-    sport_fields = [FakeField("name", "competetive-gardening")]
+    sport_fields = [FakeField("sport", "competetive-gardening")]
     sport_frame = FakeFrame(name="sport",
                             fields=sport_fields,
                             frame_type=fitdecode.FIT_FRAME_DATAMESG)
