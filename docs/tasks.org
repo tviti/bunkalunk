@@ -79,8 +79,49 @@ This is an example task that became canceled for some reason. A note
 was included explaining why.
 
 * Tasks
+** TODO Code review for initial ~bunk add~ and ~bunk decode~ implementations
+[2026-05-03 Sun]
+** Main Modules
+- [ ] src/python/bunkalunk/bunk.py
+- [ ] src/python/bunkalunk/bunk_helpers.py
+- [ ] src/python/bunkalunk/cache.py
+- [ ] src/python/bunkalunk/db.py
+- [ ] src/python/bunkalunk/formats/fit.py
+** Test Files
+- [ ] src/python/tests/conftest.py
+- [ ] src/python/tests/test_bunk.py
+- [ ] src/python/tests/test_bunk_helpers.py
+- [ ] src/python/tests/test_cache.py
+- [ ] src/python/tests/test_db.py
+- [ ] src/python/tests/test_fit.py
+** TODO Implement ~--rebuild~ flag for ~bunk decode~
+[2026-05-03 Sun]
 
-** TODO Build SQLite database API
+The decode command should have a rebuild function that force-rebuilds the entire
+cache (regardless of re-decode candidacy).
+
+** TODO Add an index to ~activities~ table's ~start_time~ column
+[2026-05-03 Sun]
+
+Sorting by start time is probably going to be the most heavily used method of
+activity discovery, so this should get an index.
+
+This can probably get deferred until lookup functionality is actually
+implemented somewhere (the Julia codebase will probably be the first place it's
+needed)
+
+** TODO Implement recursive ~bunk add~ behavior
+[2026-05-03 Sun]
+** TODO Finish ~bunk.py~ tests
+[2026-05-03 Sun]
+
+As of this writing, ~test_bunk.py~ still has 5 lower-priority tests that are
+still just stubs.
+
+** DONE Build SQLite database API
+:LOGBOOK:
+- State "DONE"       from "TODO"       [2026-05-03 Sun 22:47]
+:END:
 [2026-04-12 Sat]
 
 Implement the minimal SQLite access layer using the standard library
@@ -100,7 +141,10 @@ Tables to implement:
 - `segment_efforts`
 - `extension_field_catalog`
 
-** TODO Add test FIT files
+** DONE Add test FIT files
+:LOGBOOK:
+- State "DONE"       from "TODO"       [2026-05-03 Sun 22:47]
+:END:
 [2026-04-12 Sat]
 
 Add sample FIT files for testing the FIT decoder and database ingestion.
@@ -112,7 +156,10 @@ These files should cover:
 
 Place test files in `tests/fixtures/` or similar location.
 
-** TODO Add unit tests for fingerprint function
+** DONE Add unit tests for fingerprint function
+:LOGBOOK:
+- State "DONE"       from "TODO"       [2026-05-03 Sun 22:47]
+:END:
 [2026-04-12 Sat]
 
 Write unit tests for the SHA-256 content fingerprint computation function.
@@ -126,7 +173,10 @@ Tests should verify:
 
 Place tests in `tests/` directory.
 
-** TODO Define decoder interface
+** DONE Define decoder interface
+:LOGBOOK:
+- State "DONE"       from "TODO"       [2026-05-03 Sun 22:47]
+:END:
 [2026-04-12 Sat]
 
 Create a common decoder interface to simplify adding new file formats in
