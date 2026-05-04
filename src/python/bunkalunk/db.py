@@ -245,5 +245,6 @@ def record_cache_creation(
     activity = Activity(
         start_time=cache_data.start_time,
         source_fingerprint=source_fingerprint,
+        sport=cache_data.sport,
     )
     _upsert_activity(conn, activity)

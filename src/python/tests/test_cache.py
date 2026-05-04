@@ -9,12 +9,26 @@ from bunkalunk.cache import CacheData, write_cache, _write_cache_file
 # TODO: Monkeypatch
 _CACHE_VERSION = 19991230
 
-def test_write_cache(tmp_path, monkeypatch):
-    file_path = tmp_path / "test.hdf5"
-    data = CacheData(latitude=[1.0, 1.1, 1.2],
+
+def make_unequal_length_cache_data():
+    return CacheData(latitude=[1.0, 1.1, 1.2],
+                     longitude=[2.0, 2.1],
+                     time=[0.0],
+                     start_time='2026-01-01',
+                     sport="yoyo")
+
+
+def make_cache_data():
+    return CacheData(latitude=[1.0, 1.1, 1.2],
                      longitude=[2.0, 2.1, 2.2],
                      time=[0.0, 1.0, 2.0],
-                     start_time='2026-01-01')
+                     start_time='2026-01-01',
+                     sport="yoyo")
+
+
+def test_write_cache(tmp_path, monkeypatch):
+    file_path = tmp_path / "test.hdf5"
+    data = make_cache_data()
 
     monkeypatch.setattr(cache, "CACHE_VERSION", _CACHE_VERSION)
 
@@ -26,27 +40,22 @@ def test_write_cache(tmp_path, monkeypatch):
         assert_equal(cache_file['time'][:], [0.0, 1.0, 2.0])
         assert_equal(cache_file.attrs['start_time'], '2026-01-01')
         assert cache_file.attrs['cache_version'] == 19991230
+        assert cache_file.attrs['sport'] == 'yoyo'
 
 
 def test_write_cache_unequal_length_arrays(tmp_path, monkeypatch):
     file_path = tmp_path / "test.hdf5"
-    data = CacheData(latitude=[1.0, 1.1, 1.2],
-                     longitude=[2.0, 2.1],
-                     time=[0.0],
-                     start_time='2026-01-01')
+    data = make_unequal_length_cache_data()
 
     monkeypatch.setattr(cache, "CACHE_VERSION", _CACHE_VERSION)
 
     with pytest.raises(ValueError, match="Unequal length"):
         write_cache(file_path, data)
-        
+
 
 def test_write_cache_cleanup(tmp_path, monkeypatch):
     file_path = tmp_path / "test.hdf5"
-    data = CacheData(latitude=[1.0, 1.1, 1.2],
-                     longitude=[2.0, 2.1, 2.2],
-                     time=[0.0, 1.0, 2.0],
-                     start_time='2026-01-01')
+    data = make_cache_data()
 
     def mock_write(file_path, data):
         _write_cache_file(file_path, data)

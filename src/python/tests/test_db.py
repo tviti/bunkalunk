@@ -166,6 +166,7 @@ def test_record_cache_creation_idempotent(db_conn, monkeypatch):
         latitude=[1.0, 1.1, 1.2],
         longitude=[2.0, 2.1, 2.2],
         time=[0.0, 1.0, 2.0],
+        sport="yoyo",
     )
 
     monkeypatch.setattr(cache, "CACHE_VERSION", 19991230)
@@ -179,6 +180,7 @@ def test_record_cache_creation_idempotent(db_conn, monkeypatch):
     row = rows[0]
     assert row["source_fingerprint"] == source_fingerprint
     assert row["start_time"] == "2026-01-01T10:30:00"
+    assert row["sport"] == "yoyo"
     assert row["cache_version"] == 19991230
 
 
@@ -189,6 +191,7 @@ def test_record_cache_creation_updates(db_conn, monkeypatch):
         latitude=[1.0, 1.1, 1.2],
         longitude=[2.0, 2.1, 2.2],
         time=[0.0, 1.0, 2.0],
+        sport="yoyo"
     )
 
     monkeypatch.setattr(cache, "CACHE_VERSION", 19991230)
@@ -203,6 +206,7 @@ def test_record_cache_creation_updates(db_conn, monkeypatch):
     assert len(rows) == 1
     row = rows[0]
     assert row["start_time"] == "2027-01-01T10:30:00"
+    assert row["sport"] == "yoyo"
     assert row["source_fingerprint"] == "cde456"
     assert row["cache_version"] == 19991231
 

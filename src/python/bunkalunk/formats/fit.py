@@ -116,5 +116,6 @@ def fit_to_cache(fit_data: FitData) -> CacheData:
         latitude=fit_data.position_lat,
         longitude=fit_data.position_long,
         time=time,
-        start_time=fit_data.start_time.isoformat()
+        start_time=fit_data.start_time.isoformat(),
+        sport=fit_data.sport,
     )
