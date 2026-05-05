@@ -174,7 +174,7 @@ responsibility via `bunk decode`.
 The canonical schema includes:
 
 - timestamps (required)
-- latitude / longitude (required)
+- latitude / longitude (nullable)
 - heart rate (nullable)
 
 Failed or interrupted decodes must not leave a completed artifact at
@@ -188,6 +188,11 @@ the final path.
 - Write decoded artifact to HDF5 store.
 - Update decode metadata in SQLite.
 - One decoded activity per source file (MVP assumption).
+
+The decoder treats FitData as a sparse row-aligned table: one row per
+FIT record, timestamp always present, other fields may be None.
+Decode errors should only happen for actual decode/contract failures,
+not because a record is analytically inconvenient.
 
 ## Ingestion Workflow
 
@@ -283,6 +288,15 @@ The project directory contains no runtime state.
 - All state is rooted under `BUNK_HOME`.
 - HDF5 cache files carry a `schema_version` attribute; stale entries
   are rebuilt manually via `bunk decode`.
+- FitData is a sparse row-aligned table, not cleaned analysis-ready
+  tracks. The FIT protocol makes very few guarantees about what fields
+  are present in any given record, so the decoder preserves record
+  alignment without imposing stricter constraints than the protocol
+  requires. Invariants: timestamp, position_lat, position_long,
+  heart_rate have equal lengths; each index corresponds to one FIT
+  record; timestamp[i] is present. Decode errors are for contract
+  failures only, not analytical inconvenience. session.sport is read
+  with fallback; optional metadata stays optional.
 
 ## Contribution
 

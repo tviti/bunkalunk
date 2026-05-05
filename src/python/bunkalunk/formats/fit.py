@@ -6,20 +6,27 @@ To narrow the project scope to something tractable, this module is targeted at A
 - Weight
 
 """
+
 import logging
 from dataclasses import dataclass, field, fields
 from datetime import datetime
 from typing import BinaryIO
 
-from fitdecode import (FitReader, StandardUnitsDataProcessor,
-                       FIT_FRAME_DATAMESG, FitDataMessage, FitHeader,
-                       FitDefinitionMessage, FitCRC)
+from fitdecode import (
+    FitReader,
+    StandardUnitsDataProcessor,
+    FIT_FRAME_DATAMESG,
+    FitDataMessage,
+    FitHeader,
+    FitDefinitionMessage,
+    FitCRC,
+)
 
 from bunkalunk.cache import CacheData
 
 
 @dataclass
-class FitData():
+class FitData:
     start_time: datetime | None = None
     sport: str | None = None
     manufacturer: str | None = None
@@ -30,12 +37,13 @@ class FitData():
     heart_rate: list[float | None] = field(default_factory=list)
 
 
-_RECORD_FIELDS_REQUIRED = {'timestamp'}
-_RECORD_FIELDS_OPTIONAL = {'position_long', 'position_lat', 'heart_rate'}
+_RECORD_FIELDS_REQUIRED = {"timestamp"}
+_RECORD_FIELDS_OPTIONAL = {"position_long", "position_lat", "heart_rate"}
+
 
 class UnsupportedFITFileType(Exception):
     pass
-    
+
 
 class MissingRequiredField(Exception):
     pass
@@ -49,10 +57,7 @@ def _append_record(frame: FitDataMessage, fit_data: FitData) -> None:
             attr = getattr(fit_data, name)
             attr.append(frame.get_value(name))
         except KeyError as e:
-            raise MissingRequiredField(
-                f"Record is missing '{name}' field."
-            ) from e
-            
+            raise MissingRequiredField(f"Record is missing '{name}' field.") from e
 
     for name in _RECORD_FIELDS_OPTIONAL:
         attr = getattr(fit_data, name)
@@ -64,11 +69,10 @@ def _is_data(frame: FitHeader | FitDefinitionMessage | FitDataMessage | FitCRC):
 
 
 def _assert_is_activity(file_id: FitDataMessage):
-    type = next((a.value for a in file_id.fields if a.name == 'type'), None)
-    if type != 'activity':
+    type = next((a.value for a in file_id.fields if a.name == "type"), None)
+    if type != "activity":
         raise UnsupportedFITFileType(
-            'FIT decoder only supports activity files. '
-            f'Got {type}'
+            f"FIT decoder only supports activity files. Got {type}"
         )
 
 
@@ -92,30 +96,30 @@ def read_fit(fit_path: BinaryIO, *, logger: logging.Logger | None = None) -> Fit
         for frame in fit:
             # Skip till we've hit the start of a file in the stream
             if file_id is None:
-                if _is_data(frame) and frame.name == 'file_id':
+                if _is_data(frame) and frame.name == "file_id":
                     # file_id frames are guaranteed to have type, manufacturer,
                     # and product fields.
-                    fit_data.manufacturer = frame.get_value('manufacturer')
+                    fit_data.manufacturer = frame.get_value("manufacturer")
                     _assert_is_activity(frame)
                     file_id = frame
                 continue
 
-            if _is_data(frame) and frame.name == 'sport':
-                fit_data.sport = frame.get_value('sport', fallback=None)
+            if _is_data(frame) and frame.name == "sport":
+                fit_data.sport = frame.get_value("sport", fallback=None)
 
-            if _is_data(frame) and frame.name == 'session':
+            if _is_data(frame) and frame.name == "session":
                 # A Session message is a Summary message type. Start Time, Total
                 # Elapsed Time, Total Timer Time, and Timestamp are required
                 # fields for all summary messages.
-                fit_data.start_time = frame.get_value('start_time')
+                fit_data.start_time = frame.get_value("start_time")
                 if fit_data.sport is None:
-                    fit_data.sport = frame.get_value('sport', fallback=None)
-                
-            if _is_data(frame) and frame.name == 'record':
+                    fit_data.sport = frame.get_value("sport", fallback=None)
+
+            if _is_data(frame) and frame.name == "record":
                 _append_record(frame, fit_data)
 
-            if _is_data(frame) and frame.name == 'file_id':
-                logger.warning('Encountered another FIT in the stream. Breaking.')
+            if _is_data(frame) and frame.name == "file_id":
+                logger.warning("Encountered another FIT in the stream. Breaking.")
                 break
 
     return fit_data
@@ -124,7 +128,7 @@ def read_fit(fit_path: BinaryIO, *, logger: logging.Logger | None = None) -> Fit
 def fit_to_cache(fit_data: FitData) -> CacheData:
     if fit_data.start_time is None:
         raise ValueError(
-            'Cache schema requires start_time, but given fit_data has none!'
+            "Cache schema requires start_time, but given fit_data has none!"
         )
 
     time = [t.timestamp() for t in fit_data.timestamp]
