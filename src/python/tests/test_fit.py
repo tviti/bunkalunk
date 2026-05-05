@@ -21,7 +21,7 @@ class FakeFrame:
         self.name = name
         self.fields = fields
         self.frame_type = frame_type
-    def get_value(self, name):
+    def get_value(self, name, fallback=None):
         for field in self.fields:
             if field.name == name:
                 return field.value

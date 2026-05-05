@@ -18,13 +18,13 @@ class CacheData:
     operational state.
 
     """
+    latitude: list[float | None]
+    longitude: list[float | None]
+    time: list[float]
 
     start_time: str
-    latitude: list[float]
-    longitude: list[float]
-    time: list[float]
     sport: str | None = None
-    heart_rate: list[float] | None = None
+    heart_rate: list[float | None] | None = None
 
 
 def _write_cache_file(file_path: Path, data: CacheData) -> None:

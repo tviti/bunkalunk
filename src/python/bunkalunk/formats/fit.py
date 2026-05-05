@@ -20,33 +20,43 @@ from bunkalunk.cache import CacheData
 
 @dataclass
 class FitData():
-    timestamp: list[datetime] = field(default_factory=list)
-    position_long: list[float] = field(default_factory=list)
-    position_lat: list[float] = field(default_factory=list)
-    sport: str | None = None
-
     start_time: datetime | None = None
+    sport: str | None = None
+    manufacturer: str | None = None
 
-    manufacturer: str = ''
+    timestamp: list[datetime] = field(default_factory=list)
+    position_long: list[float | None] = field(default_factory=list)
+    position_lat: list[float | None] = field(default_factory=list)
+    heart_rate: list[float | None] = field(default_factory=list)
 
-    heart_rate: list[float] = field(default_factory=list)
-    # distance: list[float] | None = None
-    # enhanced_speed: list[float] | None = None
-    # enhanced_altitude: list[float] | None = None
 
+_RECORD_FIELDS_REQUIRED = {'timestamp'}
+_RECORD_FIELDS_OPTIONAL = {'position_long', 'position_lat', 'heart_rate'}
 
 class UnsupportedFITFileType(Exception):
     pass
     
 
-def _append_fit_data(
-        frame: FitDataMessage,
-        field_names: set[str],
-        fit_data: FitData
-) -> None:
-    for f in frame.fields:
-        if f.name in field_names:
-            getattr(fit_data, f.name).append(f.value)
+class MissingRequiredField(Exception):
+    pass
+
+
+# TODO: Maybe this should be a classmethod
+def _append_record(frame: FitDataMessage, fit_data: FitData) -> None:
+    for name in _RECORD_FIELDS_REQUIRED:
+        # get_value with no fallback raises on lookup failure
+        try:
+            attr = getattr(fit_data, name)
+            attr.append(frame.get_value(name))
+        except KeyError as e:
+            raise MissingRequiredField(
+                f"Record is missing '{name}' field."
+            ) from e
+            
+
+    for name in _RECORD_FIELDS_OPTIONAL:
+        attr = getattr(fit_data, name)
+        attr.append(frame.get_value(name, fallback=None))
 
 
 def _is_data(frame: FitHeader | FitDefinitionMessage | FitDataMessage | FitCRC):
@@ -71,7 +81,6 @@ def read_fit(fit_path: BinaryIO, *, logger: logging.Logger | None = None) -> Fit
     """
     logger = logger or logging.getLogger(__name__)
     fit_data = FitData()
-    fit_data_fieldnames: set[str] = {f.name for f in fields(fit_data)}
     file_id = None
 
     # In general, it isn't a good idea to rely on frames/fields in any sort of
@@ -86,23 +95,24 @@ def read_fit(fit_path: BinaryIO, *, logger: logging.Logger | None = None) -> Fit
                 if _is_data(frame) and frame.name == 'file_id':
                     # file_id frames are guaranteed to have type, manufacturer,
                     # and product fields.
+                    fit_data.manufacturer = frame.get_value('manufacturer')
                     _assert_is_activity(frame)
                     file_id = frame
                 continue
 
             if _is_data(frame) and frame.name == 'sport':
-                fit_data.sport = frame.get_value('sport')
+                fit_data.sport = frame.get_value('sport', fallback=None)
 
             if _is_data(frame) and frame.name == 'session':
                 # A Session message is a Summary message type. Start Time, Total
                 # Elapsed Time, Total Timer Time, and Timestamp are required
                 # fields for all summary messages.
                 fit_data.start_time = frame.get_value('start_time')
-                sport = frame.get_value('sport')
-                fit_data.sport = sport or fit_data.sport
+                if fit_data.sport is None:
+                    fit_data.sport = frame.get_value('sport', fallback=None)
                 
             if _is_data(frame) and frame.name == 'record':
-                _append_fit_data(frame, fit_data_fieldnames, fit_data)
+                _append_record(frame, fit_data)
 
             if _is_data(frame) and frame.name == 'file_id':
                 logger.warning('Encountered another FIT in the stream. Breaking.')
