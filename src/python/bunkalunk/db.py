@@ -46,7 +46,7 @@ def _create_source_files_table(conn: Connection):
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS source_files (
                 source_path TEXT PRIMARY KEY,
-                content_fingerprint TEXT,
+                content_fingerprint TEXT NOT NULL,
                 decode_state TEXT,
                 decode_error TEXT
             )
@@ -61,12 +61,16 @@ def _create_activities_table(conn: Connection):
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS activities (
                 activity_id INTEGER PRIMARY KEY,
-                source_fingerprint TEXT UNIQUE,
+                source_fingerprint TEXT UNIQUE NOT NULL,
                 start_time TEXT,
                 cache_version INT,
                 ride_tag TEXT,
                 sport TEXT
             )
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_activities_start_time
+            ON activities(start_time)
         """)
     finally:
         cursor.close()
