@@ -37,6 +37,11 @@ def _write_cache_file(file_path: Path, data: CacheData) -> None:
             f"Got '{n}', '{data.latitude}', '{data.longitude}'"
         )
 
+    if data.heart_rate and n != len(data.heart_rate):
+        raise ValueError(
+            f"Unequal length data array 'heart_rate'. Got '{n}'"
+        )
+
     with h5py.File(file_path, "w") as cache:
         time: h5py.Dataset = cache.create_dataset("time", shape=(n,), dtype="float64")
         latitude: h5py.Dataset = cache.create_dataset(
@@ -63,6 +68,10 @@ def _write_cache_file(file_path: Path, data: CacheData) -> None:
             heart_rate[:] = data.heart_rate[:]
 
 
+class CacheWriteFailure(Exception):
+    pass
+
+
 def write_cache(file_path: Path, data: CacheData) -> None:
     tmp, tmp_name = mkstemp(dir=file_path.parent, suffix=_SUFFIX)
     os.close(tmp)  # Make sure h5py.File gets a closed fd
@@ -70,15 +79,15 @@ def write_cache(file_path: Path, data: CacheData) -> None:
     try:
         _write_cache_file(tmp_path, data)
         tmp_path.replace(file_path)
-    except Exception:
+    except Exception as e:
         tmp_path.unlink(missing_ok=True)
-        raise
+        raise CacheWriteFailure(f"Cache write for '{file_path.name}' failed.") from e
 
 
 def resolve_cache_path(content_fingerprint: str, activity_store: Path) -> Path:
     shard = content_fingerprint[0:2]
     cache_parent = activity_store / shard
     if not cache_parent.exists():
-        cache_parent.mkdir(parents=True)
+        cache_parent.mkdir(parents=True, exist_ok=True)
     cache_path = (cache_parent / content_fingerprint).with_suffix(_SUFFIX)
     return cache_path

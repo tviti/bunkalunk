@@ -81,5 +81,5 @@ def resolve_activity_store(create: bool = True) -> Path:
     bunk_home = resolve_bunk_home(create)
     activity_store = bunk_home / "activity_store"
     if not activity_store.exists() and create:
-        activity_store.mkdir(parents=True)
+        activity_store.mkdir(parents=True, exist_ok=True)
     return activity_store

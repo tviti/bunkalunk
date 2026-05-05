@@ -3,7 +3,7 @@ import pytest
 from numpy.testing import assert_equal
 
 from bunkalunk import cache
-from bunkalunk.cache import CacheData, write_cache, _write_cache_file
+from bunkalunk.cache import CacheData, write_cache, _write_cache_file, CacheWriteFailure
 
 
 # TODO: Monkeypatch
@@ -49,7 +49,7 @@ def test_write_cache_unequal_length_arrays(tmp_path, monkeypatch):
 
     monkeypatch.setattr(cache, "CACHE_VERSION", _CACHE_VERSION)
 
-    with pytest.raises(ValueError, match="Unequal length"):
+    with pytest.raises(CacheWriteFailure, match="Cache write"):
         write_cache(file_path, data)
 
 
@@ -64,7 +64,7 @@ def test_write_cache_cleanup(tmp_path, monkeypatch):
     monkeypatch.setattr(cache, "_write_cache_file", mock_write)
 
     ls_before = [f for f in file_path.parent.iterdir()]
-    with pytest.raises(RuntimeError, match="mock failure"):
+    with pytest.raises(CacheWriteFailure, match="Cache write"):
         write_cache(file_path, data)
     ls_after = [f for f in file_path.parent.iterdir()]
     assert ls_before == ls_after
