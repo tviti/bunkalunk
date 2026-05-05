@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -36,26 +37,26 @@ from typing import Dict
 
 from bunkalunk.bunk_helpers import (
     compute_fingerprint,
-    validate_extension,
-    validate_path_registration,
-    resolve_source_path,
-    resolve_bunk_home,
     resolve_activity_store,
+    resolve_bunk_home,
+    resolve_source_path,
+    validate_extension,
 )
+from bunkalunk.cache import resolve_cache_path, write_cache
 from bunkalunk.db import (
     Connection,
     DecodeState,
     SourceFile,
     create_connection,
-    record_decode_outcome,
-    record_cache_creation,
-    upsert_source_file,
     get_source_file,
     list_source_files_by_decode_state,
     list_source_files_stale_cache,
+    record_cache_creation,
+    record_decode_outcome,
+    record_source_file_fingerprint,
+    upsert_source_file,
 )
-from bunkalunk.formats.fit import read_fit, fit_to_cache
-from bunkalunk.cache import resolve_cache_path, write_cache
+from bunkalunk.formats.fit import fit_to_cache, read_fit
 
 
 def configure_logger(verbose: bool) -> logging.Logger:
@@ -296,36 +297,37 @@ class DecodeCommand(Command):
 
             for source_file in source_file_list:
                 source_path = source_file.source_path
-                logger.info("decode: working on '%s'", source_path)
-
-                # Check that path exists in source_files table, if not return nonzero
-                is_registered = validate_path_registration(conn, source_path)
-                if is_registered is None:
-                    logger.error("Input path does not exist in source_files table")
-                    return 1
-                elif not is_registered:
-                    logger.error("source_files row registration is invalid")
-                    return 1
-                logger.info("source_file row registration is valid")
-
-                if not validate_extension(Path(source_path)):
-                    logger.error(
-                        "Input path has an unsupported file extension (got '%s')",
-                        Path(source_path).suffix,
+                if not os.path.isfile(source_path):
+                    logger.warning(
+                        "Path '%s' no longer exists on disk. Skipping.",
+                        source_file.source_path,
                     )
-                    return 1
+                    continue
+
+                logger.info("Working on '%s'", source_path)
 
                 try:
                     with open(source_path, "rb") as f:
+                        fingerprint = compute_fingerprint(f)
                         fit_data = read_fit(f, logger=logger)
+
+                    if fingerprint != source_file.content_fingerprint:
+                        logger.warning(
+                            "Source file fingerprint has drifted; updating fingerprint"
+                        )
+                        record_source_file_fingerprint(conn, source_path, fingerprint)
+                        conn.commit()
 
                     cache_data = fit_to_cache(fit_data)
                     cache_path = resolve_cache_path(
-                        source_file.content_fingerprint, ctx.activity_store
+                        fingerprint,
+                        ctx.activity_store,
                     )
                     write_cache(cache_path, cache_data)
                     record_cache_creation(
-                        conn, cache_data, source_file.content_fingerprint
+                        conn,
+                        cache_data,
+                        fingerprint,
                     )
                     conn.commit()
                 except Exception as e:

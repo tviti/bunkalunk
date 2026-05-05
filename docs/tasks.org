@@ -91,7 +91,8 @@ calls and attribute assignments with a loop. This eliminates the implicit
 duplication of the canonical field list across FitData, CacheData, the cache
 writer, and (in part) the DB schema, without sacrificing the decoder’s need for
 explicit, inspectable per-field logic.
-
+** TODO Implement garbage collection
+[2026-05-05 Tue]
 ** TODO Code review for initial ~bunk add~ and ~bunk decode~ implementations
 [2026-05-03 Sun]
 ** Main Modules
