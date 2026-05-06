@@ -169,6 +169,19 @@ class TestAddCommand:
         return_code = main(["add", str(fit_path.resolve())])
         assert return_code == 0
 
+    def test_add_db_open_failure_cleans_up_cache(self, monkeypatch, tmp_path, fit_path):
+        """bunk add should remove the cache artifact when SQLite cannot open."""
+        patch_home(monkeypatch, tmp_path)
+        called = False
+        def mock_create_connection(db_path):
+            nonlocal called
+            called = True
+            raise RuntimeError("mock_create_connection raised!")
+        monkeypatch.setattr(bunk, "create_connection", mock_create_connection)
+        assert 1 == main(["add", str(fit_path)])
+        assert called
+        _assert_no_decode_artifact(fit_path)
+
 class TestDecodeCommand:
     def test_decode_rebuilds_pending(self, monkeypatch, tmp_path, fit_path):
         """bunk decode with no path should rebuild pending entries."""
@@ -228,6 +241,15 @@ class TestDecodeCommand:
     @pytest.mark.skip("P2: fingerprint-change handling is already covered by path-registration tests.")
     def test_decode_detects_fingerprint_change(self, fit_file, db_conn, tmp_path):
         """bunk decode should detect when source file content has changed."""
+        pass
+
+    @pytest.mark.skip(
+        "P1: cover decode failure after fingerprint drift updates source_files."
+    )
+    def test_decode_fingerprint_drift_failure_keeps_activities_consistent(
+        self, monkeypatch, tmp_path, fit_path
+    ):
+        """bunk decode should not strand activities rows after fingerprint drift."""
         pass
 
     def test_decode_failure_records_error(self, monkeypatch, tmp_path, fit_path):
