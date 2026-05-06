@@ -312,6 +312,9 @@ class DecodeCommand(Command):
         with create_connection(ctx.db_path) as conn:
             if args.path == "":
                 source_file_list: list[SourceFile] = self._get_decode_candidates(conn)
+                if source_file_list == []:
+                    logger.info("No decode candidates were found.")
+                    return 1
             else:
                 sf = get_source_file(conn, args.path)
                 source_file_list = [sf] if sf else []
