@@ -224,11 +224,10 @@ class AddCommand(Command):
 
         source_path = resolve_source_path(path)
         logger.info("add: working on '%s'", source_path)
-
         with open(source_path, "rb") as f:
-            content_fingerprint = compute_fingerprint(f)
             try:
                 fit_data = read_fit(f, logger=logger)
+                content_fingerprint = compute_fingerprint(f)
             except UnsupportedFITFileType:
                 logger.exception(
                     f"File '{source_path}' has an unsupported type."
