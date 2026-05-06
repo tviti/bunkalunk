@@ -12,6 +12,7 @@ from bunkalunk.db import (
     list_source_files_stale_cache,
     record_cache_creation,
     record_decode_outcome,
+    record_source_file_fingerprint,
     upsert_source_file,
 )
 
@@ -154,6 +155,15 @@ def dummy_source_files_table(db_conn):
     db_conn.commit()
     return db_conn
 
+
+def test_record_source_file_fingerprint_updates_fingerprint(db_conn, dummy_source_files_table):
+    source_path = "a/fit/file.fit"
+    source_file = get_source_file(db_conn, source_path)
+    assert "fingerprint123" == source_file.content_fingerprint
+    record_source_file_fingerprint(db_conn, source_path, "new-fingerprint")
+    source_file = get_source_file(db_conn, source_path)
+    assert "new-fingerprint" == source_file.content_fingerprint
+    
 
 def test_get_source_file_found(dummy_source_files_table):
     result = get_source_file(dummy_source_files_table, "a/fit/file.fit")

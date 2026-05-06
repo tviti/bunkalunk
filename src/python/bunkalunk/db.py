@@ -164,6 +164,7 @@ def record_source_file_fingerprint(
                 "content_fingerprint": content_fingerprint,
                 "decode_state": DecodeState.PENDING.value,
                 "decode_error": None,
+                "source_path": source_path,
             },
         )
     finally:
