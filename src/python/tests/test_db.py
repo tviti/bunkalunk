@@ -8,6 +8,7 @@ from bunkalunk.db import (
     SourceFile,
     get_source_file,
     upsert_source_file,
+    drop_source_file,
     record_decode_outcome,
     record_cache_creation,
     list_source_files_stale_cache
@@ -112,6 +113,14 @@ def test_upsert_source_file_update(db_conn):
     assert row["decode_state"] == "error"
     assert row["decode_error"] == "new-error"
 
+
+def test_drop_source_file_drops(db_conn, dummy_source_files_table):
+    rows = _fetch_source_files_by_path(db_conn, "a/fit/file.fit")
+    assert len(rows) == 1
+    assert rows[0]["source_path"] == "a/fit/file.fit"
+    drop_source_file(db_conn, "a/fit/file.fit")
+    rows = _fetch_source_files_by_path(db_conn, "a/fit/file.fit")
+    assert rows == []
 
 def test_record_decode_outcome(db_conn):
     state = DecodeState.SUCCESS

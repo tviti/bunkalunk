@@ -55,9 +55,22 @@ from bunkalunk.db import (
     record_decode_outcome,
     record_source_file_fingerprint,
     upsert_source_file,
+    drop_source_file,
 )
-from bunkalunk.formats.fit import fit_to_cache, read_fit
+from bunkalunk.formats.fit import fit_to_cache, read_fit, UnsupportedFITFileType
 
+
+def handle_decode_failure(
+        conn: Connection, source_path: str, e: Exception, logger: logging.Logger,
+):
+    logger.exception(f"Decode on '{source_path}' failed")
+    record_decode_outcome(
+        conn,
+        source_path,
+        state=DecodeState.ERROR,
+        error=str(e),
+    )
+    
 
 def configure_logger(verbose: bool) -> logging.Logger:
     """Configure and return a logger based on verbosity."""
@@ -231,14 +244,14 @@ class AddCommand(Command):
                     record_cache_creation(conn, cache_data, content_fingerprint)
 
                     conn.commit()
-                except Exception as e:
-                    logger.exception(f"Decode on '{source_path}' failed")
-                    record_decode_outcome(
-                        conn,
-                        source_path,
-                        state=DecodeState.ERROR,
-                        error=str(e),
+                except UnsupportedFITFileType as e:
+                    logger.exception(
+                        f"File '{source_path}' has an unsupported type."
                     )
+                    conn.rollback()
+                    return 1
+                except Exception as e:
+                    handle_decode_failure(conn, source_path, logger, e)
                     conn.commit()
                     return 1
 
@@ -246,7 +259,6 @@ class AddCommand(Command):
                     conn, source_file.source_path, state=DecodeState.SUCCESS
                 )
         return 0
-
 
 class DecodeCommand(Command):
     """
@@ -330,14 +342,15 @@ class DecodeCommand(Command):
                         fingerprint,
                     )
                     conn.commit()
-                except Exception as e:
-                    logger.exception(f"Decode on '{source_path}' failed")
-                    record_decode_outcome(
-                        conn,
-                        source_path,
-                        state=DecodeState.ERROR,
-                        error=str(e),
+                except UnsupportedFITFileType:
+                    logger.exception(
+                        f"File '{source_path}' has an unsupported type."
                     )
+                    drop_source_file(conn, source_path)
+                    conn.commit()
+                    return 1
+                except Exception as e:
+                    handle_decode_failure(conn, source_path, e, logger)
                     conn.commit()
                     return 1
 
