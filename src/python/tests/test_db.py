@@ -3,17 +3,17 @@ from sqlite3 import Row
 
 import pytest
 from bunkalunk import cache
+from bunkalunk.cache import CacheData
 from bunkalunk.db import (
     DecodeState,
     SourceFile,
-    get_source_file,
-    upsert_source_file,
     drop_source_file,
-    record_decode_outcome,
+    get_source_file,
+    list_source_files_stale_cache,
     record_cache_creation,
-    list_source_files_stale_cache
+    record_decode_outcome,
+    upsert_source_file,
 )
-from bunkalunk.cache import CacheData
 
 
 def _fetch_source_file_by_path(conn, source_path) -> Row | None:
@@ -121,6 +121,7 @@ def test_drop_source_file_drops(db_conn, dummy_source_files_table):
     drop_source_file(db_conn, "a/fit/file.fit")
     rows = _fetch_source_files_by_path(db_conn, "a/fit/file.fit")
     assert rows == []
+
 
 def test_record_decode_outcome(db_conn):
     state = DecodeState.SUCCESS

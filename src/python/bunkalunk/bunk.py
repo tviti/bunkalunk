@@ -48,6 +48,7 @@ from bunkalunk.db import (
     DecodeState,
     SourceFile,
     create_connection,
+    drop_source_file,
     get_source_file,
     list_source_files_by_decode_state,
     list_source_files_stale_cache,
@@ -55,9 +56,8 @@ from bunkalunk.db import (
     record_decode_outcome,
     record_source_file_fingerprint,
     upsert_source_file,
-    drop_source_file,
 )
-from bunkalunk.formats.fit import fit_to_cache, read_fit, UnsupportedFITFileType
+from bunkalunk.formats.fit import UnsupportedFITFileType, fit_to_cache, read_fit
 
 
 def handle_decode_failure(
@@ -226,38 +226,52 @@ class AddCommand(Command):
         logger.info("add: working on '%s'", source_path)
 
         with open(source_path, "rb") as f:
-            with create_connection(ctx.db_path) as conn:
-                content_fingerprint = compute_fingerprint(f)
-                source_file = SourceFile(
-                    source_path=source_path, content_fingerprint=content_fingerprint
+            content_fingerprint = compute_fingerprint(f)
+            try:
+                fit_data = read_fit(f, logger=logger)
+            except UnsupportedFITFileType:
+                logger.exception(
+                    f"File '{source_path}' has an unsupported type."
                 )
+                return 1
+            except Exception:
+                logger.exception(f"Decode on '{source_path}' failed")
+                return 1
+
+        cache_path: Path | None = None
+        conn: Connection | None = None
+        try:
+            with create_connection(ctx.db_path) as conn:
+                # Waiting till the connection is formed to write the cache,
+                # prevents orphaned caches when the connection spec is bad.
+                cache_data = fit_to_cache(fit_data)
+                cache_path = resolve_cache_path(
+                    content_fingerprint, ctx.activity_store
+                )
+                write_cache(cache_path, cache_data)
+
+                source_file = SourceFile(
+                    source_path=source_path,
+                    content_fingerprint=content_fingerprint,
+                )
+
                 upsert_source_file(conn, source_file)
-
-                try:
-                    fit_data = read_fit(f, logger=logger)
-
-                    cache_data = fit_to_cache(fit_data)
-                    cache_path = resolve_cache_path(
-                        content_fingerprint, ctx.activity_store
-                    )
-                    write_cache(cache_path, cache_data)
-                    record_cache_creation(conn, cache_data, content_fingerprint)
-
-                    conn.commit()
-                except UnsupportedFITFileType as e:
-                    logger.exception(
-                        f"File '{source_path}' has an unsupported type."
-                    )
-                    conn.rollback()
-                    return 1
-                except Exception as e:
-                    handle_decode_failure(conn, source_path, logger, e)
-                    conn.commit()
-                    return 1
-
+                record_cache_creation(conn, cache_data, content_fingerprint)
                 record_decode_outcome(
                     conn, source_file.source_path, state=DecodeState.SUCCESS
                 )
+        except Exception:
+            logger.exception("Add failed after decode")
+            if conn is not None:
+                conn.rollback()
+            if cache_path is not None:
+                cache_path.unlink(missing_ok=True)
+                try:
+                    cache_path.parent.rmdir()
+                except OSError:
+                    pass
+            return 1
+
         return 0
 
 class DecodeCommand(Command):
@@ -348,6 +362,9 @@ class DecodeCommand(Command):
                     )
                     drop_source_file(conn, source_path)
                     conn.commit()
+                    # TODO: Decide if garbage collection should be deferred, or
+                    # if it should happen at this point. At this point we have
+                    # an orphaned decode artifact and activities table row.
                     return 1
                 except Exception as e:
                     handle_decode_failure(conn, source_path, e, logger)

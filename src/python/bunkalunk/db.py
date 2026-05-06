@@ -1,10 +1,9 @@
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from enum import StrEnum
 from pathlib import Path
-from sqlite3 import connect, Connection, Row
+from sqlite3 import Connection, Row, connect
 
 from bunkalunk import cache
-
 
 """SQLite operational database schema plus HDF5 canonical decoded schema.
 
@@ -105,6 +104,21 @@ def upsert_source_file(conn: Connection, source_file: SourceFile) -> None:
                 decode_error=excluded.decode_error
         """,
             asdict(source_file),
+        )
+    finally:
+        cursor.close()
+
+
+def drop_source_file(
+        conn: Connection,
+        source_path: str,
+) -> None:
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            DELETE FROM source_files WHERE source_path = ?
+        """,
+        (source_path,)
         )
     finally:
         cursor.close()

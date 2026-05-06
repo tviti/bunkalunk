@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import pytest
-from bunkalunk.db import create_connection, SourceFile, upsert_source_file, DecodeState
 from bunkalunk.bunk_helpers import compute_fingerprint
+from bunkalunk.db import DecodeState, SourceFile, create_connection, upsert_source_file
+
 
 _FIT_DIR = Path(__file__).parent / "fits"
 

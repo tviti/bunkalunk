@@ -80,7 +80,7 @@ queries and writes to a narrow set of analysis-owned tables.
 
 - Input is by explicit file path only.
 - Only `.fit` files are accepted initially.
-- Unsupported files are rejected up front.
+- Unsupported files are rejected up front and do not create `source_files` rows.
 
 ## Storage Model
 
@@ -88,7 +88,7 @@ The system uses two storage mechanisms because it manages two distinct kinds of
 data.
 
 SQLite stores cross-activity relational state:
-- source-file registration
+- accepted source-file index
 - decode status and errors
 - activity metadata
 - segment definitions
@@ -115,7 +115,7 @@ Therefore the architecture intentionally keeps:
 
 Minimum tables:
 
-- `source_files` — Python-owned, Julia-readable
+- `source_files` — Python-owned, Julia-readable catalog of admitted source files
   - `source_path`
   - `content_fingerprint` (FK → `activities.source_fingerprint`)
   - `decode_state`
@@ -159,13 +159,16 @@ intentionally designed to allow this.
 - "success"
 - "error"
 
+`bunk add` only inserts a `source_files` row after a successful decode. Failed
+add attempts are not represented in the table.
+
 ### HDF5
 
 Each decoded activity is stored as a single HDF5 file named by the
 source file's SHA-256 fingerprint, sharded by the first two
 characters of that fingerprint.
 
-Each HDF5 file carries a `schema_version` integer attribute. If the
+Each HDF5 file carries a `cache_version` integer attribute. If the
 version does not match the current expected version, the cache entry
 is considered stale. Rebuilding stale entries is the user's
 responsibility via `bunk decode`.
@@ -200,16 +203,17 @@ On `bunk add <path>`:
 
 1. Verify supported file extension.
 2. Compute SHA-256 fingerprint.
-3. Register or update `source_files` row in SQLite.
-4. Decode file and write HDF5 artifact.
+3. Decode file and write HDF5 artifact.
+4. Register or update `source_files` row in SQLite with successful decode
+   metadata.
 5. Insert or update `activities` row in SQLite.
-6. Update decode metadata in SQLite.
 
 ## CLI
 
 ### `bunk`
 
-- `add <path>` — register and decode file at `<path>` immediately
+- `add <path>` — decode file at `<path>` immediately; on success, register it
+  in the source-file index
 - `decode [path]` — manually re-decode previously added files; use this to
   replace stale, missing, or corrupt cache entries (e.g. after a schema bump, or
   a write failure). Takes one or zero paths (zero paths rebuilds the entire
@@ -302,4 +306,3 @@ The project directory contains no runtime state.
 
 Commit messages follow the 50/70 rule (subject line ≤ 50 characters,
 body lines ≤ 70 characters). No heading prefixes.
-
