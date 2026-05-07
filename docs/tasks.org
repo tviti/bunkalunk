@@ -95,26 +95,16 @@ explicit, inspectable per-field logic.
 [2026-05-05 Tue]
 ** TODO Code review for initial ~bunk add~ and ~bunk decode~ implementations
 [2026-05-03 Sun]
-** Main Modules
-- [ ] src/python/bunkalunk/bunk.py
-- [ ] src/python/bunkalunk/bunk_helpers.py
-- [ ] src/python/bunkalunk/cache.py
-- [ ] src/python/bunkalunk/db.py
-- [ ] src/python/bunkalunk/formats/fit.py
-** Test Files
-- [ ] src/python/tests/conftest.py
-- [ ] src/python/tests/test_bunk.py
-- [ ] src/python/tests/test_bunk_helpers.py
-- [ ] src/python/tests/test_cache.py
-- [ ] src/python/tests/test_db.py
-- [ ] src/python/tests/test_fit.py
 ** TODO Implement ~--rebuild~ flag for ~bunk decode~
 [2026-05-03 Sun]
 
 The decode command should have a rebuild function that force-rebuilds the entire
 cache (regardless of re-decode candidacy).
 
-** TODO Add an index to ~activities~ table's ~start_time~ column
+** DONE Add an index to ~activities~ table's ~start_time~ column
+:LOGBOOK:
+- State "DONE"       from "TODO"       [2026-05-06 Wed 21:44]
+:END:
 [2026-05-03 Sun]
 
 Sorting by start time is probably going to be the most heavily used method of
