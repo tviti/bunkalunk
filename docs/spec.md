@@ -239,19 +239,29 @@ formats may be supported later.
 
 ```
 src/
-  julia/         — segment matching and analysis
+  julia/               — segment matching and analysis
+    Project.toml
+	Manifest.toml
+	src/
+	  Lunk.jl
+	  db.jl
+	test/
   python/
+    pyproject.toml
     bunkalunk/
-      db.py      — SQLite schema, migrations, ingestion DB layer
-      bunk.py    — cache manager and ingestion logic
-    formats/
-      fit.py     — FIT decoder
+      cache.py
+      db.py            — SQLite schema, migrations, ingestion DB layer
+      bunk.py          — cache manager and ingestion logic
+      bunk_helpers.py  — shared helpers for cache, ingestion, and decode
+      formats/
+        fit.py         — FIT decoder
+    tests/
 resources/
-  segments/      — segment definition files
+  segments/            — segment definition files
 docs/
   spec.md
-  notes.org
-  tasks.org
+  notes.org            — lab notebook
+  tasks.org            — task tracker
 ```
 
 State lives under `~/.bunk/` by default, or `$BUNK_HOME` if set.
