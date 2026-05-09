@@ -235,6 +235,18 @@ Segment definitions are OSM XML files (`resources/segments/*.osm`). Additional
 formats may be supported later.
 - https://wiki.openstreetmap.org/wiki/OSM_XML
 
+OSM XML files must include node elements with `lat`/`lon` attributes alongside
+the way element. The OSM website's "Download XML" button fetches the bare way
+endpoint (`/api/0.6/way/<id>`) which omits nodes. Use the `/full` endpoint
+instead:
+
+```
+https://api.openstreetmap.org/api/0.6/way/<id>/full
+```
+
+This returns all referenced node elements with coordinates, making the file
+self-contained and suitable for segment matching.
+
 ## Directory Layout
 
 ```
