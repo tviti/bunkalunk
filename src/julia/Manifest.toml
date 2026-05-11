@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "59101d9bf722b9065b1cca0ee45f7322ae94b65c"
+project_hash = "3e9cf8a5d121fac44664121cb7c7970575ce2d2a"
 
 [[deps.ArchGDAL]]
 deps = ["CEnum", "ColorTypes", "Dates", "DiskArrays", "Extents", "GDAL", "GeoFormatTypes", "GeoInterface", "ImageCore", "Tables"]
@@ -523,7 +523,7 @@ uuid = "6f1432cf-f94c-5a45-995e-cdbf5db27b0b"
 version = "3.5.1"
 
 [[deps.Lunk]]
-deps = ["ArchGDAL", "ArgParse", "DataFrames", "Debugger", "HDF5", "Infiltrator", "LanguageServer", "Revise", "SQLite", "Shapefile", "SymbolServer", "Test", "XML"]
+deps = ["ArchGDAL", "ArgParse", "DataFrames", "Dates", "Debugger", "HDF5", "Infiltrator", "LanguageServer", "Revise", "SQLite", "Shapefile", "SymbolServer", "Test", "XML"]
 path = "."
 uuid = "912dda38-6afc-4a31-bd3a-349cd7323e12"
 version = "0.0.0"

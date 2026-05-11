@@ -1,4 +1,5 @@
 using SQLite
+using Dates
 
 include("paths.jl")
 
@@ -21,25 +22,29 @@ end
 
 
 function select_by_start_date(db::SQLite.DB, start_date::String)::Vector{String}
+    t0 = DateTime(start_date, dateformat"yyyy-mm-dd")
+    t0_epoch = datetime2unix(t0)
+    t1_epoch = datetime2unix(t0 + Day(1))
     result = DBInterface.execute(
         db,
         "SELECT source_fingerprint from activities
-          WHERE start_time >= date(:start_date)
-            AND start_time < date(:start_date, '+1 day')",
-        Dict(:start_date => start_date)
+          WHERE start_time >= :t0_epoch
+            AND start_time < :t1_epoch",
+        Dict(:t0_epoch => t0_epoch, :t1_epoch => t1_epoch)
     )
     [row[:source_fingerprint] for row in result]
 end
 
 
-function select_by_time_range(db::SQLite.DB, t0::String, t1::String)::Vector{String}
+function select_by_time_range(db::SQLite.DB, t0::DateTime, t1::DateTime)::Vector{String}
+    t0_epoch = datetime2unix(t0)
+    t1_epoch = datetime2unix(t1)
     result = DBInterface.execute(
         db,
         "SELECT source_fingerprint from activities
-          WHERE start_time >= :start_time
-            AND start_time < :end_time",
-        Dict(:start_time => t0,
-             :end_time => t1)
+          WHERE start_time >= :t0_epoch
+            AND start_time < :t1_epoch",
+        Dict(:t0_epoch => t0_epoch, :t1_epoch => t1_epoch)
     )
     [row[:source_fingerprint] for row in result]
 end
