@@ -86,7 +86,7 @@ pkgs.mkShell {
   shellHook = ''
     export PYTHON=${pythonEnv}/bin/python  # Allows Julia to see shell's python
     export PYTHONPATH=''${PYTHONPATH}:''${PWD}/src/python
-    export BUNKALUNK_DB_ROOT=''${PWD}/source_archive
+    export BUNK_HOME=''${HOME}/.bunk
     export MYPYPATH=''${PYTHONPATH}/typings
     export JULIA_PROJECT=''${PWD}/src/julia
     # export JULIA_DEPOT="''${PWD}/.julia:"
