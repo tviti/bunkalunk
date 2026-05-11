@@ -58,6 +58,12 @@ def test_fit_to_cache_raises_on_no_start_time():
         fit_to_cache(fit_data)
 
 
+def test_fit_to_cache_converts_start_time_to_epoch(fake_reader_activity_fit):
+    fit_data = read_fit("any-path")
+    cache_data = fit_to_cache(fit_data)
+    assert cache_data.start_time == 1777593600.0
+
+
 def patch_fit_reader(monkeypatch, reader):
     def _get_fake_reader(fit_path, processor):
         return reader

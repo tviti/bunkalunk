@@ -14,15 +14,15 @@ def make_unequal_length_cache_data():
     return CacheData(latitude=[1.0, 1.1, 1.2],
                      longitude=[2.0, 2.1],
                      time=[0.0],
-                     start_time='2026-01-01',
+                     start_time=1767225600.0,
                      sport="yoyo")
-
-
+                   
+                   
 def make_cache_data():
     return CacheData(latitude=[1.0, 1.1, 1.2],
                      longitude=[2.0, 2.1, 2.2],
                      time=[0.0, 1.0, 2.0],
-                     start_time='2026-01-01',
+                     start_time=1767225600.0,
                      sport="yoyo")
 
 
@@ -38,7 +38,7 @@ def test_write_cache(tmp_path, monkeypatch):
         assert_equal(cache_file['latitude'][:], [1.0, 1.1, 1.2])
         assert_equal(cache_file['longitude'][:], [2.0, 2.1, 2.2])
         assert_equal(cache_file['time'][:], [0.0, 1.0, 2.0])
-        assert_equal(cache_file.attrs['start_time'], '2026-01-01')
+        assert_equal(cache_file.attrs['start_time'], 1767225600.0)
         assert cache_file.attrs['cache_version'] == 19991230
         assert cache_file.attrs['sport'] == 'yoyo'
 

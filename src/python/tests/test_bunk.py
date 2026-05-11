@@ -89,7 +89,7 @@ def registered_source_files_with_activity_table(monkeypatch, tmp_path):
     with create_connection(db_path) as conn:
         upsert_source_file(conn, source_file)
         activity = Activity(
-            start_time="2026-01-01T10:30:00",
+            start_time=1767263400.0,
             source_fingerprint=content_fingerprint,
             sport="basket-weaving",
         )

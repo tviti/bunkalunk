@@ -182,7 +182,7 @@ def test_get_source_file_not_found(db_conn):
 def test_record_cache_creation_idempotent(db_conn, monkeypatch):
     source_fingerprint = "abc123"
     cache_data = CacheData(
-        start_time="2026-01-01T10:30:00",
+        start_time=1767263400.0,
         latitude=[1.0, 1.1, 1.2],
         longitude=[2.0, 2.1, 2.2],
         time=[0.0, 1.0, 2.0],
@@ -199,7 +199,7 @@ def test_record_cache_creation_idempotent(db_conn, monkeypatch):
     assert len(rows) == 1
     row = rows[0]
     assert row["source_fingerprint"] == source_fingerprint
-    assert row["start_time"] == "2026-01-01T10:30:00"
+    assert row["start_time"] == 1767263400.0
     assert row["sport"] == "yoyo"
     assert row["cache_version"] == 19991230
 
@@ -207,7 +207,7 @@ def test_record_cache_creation_idempotent(db_conn, monkeypatch):
 def test_record_cache_creation_updates(db_conn, monkeypatch):
     source_fingerprint = "abc123"
     cache_data = CacheData(
-        start_time="2026-01-01T10:30:00",
+        start_time=1767263400.0,
         latitude=[1.0, 1.1, 1.2],
         longitude=[2.0, 2.1, 2.2],
         time=[0.0, 1.0, 2.0],
@@ -217,7 +217,7 @@ def test_record_cache_creation_updates(db_conn, monkeypatch):
     monkeypatch.setattr(cache, "CACHE_VERSION", 19991230)
     record_cache_creation(db_conn, cache_data, source_fingerprint)
     monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
-    cache_data.start_time="2027-01-01T10:30:00"
+    cache_data.start_time=1798799400.0
     source_fingerprint = "cde456"
     record_cache_creation(db_conn, cache_data, source_fingerprint)
     db_conn.commit()
@@ -225,7 +225,7 @@ def test_record_cache_creation_updates(db_conn, monkeypatch):
     rows = _fetch_activities_by_fingerprint(db_conn, source_fingerprint)
     assert len(rows) == 1
     row = rows[0]
-    assert row["start_time"] == "2027-01-01T10:30:00"
+    assert row["start_time"] == 1798799400.0
     assert row["sport"] == "yoyo"
     assert row["source_fingerprint"] == "cde456"
     assert row["cache_version"] == 19991231
@@ -259,7 +259,7 @@ def source_file_with_cache_version_factory(db_conn):
                 ) VALUES (?, ?, ?, ?, ?)
             ''', (
                 source_file.content_fingerprint,
-                "2026-01-01T10:30:00",
+                1767263400.0,
                 cache_version,
                 None,
                 None,
