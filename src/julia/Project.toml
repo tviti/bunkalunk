@@ -1,7 +1,25 @@
+name = "Lunk"
+uuid = "912dda38-6afc-4a31-bd3a-349cd7323e12"
+
 [deps]
 ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
+ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Debugger = "31a5f54b-26ea-5ae9-a837-f05ce5417438"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+Infiltrator = "5903a43b-9cc3-4c30-8d17-598619ec4e9b"
 LanguageServer = "2b0e0bc5-e4fd-59b4-8912-456d1b03d8d7"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 SQLite = "0aa819cd-b072-5ff4-a722-6bc24af294d9"
 Shapefile = "8e980c4a-a4fe-5da2-b3a7-4b4b0353a2f4"
+SymbolServer = "cf896787-08d5-524d-9de7-132aaa0cb996"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+XML = "72c71f33-b9b6-44de-8c94-c961784809e2"
+
+[compat]
+ArgParse = "1.2.0"
+Infiltrator = "1.9.10"
+LanguageServer = "4.1.0"
+Revise = "3.14.2"
+SymbolServer = "7.4.0"
+XML = "0.3.8"
