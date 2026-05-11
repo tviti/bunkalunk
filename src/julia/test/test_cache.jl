@@ -5,7 +5,7 @@ using Lunk
 function make_cache_file_no_sport(dir)
     path = joinpath(dir, "cache_no_sport.h5")
     h5open(path, "w") do file
-        attributes(file)["start_time"] = "1999-12-31T00:00:00+00:00"
+        attributes(file)["start_time"] = 946598400.0
         file["time"] = [0.0, 0.1, 0.2]
         file["latitude"] = [1.0, 1.1, 1.2]
         file["longitude"] = [2.0, 2.1, 2.2]
@@ -18,7 +18,7 @@ end
 function make_cache_file_no_heart_rate(dir)
     path = joinpath(dir, "cache_no_heart_rate.h5")
     h5open(path, "w") do file
-        attributes(file)["start_time"] = "1999-12-31T00:00:00+00:00"
+        attributes(file)["start_time"] = 946598400.0
         attributes(file)["sport"] = "basket-weaving"
         file["time"] = [0.0, 0.1, 0.2]
         file["latitude"] = [1.0, 1.1, 1.2]
@@ -29,7 +29,7 @@ end
 
 
 function make_cache_file(dir)
-    start_time = "1999-12-31T00:00:00+00:00"
+    start_time = 946598400.0
     time = [0.0, 0.1, 0.2]
     latitude = [1.0, 1.1, 1.2]
     longitude = [2.0, 2.1, 2.2]
@@ -52,7 +52,7 @@ end
     mktempdir() do dir
         cache_path = make_cache_file(dir)
         cache_data = read_cache(cache_path)
-        @test cache_data.start_time == "1999-12-31T00:00:00+00:00"
+        @test cache_data.start_time == 946598400.0
         @test cache_data.sport == "basket-weaving"
         @test cache_data.time == [0.0, 0.1, 0.2]
         @test cache_data.latitude == [1.0, 1.1, 1.2]
