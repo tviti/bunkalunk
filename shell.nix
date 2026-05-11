@@ -91,5 +91,6 @@ pkgs.mkShell {
     export JULIA_PROJECT=''${PWD}/src/julia
     # export JULIA_DEPOT="''${PWD}/.julia:"
     export PYTEST_DIR=''${PWD}/src/python/tests
+    export PATH=/home/taylor/.julia/bin:''${PATH}
   '';
 }
