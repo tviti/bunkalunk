@@ -79,6 +79,12 @@ This is an example task that became canceled for some reason. A note
 was included explaining why.
 
 * Tasks
+** TODO Finish ~bunk.py~ tests
+[2026-05-11 Mon]
+
+As of this writing, ~test_bunk.py~ still has 6 lower-priority tests that are
+still just stubs.
+
 ** TODO Migrate ~bunk~ to a table-/metadata-driven architecture
 [2026-05-04 Mon]
 Introduce a single `CanonicalSchema` definition (`bunkalunk/schema.py`) that
@@ -93,14 +99,42 @@ writer, and (in part) the DB schema, without sacrificing the decoder’s need fo
 explicit, inspectable per-field logic.
 ** TODO Implement garbage collection
 [2026-05-05 Tue]
-** TODO Code review for initial ~bunk add~ and ~bunk decode~ implementations
-[2026-05-03 Sun]
 ** TODO Implement ~--rebuild~ flag for ~bunk decode~
 [2026-05-03 Sun]
 
 The decode command should have a rebuild function that force-rebuilds the entire
 cache (regardless of re-decode candidacy).
 
+** TODO Implement recursive ~bunk add~ behavior
+** TODO Create ~lunk~ CLI entrypoint
+[2026-05-15 Fri]
+
+Create the Julia CLI entrypoint for the ~lunk~ command, providing the
+subcommands specified in the spec:
+
+- ~segment match <segment-name>~ — compute and persist segment efforts
+  for activities not yet matched against this segment
+- ~segment show <segment-name>~ — display leaderboard from cached results
+- ~ride show <activity-id|ride-tag>~ — display activity summary
+
+The entrypoint should use the already-included ~ArgParse~ dependency for
+command-line argument parsing. Implement the top-level dispatch in
+~src/julia/src/Lunk.jl~ (or a new ~cli.jl~ included from there), wiring
+each subcommand to the relevant database and analysis modules.
+
+Consider:
+- Defining a script entry point (e.g. ~bin/lunk~ or using the
+  ~[scripts]~ section in ~Project.toml~) so it can be invoked directly.
+- Structuring the dispatch so subcommand handlers can be tested
+  independently.
+- Using ~ArgParse~ settings that allow subcommand abbreviations and
+  provide clear help output.
+[2026-05-03 Sun]
+** DONE Code review for initial ~bunk add~ and ~bunk decode~ implementations
+:LOGBOOK:
+- State "DONE"       from "TODO"       [2026-05-11 Mon 00:17]
+:END:
+[2026-05-03 Sun]
 ** DONE Add an index to ~activities~ table's ~start_time~ column
 :LOGBOOK:
 - State "DONE"       from "TODO"       [2026-05-06 Wed 21:44]
@@ -113,14 +147,6 @@ activity discovery, so this should get an index.
 This can probably get deferred until lookup functionality is actually
 implemented somewhere (the Julia codebase will probably be the first place it's
 needed)
-
-** TODO Implement recursive ~bunk add~ behavior
-[2026-05-03 Sun]
-** TODO Finish ~bunk.py~ tests
-[2026-05-03 Sun]
-
-As of this writing, ~test_bunk.py~ still has 5 lower-priority tests that are
-still just stubs.
 
 ** DONE Build SQLite database API
 :LOGBOOK:
@@ -159,6 +185,61 @@ These files should cover:
 - Activity with extension fields (if available)
 
 Place test files in `tests/fixtures/` or similar location.
+
+** TODO Refactor read_fit to use fitdecode processor api
+[2025-11-13 Thu]
+
+https://fitdecode.readthedocs.io/en/latest/reference/processors.html#fitdecode.processors.DataProcessorBase
+
+Investigate and migrate the ~read_fit~ implementation to use a concrete
+implementation of ~fitdecode.processors.DataProcessorBase~ to construct the
+~FitData~ type, rather than manual field aggregation.
+
+Consider:
+- Running the processor on a per-file basis to simplify memory usage.
+- Handling exceptions and error states via the processor callback API.
+- Preserving the existing ~FitData~ contract and schema integrity.
+
+#+begin_src markdown
+> Data processing base class.
+>
+> This class does nothing. It is meant to be derived.
+>
+> The following methods are called by :class:`fitdecode.FitReader`:
+>
+> * `on_header`, each time a :class:`fitdecode.FitHeader` is reached
+> * `on_crc`, each time a :class:`fitdecode.FitCRC` (the FIT footer) is
+>   reached
+>
+> This is convenient if you wish to reset some context-sensitive state in-
+> between two chained FIT files for example.
+>
+> Bear in mind that a malformed/corrupted file may miss either of these
+> entities (header and/or CRC footer).
+>
+> Also, the following methods are called (still by
+> :class:`fitdecode.FitReader`) for each field of every data message, in that
+> order:
+>
+> * `on_process_type`
+> * `on_process_field`
+> * `on_process_unit`
+> * `on_process_message`
+>
+> By default, the above processor methods call the following methods if they
+> exist (hence the aforementioned caching)::
+>
+>     def process_type_<type_name>(reader, field_data)
+>     def process_field_<field_name>(field_data)  # could be unknown_XYZ but NOT recommended  # noqa
+>     def process_units_<unit_name>(reader, field_data)
+>     def process_message_<mesg_name>(reader, data_message)
+>
+> ``process_*`` methods are not expected to return any value and may alter
+> the content of the passed *field_data* (:class:`fitdecode.FieldData`) and
+> *data_message* (:class:`fitdecode.FitDataMessage`) arguments if needed.
+
+  
+#+end_src
 
 ** DONE Add unit tests for fingerprint function
 :LOGBOOK:
