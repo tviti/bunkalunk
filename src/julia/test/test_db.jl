@@ -1,6 +1,7 @@
 using Test
 using Lunk
 using SQLite
+using Dates
 
 
 function create_bunk_tables!(conn::SQLite.DB)::Nothing
@@ -100,7 +101,7 @@ end
 function seed_activities_table!(conn::SQLite.DB)::Nothing
     insert_activity(
         conn, Dict(
-            :start_time => 1770267600.0,
+            :start_time => 1770267600.0, # 2026-02-05T05:00:00
             :source_fingerprint => "123",
             :ride_tag => nothing,
             :sport => "basket-weaving",
@@ -109,7 +110,7 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
     )
     insert_activity(
         conn, Dict(
-            :start_time => 1770354000.0,
+            :start_time => 1770354000.0, # 2026-02-06T05:00:00
             :source_fingerprint => "456",
             :ride_tag => nothing,
             :sport => "basket-weaving",
@@ -118,8 +119,17 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
     )
     insert_activity(
         conn, Dict(
-            :start_time => 1770462000.0,
+            :start_time => 1770390000.0, # 2026-02-06T15:00:00
             :source_fingerprint => "789",
+            :ride_tag => nothing,
+            :sport => "basket-weaving",
+            :cache_version => 20260101
+        )
+    )
+    insert_activity(
+        conn, Dict(
+            :start_time => 1770508800.0, # 2026-02-08T00:00:00
+            :source_fingerprint => "abc",
             :ride_tag => nothing,
             :sport => "basket-weaving",
             :cache_version => 20260101
@@ -127,7 +137,6 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
     )
     return
 end
-
 
 @testset "get_content_fingerprint" begin
     let conn = SQLite.DB()
@@ -141,33 +150,13 @@ end
     end
 end
 
-# @testset "select_by_start_date" begin
-#     let conn = SQLite.DB()
-#         try
-#             create_bunk_tables!(conn)
-#             seed_activities_table!(conn)
-#             fingerprints = select_by_start_date(conn, "2026-02-05")
-#             @test length(fingerprints) == 1
-#             @test fingerprints[1] == "123"
-#         finally
-#             close(conn)
-#         end
-#     end
-# end
-
-
-@testset "select_by_time_range" begin
+@testset "select_by_start_date" begin
     let conn = SQLite.DB()
         try
             create_bunk_tables!(conn)
             seed_activities_table!(conn)
-fingerprints = select_by_time_range(
-                conn,
-                DateTime(2026, 2, 6, 4, 30),
-                DateTime(2026, 2, 6, 5, 30)
-            )
-            @test length(fingerprints) == 1
-            @test fingerprints[1] == "456"
+            fingerprints = select_by_start_date(conn, "2026-02-05")
+            @test fingerprints == ["123"]
         finally
             close(conn)
         end
@@ -177,23 +166,84 @@ end
 @testset "select_by_start_date multiple matches" begin
     # two activities with start_time on the same date
     # expect both fingerprints returned
-    @test_skip "not implemented"
+    let conn = SQLite.DB()
+        try
+            create_bunk_tables!(conn)
+            seed_activities_table!(conn)
+            fingerprints = select_by_start_date(conn, "2026-02-06")
+            @test fingerprints == ["456", "789"]
+        finally
+            close(conn)
+        end
+    end
 end
 
 @testset "select_by_start_date upper boundary" begin
     # activity whose start_time is exactly midnight opening the next day
     # expect it is excluded from the queried date
-    @test_skip "not implemented"
+    let conn = SQLite.DB()
+        try
+            create_bunk_tables!(conn)
+            seed_activities_table!(conn)
+            fingerprints = select_by_start_date(conn, "2026-02-07")
+            @test fingerprints == []
+        finally
+            close(conn)
+        end
+    end
+end
+
+@testset "select_by_time_range" begin
+    let conn = SQLite.DB()
+        try
+            create_bunk_tables!(conn)
+            seed_activities_table!(conn)
+            fingerprints = select_by_time_range(
+                conn,
+                DateTime(2026, 2, 6, 4, 30),
+                DateTime(2026, 2, 6, 5, 30)
+            )
+            @test fingerprints == ["456"]
+        finally
+            close(conn)
+        end
+    end
 end
 
 @testset "select_by_time_range multiple matches" begin
     # time range spanning more than one activity
     # expect all matching fingerprints returned
-    @test_skip "not implemented"
+    let conn = SQLite.DB()
+        try
+            create_bunk_tables!(conn)
+            seed_activities_table!(conn)
+            fingerprints = select_by_time_range(
+                conn,
+                DateTime(2026, 2, 6, 4, 30),
+                DateTime(2026, 2, 6, 15, 30)
+            )
+            @test fingerprints == ["456", "789"]
+        finally
+            close(conn)
+        end
+    end
 end
 
 @testset "select_by_time_range upper boundary" begin
     # activity whose start_time equals t1 exactly
     # expect it is excluded (range is half-open: >= t0, < t1)
-    @test_skip "not implemented"
+    let conn = SQLite.DB()
+        try
+            create_bunk_tables!(conn)
+            seed_activities_table!(conn)
+            fingerprints = select_by_time_range(
+                conn,
+                DateTime(2026, 2, 5, 5, 00),
+                DateTime(2026, 2, 6, 5, 00)
+            )
+            @test fingerprints == ["123"]
+        finally
+            close(conn)
+        end
+    end
 end
