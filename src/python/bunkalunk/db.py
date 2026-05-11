@@ -32,7 +32,7 @@ class SourceFile:
 
 @dataclass
 class Activity:
-    start_time: str
+    start_time: float
     source_fingerprint: str
     ride_tag: str | None = None
     activity_id: int | None = None
@@ -61,7 +61,7 @@ def _create_activities_table(conn: Connection):
             CREATE TABLE IF NOT EXISTS activities (
                 activity_id INTEGER PRIMARY KEY,
                 source_fingerprint TEXT UNIQUE NOT NULL,
-                start_time TEXT,
+                start_time REAL,
                 cache_version INT,
                 ride_tag TEXT,
                 sport TEXT

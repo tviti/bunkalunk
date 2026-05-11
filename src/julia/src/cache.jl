@@ -2,7 +2,7 @@ using HDF5
 
 
 struct CacheData
-    start_time::String
+    start_time::Float64
     time::Vector{Float64}
     latitude::Vector{Float64}
     longitude::Vector{Float64}

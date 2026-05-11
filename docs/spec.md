@@ -284,17 +284,6 @@ The project directory contains no runtime state.
 	- elevation (nullable)
 	- distance (nullable)
 	- speed (nullable)
-- `activities.start_time` should be indexed for efficient timestamp-based
-  lookup.
-- Additional format decoders (`.tcx`, `.gpx`): the initial data
-  corpus contains many files in these formats. `.fit` is the MVP
-  target, but `.tcx` and `.gpx` support is an early priority, not
-  a distant future concern.
-- Recursive directory ingestion
-- Extension field capture and catalog
-- Automatic cache rebuild on schema version change
-- Error timestamp tracking (`decode_error_at` in `source_files`)
-- WAL mode
 - Richer status reporting
 - Semantic deduplication
 - App framework model
@@ -323,6 +312,13 @@ The project directory contains no runtime state.
   record; timestamp[i] is present. Decode errors are for contract
   failures only, not analytical inconvenience. session.sport is read
   with fallback; optional metadata stays optional.
+- `activities.start_time` is stored as REAL (Unix epoch seconds, UTC).
+  The source datetime from fitdecode (a timezone-aware Python
+  `datetime`) is converted via `.timestamp()` at the FitData →
+  CacheData boundary. Unix epoch avoids timezone ambiguity and
+  SQLite function-call problems that come with string formats, and
+  enables direct indexed numeric range queries in both Python and
+  Julia without `date()`/`datetime()` wrappers.
 
 ## Contribution
 

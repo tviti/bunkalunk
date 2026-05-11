@@ -8,7 +8,7 @@ from tempfile import mkstemp
 import h5py
 
 
-CACHE_VERSION = 20260504
+CACHE_VERSION = 20260510
 _SUFFIX = ".h5"
 
 
@@ -22,7 +22,7 @@ class CacheData:
     longitude: list[float | None]
     time: list[float]
 
-    start_time: str
+    start_time: float
     sport: str | None = None
     heart_rate: list[float | None] | None = None
 
