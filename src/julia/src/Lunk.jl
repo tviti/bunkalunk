@@ -6,7 +6,8 @@ export CacheData,
 
 include("paths.jl")
 export BUNK_HOME,
-    ACTIVITY_STORE
+    ACTIVITY_STORE,
+    resolve_cache_path
 
 include("db.jl")
 export create_connection,

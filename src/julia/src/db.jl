@@ -1,10 +1,6 @@
 using SQLite
 using Dates
 
-include("paths.jl")
-
-const _SUFFIX = ".h5"
-
 
 function create_connection(db_path::String)::SQLite.DB
     SQLite.DB(db_path)
