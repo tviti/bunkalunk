@@ -272,4 +272,21 @@ extension fields.
 This will make it easier to add support for additional formats like
 .TCX and GPX without duplicating logic.
 
+** TODO Implement sport-based activity filter
+[2026-05-19 Tue]
+
+The ~activities~ table already stores a ~sport~ field (nullable, sourced from the
+FIT file's ~session.sport~ with fallback), but there is no mechanism to filter
+activities by sport type at the query level. For the initial implementation, the
+mechanics don't need to be very complex. The app is specifically targeting mtb
+activities (which will generally have ~session.sport == "cycling"~), so it is OK
+if this is hardcoded in places. The implementation will however become a future
+seam for including other activity types, so some thought should be put into the
+API (at least enough that there's a path for adding complexity later on).
+
+Consider:
+- Passing the filter as an optional SQL WHERE clause in query construction,
+  keeping the existing non-filtered path unchanged. The db-query level is the
+  most efficient gate to filter at.
+
 * Issues
