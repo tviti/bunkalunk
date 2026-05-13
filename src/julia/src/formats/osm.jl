@@ -1,13 +1,11 @@
 using XML
 import XML: attributes
 
-
 struct Segment
     name::String
     latitude::Vector{Float64}
     longitude::Vector{Float64}
 end
-
 
 function read_segment(path::String)::Segment
     doc = XML.read(path, Node)

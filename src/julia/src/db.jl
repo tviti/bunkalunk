@@ -1,11 +1,9 @@
 using SQLite
 using Dates
 
-
 function create_connection(db_path::String)::SQLite.DB
     return SQLite.DB(db_path)
 end
-
 
 function get_content_fingerprint(db::SQLite.DB, source_path::String)::String
     result = DBInterface.execute(
@@ -15,7 +13,6 @@ function get_content_fingerprint(db::SQLite.DB, source_path::String)::String
     )
     return only(row[:content_fingerprint] for row in result)
 end
-
 
 function select_by_start_date(
         db::SQLite.DB,
@@ -40,7 +37,6 @@ function select_by_start_date(
     )
     return [row[:source_fingerprint] for row in result]
 end
-
 
 function select_by_time_range(
         db::SQLite.DB,
