@@ -104,7 +104,7 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :start_time => 1770267600.0, # 2026-02-05T05:00:00
             :source_fingerprint => "123",
             :ride_tag => nothing,
-            :sport => "basket-weaving",
+            :sport => "cycling",
             :cache_version => 20260101
         )
     )
@@ -122,7 +122,7 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :start_time => 1770390000.0, # 2026-02-06T15:00:00
             :source_fingerprint => "789",
             :ride_tag => nothing,
-            :sport => "basket-weaving",
+            :sport => "cycling",
             :cache_version => 20260101
         )
     )
@@ -131,7 +131,7 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :start_time => 1770508800.0, # 2026-02-08T00:00:00
             :source_fingerprint => "abc",
             :ride_tag => nothing,
-            :sport => "basket-weaving",
+            :sport => "cycling",
             :cache_version => 20260101
         )
     )
@@ -193,6 +193,63 @@ end
     end
 end
 
+@testset "select_by_start_date with sport match" begin
+    # sport filter that matches seed data
+    # expect only activities with sport=="cycling" returned
+    let conn = SQLite.DB()
+        try
+            create_bunk_tables!(conn)
+            seed_activities_table!(conn)
+            fingerprints = select_by_start_date(
+                conn,
+                "2026-02-06",
+                sport = "cycling",
+            )
+            @test fingerprints == ["789"]
+        finally
+            close(conn)
+        end
+    end
+end
+
+@testset "select_by_start_date with sport no match" begin
+    # sport filter that matches no activities
+    # expect empty result
+    let conn = SQLite.DB()
+        try
+            create_bunk_tables!(conn)
+            seed_activities_table!(conn)
+            fingerprints = select_by_start_date(
+                conn,
+                "2026-02-06",
+                sport = "running",
+            )
+            @test fingerprints == []
+        finally
+            close(conn)
+        end
+    end
+end
+
+@testset "select_by_start_date with sport nothing" begin
+    # sport=nothing should behave identically to the no-sport overload
+    # expect all activities in range returned
+    let conn = SQLite.DB()
+        try
+            create_bunk_tables!(conn)
+            seed_activities_table!(conn)
+            fingerprints = select_by_start_date(
+                conn,
+                "2026-02-06",
+                sport = nothing,
+            )
+            @test fingerprints == ["456", "789"]
+        finally
+            close(conn)
+        end
+    end
+end
+
 @testset "select_by_time_range" begin
     let conn = SQLite.DB()
         try
@@ -242,6 +299,66 @@ end
                 DateTime(2026, 2, 6, 5, 00)
             )
             @test fingerprints == ["123"]
+        finally
+            close(conn)
+        end
+    end
+end
+
+@testset "select_by_time_range with sport match" begin
+    # sport filter that matches seed data
+    # expect only activities with sport=="cycling" returned
+    let conn = SQLite.DB()
+        try
+            create_bunk_tables!(conn)
+            seed_activities_table!(conn)
+            fingerprints = select_by_time_range(
+                conn,
+                DateTime(2026, 2, 6, 4, 30),
+                DateTime(2026, 2, 6, 15, 30),
+                sport = "cycling",
+            )
+            @test fingerprints == ["789"]
+        finally
+            close(conn)
+        end
+    end
+end
+
+@testset "select_by_time_range with sport no match" begin
+    # sport filter that matches no activities in range
+    # expect empty result
+    let conn = SQLite.DB()
+        try
+            create_bunk_tables!(conn)
+            seed_activities_table!(conn)
+            fingerprints = select_by_time_range(
+                conn,
+                DateTime(2026, 2, 6, 4, 30),
+                DateTime(2026, 2, 6, 15, 30),
+                sport = "running",
+            )
+            @test fingerprints == []
+        finally
+            close(conn)
+        end
+    end
+end
+
+@testset "select_by_time_range with sport nothing" begin
+    # sport=nothing should behave identically to the no-sport overload
+    # expect all activities in range returned
+    let conn = SQLite.DB()
+        try
+            create_bunk_tables!(conn)
+            seed_activities_table!(conn)
+            fingerprints = select_by_time_range(
+                conn,
+                DateTime(2026, 2, 6, 4, 30),
+                DateTime(2026, 2, 6, 15, 30),
+                sport = nothing,
+            )
+            @test fingerprints == ["456", "789"]
         finally
             close(conn)
         end

@@ -272,7 +272,10 @@ extension fields.
 This will make it easier to add support for additional formats like
 .TCX and GPX without duplicating logic.
 
-** TODO Implement sport-based activity filter
+** DONE Implement sport-based activity filter
+:LOGBOOK:
+- State "DONE"       from "TODO"       [2026-05-13 Wed 00:37]
+:END:
 [2026-05-19 Tue]
 
 The ~activities~ table already stores a ~sport~ field (nullable, sourced from the
@@ -290,3 +293,32 @@ Consider:
   most efficient gate to filter at.
 
 * Issues
+** TODO Fix Julia LSP test-directory module resolution
+[2026-05-19 Tue]
+
+The Julia language server (via ~julia-language-server~ or ~LanguageServer.jl~)
+currently resolves modules and ~Project.toml~ correctly when editing files under
+~src/julia/src/~ (the module tree), but fails to find ~Lunk~ and its dependencies
+when working on test files under ~src/julia/test/~. This makes test development
+painful — no autocompletion, no hover documentation, and false diagnostics for
+perfectly valid code.
+
+The root cause is likely that the LSP is not being told about the test
+environment (~Project.toml~ plus any test-specific dependencies) when opening
+files in the test directory. In Julia projects, the LSP typically needs to be
+started with the correct project context (via the ~--project~ flag or the
+~JULIA_PROJECT~ environment variable), or the editor/plugin needs to detect the
+~test/~/env~ directory (if one exists) and switch to it.
+
+Consider:
+- Investigating how the editor (Doom Emacs, ~julia-mode~, ~lsp-mode~) launches
+  the Julia LSP and whether it respects a root marker found in the test
+  directory.
+- Trying explicit ~JULIA_PROJECT~ or ~--project=..~ configuration in the LSP
+  client settings for the test directory.
+- Creating a symlink or a small ~Project.toml~ shim in the test directory that
+  points back to the parent project and adds ~Test~ as a dependency.
+- Using ~[env]~ in the main ~Project.toml~ to set ~JULIA_PROJECT~ when inside
+  the project tree.
+- Documenting the fix in ~CONTRIBUTING.md~ once a solution is found so other
+  contributors don't waste time on the same issue.
