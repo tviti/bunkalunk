@@ -1,6 +1,4 @@
 ((nil . ((fill-column . 80)))
- ;; (julia-mode . ((eglot-server-programs . ((julia-mode  . ("julia" "-e" "using LanguageServer; runserver()" "/home/taylor/Source/bunkalunk/src/julia"))))))
- (julia-mode . ((eglot-ignored-server-capabilities . (:inlayHintProvider))))
  (python-mode . ((compile-command . "pytest")
 		 (python-shell-interpreter . "ipython")
 		 (python-shell-interpreter-args . "--simple-prompt")
