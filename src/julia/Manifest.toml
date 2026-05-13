@@ -762,7 +762,7 @@ uuid = "6f1432cf-f94c-5a45-995e-cdbf5db27b0b"
 version = "3.5.1"
 
 [[deps.Lunk]]
-deps = ["ArchGDAL", "ArgParse", "DataFrames", "Dates", "Debugger", "HDF5", "Infiltrator", "LanguageServer", "Revise", "SQLite", "Shapefile", "SymbolServer", "Test", "XML"]
+deps = ["ArchGDAL", "ArgParse", "DataFrames", "Dates", "Debugger", "HDF5", "Infiltrator", "LanguageServer", "Plots", "Revise", "SQLite", "Shapefile", "SymbolServer", "Test", "XML"]
 path = "."
 uuid = "912dda38-6afc-4a31-bd3a-349cd7323e12"
 version = "0.0.0"

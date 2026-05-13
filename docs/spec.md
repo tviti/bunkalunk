@@ -124,7 +124,7 @@ Minimum tables:
 - `activities` — Python-owned, Julia-readable
   - `activity_id`
   - `source_fingerprint` (CAS address; unique)
-  - `start_time`
+  - `start_time` — Integer seconds from Unix epoch
   - `cache_version`
   - `ride_tag` (nullable)
   - `sport` (nullable)
@@ -257,15 +257,19 @@ src/
 	src/
 	  Lunk.jl
 	  db.jl
+	  cache.jl
+	  paths.jl         — shared path-resolution helpers and constants
+	  formats/         — segment file decoders/parsers
+	    osm.jl         — OSM-XML decoder
 	test/
   python/
     pyproject.toml
     bunkalunk/
-      cache.py
+      cache.py         — HDF5 decode artifact IO
       db.py            — SQLite schema, migrations, ingestion DB layer
       bunk.py          — cache manager and ingestion logic
       bunk_helpers.py  — shared helpers for cache, ingestion, and decode
-      formats/
+      formats/         — activity file decoders
         fit.py         — FIT decoder
     tests/
 resources/
@@ -324,3 +328,19 @@ The project directory contains no runtime state.
 
 Commit messages follow the 50/70 rule (subject line ≤ 50 characters,
 body lines ≤ 70 characters). No heading prefixes.
+
+### Task-tracker
+
+Tracked in `docs/tasks.org`. To prevent massive context costs, **DO NOT read the
+entire file by default**.
+
+1. **Rule checking:** Extract and read only the `* Task tracking system
+   overview` heading to understand formatting.
+2. **Inserting new items:** The file contains existing headings like `* Tasks`
+   and `* Issues`. Use search tools (e.g., `grep -n '^\* '`) or `org-mode`
+   functions to print the document skeleton and locate the correct line
+   numbers. Then, use programmatic insertion (e.g., `sed`) to add the item.
+3. **When to read the full file:** Only perform a full read of the file if you
+   are explicitly instructed to do so by the user (e.g., to deduplicate tasks,
+   find an appropriate niche category, or determine if a completely new heading
+   needs to be created).

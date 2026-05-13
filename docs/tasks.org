@@ -292,6 +292,60 @@ Consider:
   keeping the existing non-filtered path unchanged. The db-query level is the
   most efficient gate to filter at.
 
+** TODO Configure a Python auto-formatter
+[2026-05-19 Tue]
+
+Adopt a Python auto-formatter (e.g. ~black~, ~ruff format~, or ~blue~) to
+enforce consistent code style across the Python codebase without manual effort.
+This should be configured as a project-level tool so all contributors can run it
+uniformly.
+
+Consider:
+- Adding the formatter as a dev dependency in ~pyproject.toml~.
+- Creating a project-level config file (e.g. ~pyproject.toml~ ~[tool.black]~
+  section or ~ruff.toml~) with explicit line length and other settings aligned
+  with the project's conventions.
+- Providing a ~Makefile~ target, ~tox~ environment, or ~pre-commit~ hook so
+  formatting can be run easily before commits or as part of CI (once CI is
+  configured).
+- Whether to integrate ~isort~ for import sorting alongside the formatter.
+- Documenting the formatting workflow in a ~CONTRIBUTING.md~ or equivalent
+  developer guide (future work — note the need when it arises).
+
+The formatter choice should be made early to avoid reformatting churn later.
+** TODO Add haversine function to Lunk
+[2026-07-16 Thu]
+
+The Julia analysis library needs a haversine (great-circle distance) calculation
+function for computing distances between lat/lon points.  This is a prerequisite
+for deriving quantities like cumulative distance, grade, and segment matching.
+
+Create a module to house this and future geographic/geometric utilities.  The
+haversine function should accept lat/lon pairs (in degrees) and return distance
+in meters.  Consider using the WGS-84 ellipsoid (e.g. the Vincenty formula) if
+accuracy matters, but the Haversine formula is sufficient for an MVP. In either
+case, the choice of datum should be well documented.
+
+Brainstorm what other similar utilities will be needed.
+
+** TODO Extend decode artifact schema with additional FIT fields
+[2026-07-16 Thu]
+
+The FIT decoder currently extracts only a minimal set of fields (timestamps,
+lat/lon, heart rate).  FIT files contain much more useful data — elapsed time,
+moving time, velocity/speed, power, cadence, temperature, altitude, etc. — that
+would be valuable for analysis.
+
+This task requires careful schema design because:
+
+- Not all fields are guaranteed present across all FIT files (many are session-
+  or lap-level, not record-level).
+- Future formats (GPX, TCX) will have different field sets entirely, and the
+  schema must accommodate sparse/optional fields gracefully.
+- The HDF5 cache schema and the canonical schema definition need to distinguish
+  between "field is not applicable to this format" and "field was missing from
+  the source."
+
 * Issues
 ** TODO Fix Julia LSP test-directory module resolution
 [2026-05-19 Tue]
