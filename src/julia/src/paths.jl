@@ -12,3 +12,7 @@ function resolve_cache_path(content_fingerprint::String, activity_store::String)
     cache_parent = joinpath(activity_store, shard)
     return cache_parent * "/" * content_fingerprint * _CACHE_SUFFIX
 end
+
+function resolve_cache_path(content_fingerprint::String)::String
+    return resolve_cache_path(content_fingerprint, ACTIVITY_STORE)
+end

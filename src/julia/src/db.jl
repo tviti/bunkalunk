@@ -5,6 +5,15 @@ function create_connection(db_path::String)::SQLite.DB
     return SQLite.DB(db_path)
 end
 
+function create_connection(f::Function, db_path::String)
+    db = create_connection(db_path)
+    try
+        return f(db)
+    finally
+        close(db)
+    end
+end
+
 function get_content_fingerprint(db::SQLite.DB, source_path::String)::String
     result = DBInterface.execute(
         db,
