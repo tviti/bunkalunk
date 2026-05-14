@@ -328,6 +328,8 @@ case, the choice of datum should be well documented.
 
 Brainstorm what other similar utilities will be needed.
 
+- https://en.wikipedia.org/wiki/Vincenty%27s_formulae
+
 ** TODO Extend decode artifact schema with additional FIT fields
 [2026-07-16 Thu]
 
@@ -347,7 +349,13 @@ This task requires careful schema design because:
   the source."
 
 * Issues
-** TODO Fix Julia LSP test-directory module resolution
+** DONE Fix Julia LSP test-directory module resolution
+:LOGBOOK:
+- Note taken on [2026-05-14 Thu 00:46] \\
+  Working sporadically. Wasn't working last night, and now I can't
+  reproduce the problem.
+- State "DONE"       from "TODO"       [2026-05-14 Thu 00:46]
+:END:
 [2026-05-19 Tue]
 
 The Julia language server (via ~julia-language-server~ or ~LanguageServer.jl~)
