@@ -11,19 +11,23 @@ _CACHE_VERSION = 19991230
 
 
 def make_unequal_length_cache_data():
-    return CacheData(latitude=[1.0, 1.1, 1.2],
-                     longitude=[2.0, 2.1],
-                     time=[0.0],
-                     start_time=1767225600.0,
-                     sport="yoyo")
-                   
-                   
+    return CacheData(
+        latitude=[1.0, 1.1, 1.2],
+        longitude=[2.0, 2.1],
+        time=[0.0],
+        start_time=1767225600.0,
+        sport="yoyo",
+    )
+
+
 def make_cache_data():
-    return CacheData(latitude=[1.0, 1.1, 1.2],
-                     longitude=[2.0, 2.1, 2.2],
-                     time=[0.0, 1.0, 2.0],
-                     start_time=1767225600.0,
-                     sport="yoyo")
+    return CacheData(
+        latitude=[1.0, 1.1, 1.2],
+        longitude=[2.0, 2.1, 2.2],
+        time=[0.0, 1.0, 2.0],
+        start_time=1767225600.0,
+        sport="yoyo",
+    )
 
 
 def test_write_cache(tmp_path, monkeypatch):
@@ -34,13 +38,13 @@ def test_write_cache(tmp_path, monkeypatch):
 
     write_cache(file_path, data)
 
-    with h5py.File(file_path, 'r') as cache_file:
-        assert_equal(cache_file['latitude'][:], [1.0, 1.1, 1.2])
-        assert_equal(cache_file['longitude'][:], [2.0, 2.1, 2.2])
-        assert_equal(cache_file['time'][:], [0.0, 1.0, 2.0])
-        assert_equal(cache_file.attrs['start_time'], 1767225600.0)
-        assert cache_file.attrs['cache_version'] == 19991230
-        assert cache_file.attrs['sport'] == 'yoyo'
+    with h5py.File(file_path, "r") as cache_file:
+        assert_equal(cache_file["latitude"][:], [1.0, 1.1, 1.2])
+        assert_equal(cache_file["longitude"][:], [2.0, 2.1, 2.2])
+        assert_equal(cache_file["time"][:], [0.0, 1.0, 2.0])
+        assert_equal(cache_file.attrs["start_time"], 1767225600.0)
+        assert cache_file.attrs["cache_version"] == 19991230
+        assert cache_file.attrs["sport"] == "yoyo"
 
 
 def test_write_cache_unequal_length_arrays(tmp_path, monkeypatch):
@@ -60,7 +64,7 @@ def test_write_cache_cleanup(tmp_path, monkeypatch):
     def mock_write(file_path, data):
         _write_cache_file(file_path, data)
         raise RuntimeError("mock failure")
-    
+
     monkeypatch.setattr(cache, "_write_cache_file", mock_write)
 
     ls_before = [f for f in file_path.parent.iterdir()]

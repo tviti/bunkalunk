@@ -8,7 +8,7 @@ import os
 def validate_extension(input_path: Path) -> bool:
     """Check if the given file path's extension is supported by the archive
     manager."""
-    ok_exts = {".fit"} # Future: .gpx, .tcx
+    ok_exts = {".fit"}  # Future: .gpx, .tcx
     ext = input_path.suffix.lower()
     if ext not in ok_exts:
         return False

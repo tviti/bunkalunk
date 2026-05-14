@@ -110,15 +110,16 @@ def upsert_source_file(conn: Connection, source_file: SourceFile) -> None:
 
 
 def drop_source_file(
-        conn: Connection,
-        source_path: str,
+    conn: Connection,
+    source_path: str,
 ) -> None:
     cursor = conn.cursor()
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             DELETE FROM source_files WHERE source_path = ?
         """,
-        (source_path,)
+            (source_path,),
         )
     finally:
         cursor.close()

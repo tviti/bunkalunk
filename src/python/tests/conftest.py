@@ -44,7 +44,7 @@ def registered_source_files_table(db_conn, tmp_path):
     source_path = tmp_path / "file.fit"
     source_path.write_bytes(b"This is not a real FIT file")
 
-    with open(source_path, 'rb') as f:
+    with open(source_path, "rb") as f:
         content_fingerprint = compute_fingerprint(f)
 
     source_file = SourceFile(
@@ -56,5 +56,3 @@ def registered_source_files_table(db_conn, tmp_path):
     upsert_source_file(db_conn, source_file)
     db_conn.commit()
     return source_file
-
-

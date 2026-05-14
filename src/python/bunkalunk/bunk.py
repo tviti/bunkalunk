@@ -61,7 +61,10 @@ from bunkalunk.formats.fit import UnsupportedFITFileType, fit_to_cache, read_fit
 
 
 def handle_decode_failure(
-        conn: Connection, source_path: str, e: Exception, logger: logging.Logger,
+    conn: Connection,
+    source_path: str,
+    e: Exception,
+    logger: logging.Logger,
 ):
     logger.exception(f"Decode on '{source_path}' failed")
     record_decode_outcome(
@@ -70,7 +73,7 @@ def handle_decode_failure(
         state=DecodeState.ERROR,
         error=str(e),
     )
-    
+
 
 def configure_logger(verbose: bool) -> logging.Logger:
     """Configure and return a logger based on verbosity."""
@@ -229,9 +232,7 @@ class AddCommand(Command):
                 fit_data = read_fit(f, logger=logger)
                 content_fingerprint = compute_fingerprint(f)
             except UnsupportedFITFileType:
-                logger.exception(
-                    f"File '{source_path}' has an unsupported type."
-                )
+                logger.exception(f"File '{source_path}' has an unsupported type.")
                 return 1
             except Exception:
                 logger.exception(f"Decode on '{source_path}' failed")
@@ -244,9 +245,7 @@ class AddCommand(Command):
                 # Waiting till the connection is formed to write the cache,
                 # prevents orphaned caches when the connection spec is bad.
                 cache_data = fit_to_cache(fit_data)
-                cache_path = resolve_cache_path(
-                    content_fingerprint, ctx.activity_store
-                )
+                cache_path = resolve_cache_path(content_fingerprint, ctx.activity_store)
                 write_cache(cache_path, cache_data)
 
                 source_file = SourceFile(
@@ -272,6 +271,7 @@ class AddCommand(Command):
             return 1
 
         return 0
+
 
 class DecodeCommand(Command):
     """
@@ -359,9 +359,7 @@ class DecodeCommand(Command):
                     )
                     conn.commit()
                 except UnsupportedFITFileType:
-                    logger.exception(
-                        f"File '{source_path}' has an unsupported type."
-                    )
+                    logger.exception(f"File '{source_path}' has an unsupported type.")
                     drop_source_file(conn, source_path)
                     conn.commit()
                     # TODO: Decide if garbage collection should be deferred, or

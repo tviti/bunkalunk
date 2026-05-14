@@ -18,6 +18,7 @@ class CacheData:
     operational state.
 
     """
+
     latitude: list[float | None]
     longitude: list[float | None]
     time: list[float]
@@ -38,9 +39,7 @@ def _write_cache_file(file_path: Path, data: CacheData) -> None:
         )
 
     if data.heart_rate and n != len(data.heart_rate):
-        raise ValueError(
-            f"Unequal length data array 'heart_rate'. Got '{n}'"
-        )
+        raise ValueError(f"Unequal length data array 'heart_rate'. Got '{n}'")
 
     with h5py.File(file_path, "w") as cache:
         time: h5py.Dataset = cache.create_dataset("time", shape=(n,), dtype="float64")

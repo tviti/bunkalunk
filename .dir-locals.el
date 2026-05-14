@@ -17,4 +17,5 @@
 		       :ruff        (:enabled t :formatEnabled t)
 		       ;; mypy: type checking
 		       :pylsp_mypy  (:enabled t
-					      :args ["--config-file" "src/python/pyproject.toml"]))))))))
+					      :args ["--config-file" "src/python/pyproject.toml"])))))
+		 (eval . (add-hook 'before-save-hook #'eglot-format-buffer nil 'local)))))
