@@ -6,7 +6,9 @@ tests instead of unit tests of the Command class implementations.
 import os
 from sqlite3 import Row, connect
 
+import h5py
 import pytest
+from bunkalunk import cache
 from bunkalunk import bunk
 from bunkalunk.bunk import main
 from bunkalunk.bunk_helpers import compute_fingerprint, resolve_activity_store
@@ -30,7 +32,7 @@ def _assert_no_db(tmp_path):
 
 
 def _assert_no_decode_artifact(fit_path):
-    with open(fit_path, 'rb') as f:
+    with open(fit_path, "rb") as f:
         fingerprint = compute_fingerprint(f)
     activity_store = resolve_activity_store(create=False)
     cache_path = resolve_cache_path(fingerprint, activity_store)
@@ -40,6 +42,7 @@ def _assert_no_decode_artifact(fit_path):
 def patch_read_fit_failure(monkeypatch, fit_path, exc=RuntimeError):
     def mock_read_fit(fit_path, logger=None):
         raise exc("mock_read_fit threw an error!")
+
     monkeypatch.setattr(bunk, "read_fit", mock_read_fit)
 
 
@@ -51,7 +54,7 @@ def create_bunk_db_conn(tmp_path):
 
 def seed_source_files_with_decode_state(state, monkeypatch, tmp_path, fit_path):
     patch_home(monkeypatch, tmp_path)
-    with open(fit_path, 'rb') as f:
+    with open(fit_path, "rb") as f:
         content_fingerprint = compute_fingerprint(f)
     source_file = SourceFile(
         source_path=str(fit_path),
@@ -67,6 +70,35 @@ def seed_source_files_with_decode_state(state, monkeypatch, tmp_path, fit_path):
 
 
 @pytest.fixture(scope="function")
+def registered_source_files_and_activities_with_pinned_cache_version(
+    monkeypatch, tmp_path, fit_path
+):
+    patch_home(monkeypatch, tmp_path)
+    monkeypatch.setattr(cache, "CACHE_VERSION", 19991201)
+
+    with open(fit_path, "rb") as f:
+        content_fingerprint = compute_fingerprint(f)
+
+    source_file = SourceFile(
+        source_path=str(fit_path),
+        content_fingerprint=content_fingerprint,
+        decode_state=DecodeState.SUCCESS,
+        decode_error=None,
+    )
+    activity = Activity(
+        start_time=1767263400.0,
+        source_fingerprint=content_fingerprint,
+        sport="basket-weaving",
+    )
+    db_path = tmp_path / ".bunk" / "db.sqlite3"
+    db_path.parent.mkdir()
+    with create_connection(db_path) as conn:
+        upsert_source_file(conn, source_file)
+        _upsert_activity(conn, activity)
+    return db_path
+
+
+@pytest.fixture(scope="function")
 def registered_source_files_with_activity_table(monkeypatch, tmp_path):
     """Setup a source_files row and matching activities row on disk."""
     patch_home(monkeypatch, tmp_path)
@@ -74,7 +106,7 @@ def registered_source_files_with_activity_table(monkeypatch, tmp_path):
     source_path = tmp_path / "file.fit"
     source_path.write_bytes(b"This is not a real FIT file")
 
-    with open(source_path, 'rb') as f:
+    with open(source_path, "rb") as f:
         content_fingerprint = compute_fingerprint(f)
 
     source_file = SourceFile(
@@ -106,12 +138,16 @@ class TestAddCommand:
         assert return_code == 1
         _assert_no_db(tmp_path)
 
-    @pytest.mark.skip("P2: redundant with add_decode_success and DB-level source-file registration tests.")
+    @pytest.mark.skip(
+        "P2: redundant with add_decode_success and DB-level source-file registration tests."
+    )
     def test_add_registers_source_file(self, fit_file, db_conn, tmp_path):
         """bunk add should register a new row in source_files."""
         pass
 
-    @pytest.mark.skip("P2: CLI idempotency is lower priority; DB upsert idempotency already covers the core behavior.")
+    @pytest.mark.skip(
+        "P2: CLI idempotency is lower priority; DB upsert idempotency already covers the core behavior."
+    )
     def test_add_idempotent(self, fit_file, db_conn, tmp_path):
         """bunk add should be idempotent for the same file path."""
         pass
@@ -122,7 +158,7 @@ class TestAddCommand:
         return_code = main(["add", str(fit_path.resolve())])
         assert return_code == 0
 
-        with open(fit_path, 'rb') as f:
+        with open(fit_path, "rb") as f:
             fingerprint = compute_fingerprint(f)
         activity_store = resolve_activity_store(create=False)
         cache_path = resolve_cache_path(fingerprint, activity_store)
@@ -136,9 +172,12 @@ class TestAddCommand:
         assert source_file.decode_state == DecodeState.SUCCESS
         assert source_file.decode_error is None
         assert len(activities) == 1
-        
+
     def test_add_decode_failure_no_upsert(
-            self, monkeypatch, tmp_path, fit_path,
+        self,
+        monkeypatch,
+        tmp_path,
+        fit_path,
     ):
         """bunk add should not record a row in source_files if decode fails."""
         patch_home(monkeypatch, tmp_path)
@@ -150,13 +189,17 @@ class TestAddCommand:
         _assert_no_decode_artifact(fit_path)
 
     def test_add_unsupported_fit_no_upsert(
-            self, registered_source_files_with_activity_table, monkeypatch, tmp_path, fit_path,
+        self,
+        registered_source_files_with_activity_table,
+        monkeypatch,
+        tmp_path,
+        fit_path,
     ):
         """bunk add should not record a row in source_files if decode fails."""
         patch_read_fit_failure(monkeypatch, fit_path, exc=UnsupportedFITFileType)
         return_code = main(["add", str(fit_path.resolve())])
         assert return_code == 1
-        with open(fit_path, 'rb') as f:
+        with open(fit_path, "rb") as f:
             fingerprint = compute_fingerprint(f)
         with create_bunk_db_conn(tmp_path) as conn:
             assert has_source_file(conn, str(tmp_path / "file.fit"))
@@ -173,14 +216,17 @@ class TestAddCommand:
         """bunk add should remove the cache artifact when SQLite cannot open."""
         patch_home(monkeypatch, tmp_path)
         called = False
+
         def mock_create_connection(db_path):
             nonlocal called
             called = True
             raise RuntimeError("mock_create_connection raised!")
+
         monkeypatch.setattr(bunk, "create_connection", mock_create_connection)
         assert 1 == main(["add", str(fit_path)])
         assert called
         _assert_no_decode_artifact(fit_path)
+
 
 class TestDecodeCommand:
     def test_decode_rebuilds_pending(self, monkeypatch, tmp_path, fit_path):
@@ -205,17 +251,39 @@ class TestDecodeCommand:
         assert sf.decode_state == DecodeState.SUCCESS
         assert sf.decode_error is None
 
-    @pytest.mark.skip("P1: stale-cache rebuild is important, but after pending/error triage.")
-    def test_decode_rebuilds_stale(self, db_conn, tmp_path):
+    def test_decode_rebuilds_stale(
+        self,
+        tmp_path,
+        monkeypatch,
+        fit_path,
+        registered_source_files_and_activities_with_pinned_cache_version,
+    ):
         """bunk decode with no path should rebuild stale cache entries."""
-        pass
+        monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
+        patch_home(monkeypatch, tmp_path)
+        db_path = registered_source_files_and_activities_with_pinned_cache_version
+        assert 0 == main(["decode"])
+
+        with open(fit_path, "rb") as f:
+            fingerprint = compute_fingerprint(f)
+
+        with create_connection(db_path) as conn:
+            activities = _fetch_activities_by_fingerprint(conn, fingerprint)
+        assert len(activities) == 1
+        assert activities[0]["cache_version"] == 19991231
+
+        activity_store = resolve_activity_store(create=False)
+        cache_path = resolve_cache_path(fingerprint, activity_store)
+        assert cache_path.exists()
+        with h5py.File(cache_path, "r") as cache_file:
+            assert cache_file.attrs["cache_version"] == 19991231
 
     def test_decode_specific_path(self, monkeypatch, tmp_path, fit_path):
         """bunk decode <path> should rebuild only the given file."""
         patch_home(monkeypatch, tmp_path)
         fake_path = tmp_path / "file.fit"
         fake_path.write_bytes(b"This is not a real FIT file")
-        with open(fake_path, 'rb') as f:
+        with open(fake_path, "rb") as f:
             content_fingerprint = compute_fingerprint(f)
         fake_source_file = SourceFile(
             source_path=str(fake_path),
@@ -238,7 +306,9 @@ class TestDecodeCommand:
         patch_home(monkeypatch, tmp_path)
         assert 1 == main(["decode", "not/in/source_files"])
 
-    @pytest.mark.skip("P2: fingerprint-change handling is already covered by path-registration tests.")
+    @pytest.mark.skip(
+        "P2: fingerprint-change handling is already covered by path-registration tests."
+    )
     def test_decode_detects_fingerprint_change(self, fit_file, db_conn, tmp_path):
         """bunk decode should detect when source file content has changed."""
         pass
@@ -270,7 +340,9 @@ class TestDecodeCommand:
         cache_path = resolve_cache_path(source_file.content_fingerprint, activity_store)
         assert cache_path.exists()
 
-    @pytest.mark.skip("P2: decode idempotency is lower priority than the core triage flows.")
+    @pytest.mark.skip(
+        "P2: decode idempotency is lower priority than the core triage flows."
+    )
     def test_decode_is_idempotent(self, db_conn, tmp_path):
         """bunk decode should be safe to run multiple times."""
         pass
