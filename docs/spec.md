@@ -327,6 +327,8 @@ The project directory contains no runtime state.
   SQLite function-call problems that come with string formats, and
   enables direct indexed numeric range queries in both Python and
   Julia without `date()`/`datetime()` wrappers.
+- Geographic datatypes follow geographic convention: coordinate
+  ordering is (latitude, longitude) throughout the codebase.
 
 ## Contribution
 

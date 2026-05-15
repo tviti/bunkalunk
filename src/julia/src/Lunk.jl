@@ -19,4 +19,6 @@ include("formats/osm.jl")
 export Segment,
     read_segment
 
+include("geo.jl")
+export haversine_distance
 end
