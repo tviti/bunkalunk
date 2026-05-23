@@ -228,6 +228,29 @@ def list_source_files_stale_cache(conn: Connection) -> list[SourceFile]:
     return [SourceFile(**row) for row in rows]
 
 
+def is_stale(conn: Connection, source_fingerprint: str) -> bool:
+    cursor = conn.cursor()
+    row: Row | None = None
+    try:
+        cursor.execute(
+            """
+            SELECT cache_version FROM activities
+            WHERE source_fingerprint = :source_fingerprint
+            """,
+            {
+                "source_fingerprint": source_fingerprint,
+            },
+        )
+        row = cursor.fetchone()
+    finally:
+        cursor.close()
+
+    if row is None:
+        return True
+
+    return row["cache_version"] < cache.CACHE_VERSION
+
+
 def _upsert_activity(conn: Connection, activity: Activity) -> None:
     cursor = conn.cursor()
     try:

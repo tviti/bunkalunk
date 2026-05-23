@@ -56,6 +56,7 @@ from bunkalunk.db import (
     record_decode_outcome,
     record_source_file_fingerprint,
     upsert_source_file,
+    is_stale,
 )
 from bunkalunk.formats.fit import UnsupportedFITFileType, fit_to_cache, read_fit
 
@@ -215,6 +216,13 @@ class AddCommand(Command):
             "path", type=Path, help="Local path (i.e. source file) to add to db"
         )
 
+    def _record_decode_write_success(
+        self, conn, source_file, cache_data, content_fingerprint
+    ):
+        upsert_source_file(conn, source_file)
+        record_cache_creation(conn, cache_data, content_fingerprint)
+        record_decode_outcome(conn, source_file.source_path, state=DecodeState.SUCCESS)
+
     def run(self, ctx: Context, args: argparse.Namespace) -> int:
         """Execute the add command."""
         path: Path = args.path
@@ -226,43 +234,53 @@ class AddCommand(Command):
             return 1
 
         source_path = resolve_source_path(path)
-        logger.info("add: working on '%s'", source_path)
-        with open(source_path, "rb") as f:
-            try:
-                fit_data = read_fit(f, logger=logger)
-                content_fingerprint = compute_fingerprint(f)
-            except UnsupportedFITFileType:
-                logger.exception(f"File '{source_path}' has an unsupported type.")
-                return 1
-            except Exception:
-                logger.exception(f"Decode on '{source_path}' failed")
-                return 1
-
         cache_path: Path | None = None
         conn: Connection | None = None
+        already_cached = False
+        logger.info("add: working on '%s'", source_path)
         try:
             with create_connection(ctx.db_path) as conn:
-                # Waiting till the connection is formed to write the cache,
-                # prevents orphaned caches when the connection spec is bad.
+                with open(source_path, "rb") as f:
+                    content_fingerprint = compute_fingerprint(f)
+
+                    source_file = SourceFile(
+                        source_path=source_path,
+                        content_fingerprint=content_fingerprint,
+                    )
+
+                    cache_path = resolve_cache_path(
+                        content_fingerprint, ctx.activity_store
+                    )
+                    already_cached = cache_path.exists()
+                    if already_cached and not is_stale(conn, content_fingerprint):
+                        logger.info("Decode artifact already exists")
+                        upsert_source_file(conn, source_file)
+                        record_decode_outcome(
+                            conn, source_file.source_path, state=DecodeState.SUCCESS
+                        )
+                        return 0
+
+                    try:
+                        fit_data = read_fit(f, logger=logger)
+                    except UnsupportedFITFileType:
+                        logger.exception(
+                            f"File '{source_path}' has an unsupported type."
+                        )
+                        return 1
+                    except Exception:
+                        logger.exception(f"Decode on '{source_path}' failed")
+                        return 1
+
                 cache_data = fit_to_cache(fit_data)
-                cache_path = resolve_cache_path(content_fingerprint, ctx.activity_store)
                 write_cache(cache_path, cache_data)
-
-                source_file = SourceFile(
-                    source_path=source_path,
-                    content_fingerprint=content_fingerprint,
-                )
-
-                upsert_source_file(conn, source_file)
-                record_cache_creation(conn, cache_data, content_fingerprint)
-                record_decode_outcome(
-                    conn, source_file.source_path, state=DecodeState.SUCCESS
+                self._record_decode_write_success(
+                    conn, source_file, cache_data, content_fingerprint
                 )
         except Exception:
             logger.exception("Add failed after decode")
             if conn is not None:
                 conn.rollback()
-            if cache_path is not None:
+            if not already_cached and cache_path is not None:
                 cache_path.unlink(missing_ok=True)
                 try:
                     cache_path.parent.rmdir()

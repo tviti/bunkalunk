@@ -182,10 +182,43 @@ class TestAddCommand:
         """bunk add should not record a row in source_files if decode fails."""
         patch_home(monkeypatch, tmp_path)
         patch_read_fit_failure(monkeypatch, fit_path)
-
-        return_code = main(["add", str(fit_path.resolve())])
+        source_path = str(fit_path.resolve())
+        return_code = main(["add", source_path])
         assert return_code == 1
-        _assert_no_db(tmp_path)
+        with create_bunk_db_conn(tmp_path) as conn:
+            source_file = get_source_file(conn, source_path)
+        assert source_file is None
+        _assert_no_decode_artifact(fit_path)
+
+    def test_add_db_failure_after_activity_write_rolls_back(
+        self,
+        monkeypatch,
+        tmp_path,
+        fit_path,
+    ):
+        """A late DB write failure should roll back DB state and new cache."""
+        patch_home(monkeypatch, tmp_path)
+        called = False
+
+        def mock_record_decode_outcome(conn, source_path, *, state, error=None):
+            nonlocal called
+            called = True
+            raise RuntimeError("mock late DB failure")
+
+        monkeypatch.setattr(bunk, "record_decode_outcome", mock_record_decode_outcome)
+
+        source_path = str(fit_path.resolve())
+        with open(fit_path, "rb") as f:
+            fingerprint = compute_fingerprint(f)
+
+        return_code = main(["add", source_path])
+        assert return_code == 1
+        assert called
+        with create_bunk_db_conn(tmp_path) as conn:
+            source_file = get_source_file(conn, source_path)
+            activities = _fetch_activities_by_fingerprint(conn, fingerprint)
+        assert source_file is None
+        assert activities == []
         _assert_no_decode_artifact(fit_path)
 
     def test_add_unsupported_fit_no_upsert(
