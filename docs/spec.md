@@ -174,6 +174,10 @@ is considered stale. Rebuilding stale entries is the user's
 responsibility via `bunk decode`.
 - version format: YYYYMMDD as an integer
 
+The HDF5 store is an ephemeral cache. The system does not proactively
+validate cache integrity; unreadable artifacts are repaired by manual
+rebuild (`bunk decode`) or cache deletion.
+
 The canonical schema includes:
 
 - timestamps (required)
@@ -327,7 +331,9 @@ The project directory contains no runtime state.
 ## Contribution
 
 Commit messages follow the 50/70 rule (subject line ≤ 50 characters,
-body lines ≤ 70 characters). No heading prefixes.
+body lines ≤ 70 characters). Avoid generic type prefixes such as
+`fix:`, `feat:`, or `chore:`. Subsystem prefixes are allowed when they
+add useful context, for example `bunk:` or `lunk:`.
 
 ### Task-tracker
 
