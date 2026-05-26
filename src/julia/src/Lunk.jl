@@ -20,5 +20,8 @@ export Segment,
     read_segment
 
 include("geo.jl")
-export haversine_distance
+export compute_ecef_r,
+    crosses_gate,
+    on_polyline,
+    haversine_distance
 end

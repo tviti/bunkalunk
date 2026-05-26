@@ -77,7 +77,7 @@ pkgs.mkShell {
                 ++ (with pkgs;
                   [
                     ruff
-                    julia-fhs
+                    # julia-fhs
                   ]);
 
   TMPDIR = "/tmp";  # Julia tries (and fails) to write tmpdata to nix-store without this
