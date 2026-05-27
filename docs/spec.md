@@ -130,18 +130,16 @@ Minimum tables:
   - `sport` (nullable)
 
 - `segments` — analysis-owned
-  - `segment_id`
-  - `name`
-  - `version`
-  - `definition_path`
+  - `segment_id` (monotonic rowid alias)
+  - `name` (natural key; unique)
+  - `definition_path` (absolute path; unique)
+  - `definition_fingerprint` (SHA-256 of definition file bytes; unique)
 
 - `segment_efforts` — analysis-owned
   - `effort_id`
   - `activity_id`
   - `segment_id`
   - `elapsed_time_s`
-  - `start_offset_s`
-  - `end_offset_s`
   - `matched_at`
   - `matcher_version`
 
@@ -153,6 +151,25 @@ Exact-content duplicates in `source_files` naturally share a single `activities`
 row via their common `source_fingerprint`. In other words, multiple
 `source_files` rows may share the same `content_fingerprint`; the schema is
 intentionally designed to allow this.
+
+`segments.name` is the natural key and the CLI selector. The current Julia
+schema stores `segment_efforts.segment_id` rather than a segment name, so
+effort rows are not self-describing without joining through `segments`.
+`segment_id` is retained as an `INTEGER PRIMARY KEY` (SQLite rowid alias)
+for monotonic ordering and general convenience.
+
+`segments.definition_path` is stored as an absolute path. `definition_path`
+and `definition_fingerprint` both carry unique constraints: the former
+prevents the same file being registered twice under different names; the
+latter prevents two different files with identical content from being
+registered under different names, which would produce duplicate effort
+computation.
+
+`definition_fingerprint` is the SHA-256 of the segment definition file bytes.
+It replaces a manual version integer: if the file on disk no longer matches
+the registered fingerprint, existing efforts are considered stale. Bunk does
+not archive or cache segment definition files; the fingerprint is the sole
+staleness signal.
 
 `decode_state` should take only the following values:
 - "pending"
@@ -173,10 +190,6 @@ version does not match the current expected version, the cache entry
 is considered stale. Rebuilding stale entries is the user's
 responsibility via `bunk decode`.
 - version format: YYYYMMDD as an integer
-
-The HDF5 store is an ephemeral cache. The system does not proactively
-validate cache integrity; unreadable artifacts are repaired by manual
-rebuild (`bunk decode`) or cache deletion.
 
 The canonical schema includes:
 
@@ -227,6 +240,9 @@ On `bunk add <path>`:
 
 ### `lunk`
 
+- `segment register <name> <path>` — register or update a segment definition
+  by name; `<path>` is the absolute path to the OSM definition file
+- `segment list` — list registered segments
 - `segment match <segment-name>` — compute and persist segment
   efforts for activities not yet matched against this segment
 - `segment show <segment-name>` — display leaderboard from cached
@@ -327,15 +343,34 @@ The project directory contains no runtime state.
   SQLite function-call problems that come with string formats, and
   enables direct indexed numeric range queries in both Python and
   Julia without `date()`/`datetime()` wrappers.
-- Geographic datatypes follow geographic convention: coordinate
-  ordering is (latitude, longitude) throughout the codebase.
+- `segments.name` is the natural key and CLI selector. `segment_id`
+  is kept as an INTEGER PRIMARY KEY (rowid alias) for monotonic
+  ordering and is what the current Julia implementation stores in
+  `segment_efforts`.
+- `segments.definition_path` is stored as an absolute path,
+  consistent with `source_files.source_path`. Bunk decouples storage
+  layout from its own semantics; users manage their own file
+  organization.
+- `segments.version` is replaced by `definition_fingerprint`
+  (SHA-256). Fingerprint-based staleness detection is automatic and
+  per-artifact; a manual integer would require discipline to maintain.
+- Bunk does not archive or own segment definition files. Storing a
+  blob or a managed copy would require explicit re-registration on
+  edit, risking silently invalid matches if the user forgets. The
+  fingerprint gives a loud staleness signal at match time instead.
+- `definition_path` and `definition_fingerprint` both carry UNIQUE
+  constraints. Path uniqueness prevents the same file being registered
+  twice under different names. Fingerprint uniqueness prevents two
+  different files with identical content from being registered under
+  different names, which would produce duplicate effort computation.
+- Segment registration is explicit via `lunk segment register`.
+  Implicit registration on first match would conflate two distinct
+  user intentions and make segment naming incidental to matching.
 
 ## Contribution
 
 Commit messages follow the 50/70 rule (subject line ≤ 50 characters,
-body lines ≤ 70 characters). Avoid generic type prefixes such as
-`fix:`, `feat:`, or `chore:`. Subsystem prefixes are allowed when they
-add useful context, for example `bunk:` or `lunk:`.
+body lines ≤ 70 characters). No heading prefixes.
 
 ### Task-tracker
 
