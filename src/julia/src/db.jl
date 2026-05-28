@@ -2,7 +2,33 @@ using SQLite
 using Dates
 
 function create_connection(db_path::String)::SQLite.DB
-    return SQLite.DB(db_path)
+    db = SQLite.DB(db_path)
+    DBInterface.execute(
+        db,
+        """
+        CREATE TABLE IF NOT EXISTS segments (
+            segment_id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            definition_fingerprint TEXT NOT NULL UNIQUE,
+            definition_path TEXT NOT NULL UNIQUE
+        );
+        """
+    )
+    DBInterface.execute(
+        db,
+        """
+        CREATE TABLE IF NOT EXISTS segment_efforts (
+            effort_id INTEGER PRIMARY KEY,
+            activity_id INTEGER NOT NULL,
+            segment_id INTEGER NOT NULL,
+            elapsed_time_s REAL NOT NULL,
+            matched_at INTEGER NOT NULL,
+            matcher_version INTEGER NOT NULL,
+            UNIQUE(activity_id, segment_id)
+        );
+        """
+    )
+    return db
 end
 
 function create_connection(f::Function, db_path::String)

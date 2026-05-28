@@ -364,3 +364,38 @@ end
         end
     end
 end
+
+@testset "create_connection with function schema" begin
+    create_connection(":memory:") do db
+        cols = DBInterface.execute(db, "PRAGMA table_info(segments)")
+        names = [row[:name] for row in cols]
+        @test names == [
+            "segment_id", "name", "definition_fingerprint", "definition_path",
+        ]
+
+        cols = DBInterface.execute(db, "PRAGMA table_info(segment_efforts)")
+        names = [row[:name] for row in cols]
+        @test names == [
+            "effort_id", "activity_id", "segment_id", "elapsed_time_s", "matched_at",
+            "matcher_version",
+        ]
+    end
+end
+
+@testset "create_connection propagates errors from do-block" begin
+    @test_throws ErrorException create_connection(":memory:") do db
+        error("test error")
+    end
+end
+
+@testset "create_connection closes connection on do-block error" begin
+    ref = Ref{SQLite.DB}()
+    try
+        create_connection(":memory:") do db
+            ref[] = db
+            error("test error")
+        end
+    catch
+    end
+    @test !SQLite.isopen(ref[])
+end
