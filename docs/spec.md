@@ -124,7 +124,7 @@ Minimum tables:
 - `activities` — Python-owned, Julia-readable
   - `activity_id`
   - `source_fingerprint` (CAS address; unique)
-  - `start_time` — Integer seconds from Unix epoch
+  - `start_time` — Real (Float) seconds from Unix epoch
   - `cache_version`
   - `ride_tag` (nullable)
   - `sport` (nullable)
@@ -140,7 +140,7 @@ Minimum tables:
   - `activity_id`
   - `segment_id`
   - `elapsed_time_s`
-  - `matched_at`
+  - `matched_at` — Integer seconds from Unix epoch
   - `matcher_version`
 
 `activities.source_fingerprint` is the SHA-256 fingerprint of the source file
@@ -245,8 +245,8 @@ On `bunk add <path>`:
 - `segment list` — list registered segments
 - `segment match <segment-name>` — compute and persist segment
   efforts for activities not yet matched against this segment
-- `segment show <segment-name>` — display leaderboard from cached
-  results
+- `segment show <segment-name>` — display leaderboard from cached results
+- `segment rename <old-name> <new-name>` — rename a segment in the database
 - `ride show <activity-id|ride-tag>` — display activity summary
 
 ## Segment Definitions

@@ -8,3 +8,4 @@
 /.direnv/
 /src/python/bunkalunk.egg-info/
 /src/julia/scratch/
+/.agent-shell/
