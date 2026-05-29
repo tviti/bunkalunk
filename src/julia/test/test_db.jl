@@ -138,6 +138,18 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
     return
 end
 
+
+function with_activities_db(f::Function)
+    conn = SQLite.DB()
+    try
+        create_bunk_tables!(conn)
+        seed_activities_table!(conn)
+        f(conn)
+    finally
+        close(conn)
+    end
+end
+
 @testset "get_content_fingerprint" begin
     let conn = SQLite.DB()
         try
@@ -151,221 +163,79 @@ end
 end
 
 @testset "select_by_start_date" begin
-    let conn = SQLite.DB()
-        try
-            create_bunk_tables!(conn)
-            seed_activities_table!(conn)
-            fingerprints = select_by_start_date(conn, "2026-02-05")
-            @test fingerprints == ["123"]
-        finally
-            close(conn)
-        end
+    with_activities_db() do conn
+        @test select_by_start_date(conn, "2026-02-05") == ["123"]
     end
-end
-
-@testset "select_by_start_date multiple matches" begin
-    # two activities with start_time on the same date
-    # expect both fingerprints returned
-    let conn = SQLite.DB()
-        try
-            create_bunk_tables!(conn)
-            seed_activities_table!(conn)
-            fingerprints = select_by_start_date(conn, "2026-02-06")
-            @test fingerprints == ["456", "789"]
-        finally
-            close(conn)
-        end
+    with_activities_db() do conn
+        # multiple matches: two activities with start_time on the same date
+        @test select_by_start_date(conn, "2026-02-06") == ["456", "789"]
     end
-end
-
-@testset "select_by_start_date upper boundary" begin
-    # activity whose start_time is exactly midnight opening the next day
-    # expect it is excluded from the queried date
-    let conn = SQLite.DB()
-        try
-            create_bunk_tables!(conn)
-            seed_activities_table!(conn)
-            fingerprints = select_by_start_date(conn, "2026-02-07")
-            @test fingerprints == []
-        finally
-            close(conn)
-        end
+    with_activities_db() do conn
+        # upper boundary: exactly midnight opening the next day should be excluded
+        @test select_by_start_date(conn, "2026-02-07") == []
     end
-end
-
-@testset "select_by_start_date with sport match" begin
-    # sport filter that matches seed data
-    # expect only activities with sport=="cycling" returned
-    let conn = SQLite.DB()
-        try
-            create_bunk_tables!(conn)
-            seed_activities_table!(conn)
-            fingerprints = select_by_start_date(
-                conn,
-                "2026-02-06",
-                sport = "cycling",
-            )
-            @test fingerprints == ["789"]
-        finally
-            close(conn)
-        end
+    with_activities_db() do conn
+        # sport filter that matches seed data — only cycling returned
+        @test select_by_start_date(conn, "2026-02-06", sport="cycling") == ["789"]
     end
-end
-
-@testset "select_by_start_date with sport no match" begin
-    # sport filter that matches no activities
-    # expect empty result
-    let conn = SQLite.DB()
-        try
-            create_bunk_tables!(conn)
-            seed_activities_table!(conn)
-            fingerprints = select_by_start_date(
-                conn,
-                "2026-02-06",
-                sport = "running",
-            )
-            @test fingerprints == []
-        finally
-            close(conn)
-        end
+    with_activities_db() do conn
+        # sport filter that matches no activities — empty result
+        @test select_by_start_date(conn, "2026-02-06", sport="running") == []
     end
-end
-
-@testset "select_by_start_date with sport nothing" begin
-    # sport=nothing should behave identically to the no-sport overload
-    # expect all activities in range returned
-    let conn = SQLite.DB()
-        try
-            create_bunk_tables!(conn)
-            seed_activities_table!(conn)
-            fingerprints = select_by_start_date(
-                conn,
-                "2026-02-06",
-                sport = nothing,
-            )
-            @test fingerprints == ["456", "789"]
-        finally
-            close(conn)
-        end
+    with_activities_db() do conn
+        # sport=nothing behaves identically to the no-sport overload
+        @test select_by_start_date(conn, "2026-02-06", sport=nothing) == ["456", "789"]
     end
 end
 
 @testset "select_by_time_range" begin
-    let conn = SQLite.DB()
-        try
-            create_bunk_tables!(conn)
-            seed_activities_table!(conn)
-            fingerprints = select_by_time_range(
-                conn,
-                DateTime(2026, 2, 6, 4, 30),
-                DateTime(2026, 2, 6, 5, 30)
-            )
-            @test fingerprints == ["456"]
-        finally
-            close(conn)
-        end
+    with_activities_db() do conn
+        @test select_by_time_range(conn,
+            DateTime(2026, 2, 6, 4, 30),
+            DateTime(2026, 2, 6, 5, 30)) == ["456"]
+    end
+
+    with_activities_db() do conn
+        # multiple matches: time range spanning more than one activity
+        @test select_by_time_range(conn,
+            DateTime(2026, 2, 6, 4, 30),
+            DateTime(2026, 2, 6, 15, 30)) == ["456", "789"]
+    end
+
+    with_activities_db() do conn
+        # upper boundary: start_time exactly equal to t1 is excluded (range is >= t0, < t1)
+        @test select_by_time_range(conn,
+            DateTime(2026, 2, 5, 5, 00),
+            DateTime(2026, 2, 6, 5, 00)) == ["123"]
+    end
+
+    with_activities_db() do conn
+        # sport filter that matches seed data — only cycling returned
+        @test select_by_time_range(conn,
+            DateTime(2026, 2, 6, 4, 30),
+            DateTime(2026, 2, 6, 15, 30),
+            sport="cycling") == ["789"]
+    end
+
+    with_activities_db() do conn
+        # sport filter that matches no activities in range — empty result
+        @test select_by_time_range(conn,
+            DateTime(2026, 2, 6, 4, 30),
+            DateTime(2026, 2, 6, 15, 30),
+            sport="running") == []
+    end
+
+    with_activities_db() do conn
+        # sport=nothing behaves identically to the no-sport overload
+        @test select_by_time_range(conn,
+            DateTime(2026, 2, 6, 4, 30),
+            DateTime(2026, 2, 6, 15, 30),
+            sport=nothing) == ["456", "789"]
     end
 end
 
-@testset "select_by_time_range multiple matches" begin
-    # time range spanning more than one activity
-    # expect all matching fingerprints returned
-    let conn = SQLite.DB()
-        try
-            create_bunk_tables!(conn)
-            seed_activities_table!(conn)
-            fingerprints = select_by_time_range(
-                conn,
-                DateTime(2026, 2, 6, 4, 30),
-                DateTime(2026, 2, 6, 15, 30)
-            )
-            @test fingerprints == ["456", "789"]
-        finally
-            close(conn)
-        end
-    end
-end
-
-@testset "select_by_time_range upper boundary" begin
-    # activity whose start_time equals t1 exactly
-    # expect it is excluded (range is half-open: >= t0, < t1)
-    let conn = SQLite.DB()
-        try
-            create_bunk_tables!(conn)
-            seed_activities_table!(conn)
-            fingerprints = select_by_time_range(
-                conn,
-                DateTime(2026, 2, 5, 5, 00),
-                DateTime(2026, 2, 6, 5, 00)
-            )
-            @test fingerprints == ["123"]
-        finally
-            close(conn)
-        end
-    end
-end
-
-@testset "select_by_time_range with sport match" begin
-    # sport filter that matches seed data
-    # expect only activities with sport=="cycling" returned
-    let conn = SQLite.DB()
-        try
-            create_bunk_tables!(conn)
-            seed_activities_table!(conn)
-            fingerprints = select_by_time_range(
-                conn,
-                DateTime(2026, 2, 6, 4, 30),
-                DateTime(2026, 2, 6, 15, 30),
-                sport = "cycling",
-            )
-            @test fingerprints == ["789"]
-        finally
-            close(conn)
-        end
-    end
-end
-
-@testset "select_by_time_range with sport no match" begin
-    # sport filter that matches no activities in range
-    # expect empty result
-    let conn = SQLite.DB()
-        try
-            create_bunk_tables!(conn)
-            seed_activities_table!(conn)
-            fingerprints = select_by_time_range(
-                conn,
-                DateTime(2026, 2, 6, 4, 30),
-                DateTime(2026, 2, 6, 15, 30),
-                sport = "running",
-            )
-            @test fingerprints == []
-        finally
-            close(conn)
-        end
-    end
-end
-
-@testset "select_by_time_range with sport nothing" begin
-    # sport=nothing should behave identically to the no-sport overload
-    # expect all activities in range returned
-    let conn = SQLite.DB()
-        try
-            create_bunk_tables!(conn)
-            seed_activities_table!(conn)
-            fingerprints = select_by_time_range(
-                conn,
-                DateTime(2026, 2, 6, 4, 30),
-                DateTime(2026, 2, 6, 15, 30),
-                sport = nothing,
-            )
-            @test fingerprints == ["456", "789"]
-        finally
-            close(conn)
-        end
-    end
-end
-
-@testset "create_connection with function schema" begin
+@testset "create_connection" begin
+    # verifies table schemas created by create_connection
     create_connection(":memory:") do db
         cols = DBInterface.execute(db, "PRAGMA table_info(segments)")
         names = [row[:name] for row in cols]
@@ -380,15 +250,13 @@ end
             "matcher_version",
         ]
     end
-end
 
-@testset "create_connection propagates errors from do-block" begin
+    # errors thrown inside the do-block should propagate out
     @test_throws ErrorException create_connection(":memory:") do db
         error("test error")
     end
-end
 
-@testset "create_connection closes connection on do-block error" begin
+    # connection is closed even when the do-block raises an error
     ref = Ref{SQLite.DB}()
     try
         create_connection(":memory:") do db
