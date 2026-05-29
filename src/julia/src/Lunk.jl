@@ -15,7 +15,7 @@ export create_connection,
     select_by_start_date,
     select_by_time_range
 
-include("formats/osm.jl")
+include("segments.jl")
 export Segment,
     read_segment
 

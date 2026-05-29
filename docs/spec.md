@@ -279,8 +279,7 @@ src/
 	  db.jl
 	  cache.jl
 	  paths.jl         — shared path-resolution helpers and constants
-	  formats/         — segment file decoders/parsers
-	    osm.jl         — OSM-XML decoder
+	  segments.jl      — segment file decoders/parsers
 	test/
   python/
     pyproject.toml

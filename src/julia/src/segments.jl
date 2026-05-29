@@ -7,7 +7,18 @@ struct Segment
     longitude::Vector{Float64}
 end
 
+"""
+    read_segment(path::String)::Segment
+
+Read a segment file at `path`, dispatching on file extension. Returns the
+generated `Segment`. Throws `ArgumentError` on unsupported extensions.
+"""
 function read_segment(path::String)::Segment
+    ext = splitext(path)[2]
+    return read_segment(Val(Symbol(ext)), path)
+end
+
+function read_segment(::Val{Symbol(".osm")}, path::String)::Segment
     doc = XML.read(path, Node)
     root = doc[end]
     tag(root) == "osm" || throw(
@@ -68,4 +79,8 @@ function read_segment(path::String)::Segment
     name = get(way_tags, "name", "")
 
     return Segment(name, latitude, longitude)
+end
+
+function read_segment(::Val{ext}, path::String)::Segment where {ext}
+    throw(ArgumentError("unsupported file extension: $(repr(string(ext)))"))
 end

@@ -1,7 +1,6 @@
 using Test
 using Lunk
 
-
 function write_osm(dir::String, xml::String)::String
     path = joinpath(dir, "segment.osm")
     write(path, xml)
@@ -10,6 +9,16 @@ end
 
 
 @testset "read_segment" begin
+    @testset "unsupported extension throws" begin
+        mktempdir() do dir
+            path = joinpath(dir, "notasegment.bin")
+            @test_throws r"ArgumentError: unsupported file extension: \".bin\"" read_segment(path)
+        end
+    end
+end
+
+
+@testset "read_segment OSM" begin
 
     @testset "happy path" begin
         # minimal valid file: one way, N nodes, nd refs match, name tag present
