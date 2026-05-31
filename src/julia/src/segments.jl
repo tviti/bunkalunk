@@ -1,3 +1,4 @@
+using SHA
 using XML
 import XML: attributes
 
@@ -83,4 +84,15 @@ end
 
 function read_segment(::Val{ext}, path::String)::Segment where {ext}
     throw(ArgumentError("unsupported file extension: $(repr(string(ext)))"))
+end
+
+function compute_fingerprint(f::IO)::String
+    pos = position(f)
+    try
+        seek(f, 0)
+        fingerprint = bytes2hex(sha256(f))
+        return fingerprint
+    finally
+        seek(f, pos)
+    end
 end
