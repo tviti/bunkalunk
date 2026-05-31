@@ -96,3 +96,82 @@ function select_by_time_range(
     )
     return [row[:source_fingerprint] for row in result]
 end
+
+function upsert_segment(
+        db::SQLite.DB,
+        name::String,
+        definition_path::String,
+        definition_fingerprint::String
+    )::Nothing
+    DBInterface.execute(
+        db,
+        """
+        INSERT INTO segments (
+            name,
+            definition_fingerprint,
+            definition_path
+        ) VALUES (
+            :name,
+            :definition_fingerprint,
+            :definition_path
+        ) ON CONFLICT(name) DO UPDATE SET
+            definition_fingerprint=excluded.definition_fingerprint,
+            definition_path=excluded.definition_path
+        """,
+        Dict(
+            :name => name,
+            :definition_fingerprint => definition_fingerprint,
+            :definition_path => definition_path
+        )
+    )
+    return
+end
+
+function upsert_segment_effort(
+        db::SQLite.DB,
+        activity_id::Int,
+        segment_id::Int,
+        elapsed_time_s::Real,
+        matched_at::Int,
+        matcher_version::Int
+    )::Nothing
+    DBInterface.execute(
+        db,
+        """
+            INSERT INTO segment_efforts (
+                activity_id,
+                segment_id,
+                elapsed_time_s,
+                matched_at,
+                matcher_version
+            ) VALUES (
+                :activity_id,
+                :segment_id,
+                :elapsed_time_s,
+                :matched_at,
+                :matcher_version
+            ) ON CONFLICT(activity_id, segment_id) DO UPDATE SET
+                elapsed_time_s = excluded.elapsed_time_s,
+                matched_at = excluded.matched_at,
+                matcher_version = excluded.matcher_version
+        """,
+        Dict(
+            :activity_id => activity_id,
+            :segment_id => segment_id,
+            :elapsed_time_s => elapsed_time_s,
+            :matched_at => matched_at,
+            :matcher_version => matcher_version
+        )
+    )
+    return
+end
+
+function fetch_segment_path(db::SQLite.DB, name::String)::String
+    result = DBInterface.execute(
+        db,
+        "SELECT * FROM segments WHERE name = ?",
+        [name]
+    )
+    segment_row = only(NamedTuple(r) for r in result)
+    return segment_row[:definition_path]
+end

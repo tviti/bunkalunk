@@ -279,3 +279,69 @@ end
     end
     @test !SQLite.isopen(ref[])
 end
+
+@testset "upsert_segment" begin
+    # Happy path
+    create_connection(":memory:") do db
+        upsert_segment(db, "segment", "path/to/segment", "fingerprint")
+        result = DBInterface.execute(
+            db,
+            "SELECT * FROM segments WHERE name = ?",
+            ["segment"]
+        )
+        row = only(NamedTuple(row) for row in result)
+        @test row[:name] == "segment"
+        @test row[:definition_path] == "path/to/segment"
+        @test row[:definition_fingerprint] == "fingerprint"
+
+        # Conflict updates row
+        upsert_segment(db, "segment", "new/path/to/segment", "new-fingerprint")
+        result = DBInterface.execute(
+            db,
+            "SELECT * FROM segments WHERE name = ?",
+            ["segment"]
+        )
+        segment_row = only(NamedTuple(r) for r in result)
+        @test segment_row[:name] == "segment"
+        @test segment_row[:definition_path] == "new/path/to/segment"
+        @test segment_row[:definition_fingerprint] == "new-fingerprint"
+    end
+end
+
+@testset "upsert_segment_effort" begin
+    create_connection(":memory:") do db
+        # Happy path
+        upsert_segment_effort(db, 1, 10, 123.456, 13, 123456)
+        result = DBInterface.execute(
+            db,
+            "SELECT * FROM segment_efforts WHERE segment_id = ?",
+            [10]
+        )
+        segment_efforts_row = only(NamedTuple(r) for r in result)
+        @test segment_efforts_row[:activity_id] == 1
+        @test segment_efforts_row[:segment_id] == 10
+        @test segment_efforts_row[:elapsed_time_s] == 123.456
+        @test segment_efforts_row[:matched_at] == 13
+        @test segment_efforts_row[:matcher_version] == 123456
+
+        # Repeating the same match should update the existing row, not add a duplicate.
+        upsert_segment_effort(db, 1, 10, 222.0, 14, 654321)
+        result = DBInterface.execute(
+            db,
+            "SELECT * FROM segment_efforts WHERE activity_id = ? AND segment_id = ?",
+            [1, 10]
+        )
+        segment_efforts_row = only(NamedTuple(r) for r in result)
+        @test segment_efforts_row[:elapsed_time_s] == 222.0
+        @test segment_efforts_row[:matched_at] == 14
+        @test segment_efforts_row[:matcher_version] == 654321
+    end
+end
+
+@testset "fetch_segment_path" begin
+    # Happy path
+    create_connection(":memory:") do db
+        upsert_segment(db, "segment", "path/to/segment", "fingerprint")
+        @test fetch_segment_path(db, "segment") == "path/to/segment"
+    end
+end

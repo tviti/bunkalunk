@@ -13,7 +13,10 @@ include("db.jl")
 export create_connection,
     get_content_fingerprint,
     select_by_start_date,
-    select_by_time_range
+    select_by_time_range,
+    upsert_segment,
+    upsert_segment_effort,
+    fetch_segment_path
 
 include("segments.jl")
 export Segment,
