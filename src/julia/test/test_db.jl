@@ -141,7 +141,7 @@ end
 
 function with_activities_db(f::Function)
     conn = SQLite.DB()
-    try
+    return try
         create_bunk_tables!(conn)
         seed_activities_table!(conn)
         f(conn)
@@ -176,61 +176,73 @@ end
     end
     with_activities_db() do conn
         # sport filter that matches seed data — only cycling returned
-        @test select_by_start_date(conn, "2026-02-06", sport="cycling") == ["789"]
+        @test select_by_start_date(conn, "2026-02-06", sport = "cycling") == ["789"]
     end
     with_activities_db() do conn
         # sport filter that matches no activities — empty result
-        @test select_by_start_date(conn, "2026-02-06", sport="running") == []
+        @test select_by_start_date(conn, "2026-02-06", sport = "running") == []
     end
     with_activities_db() do conn
         # sport=nothing behaves identically to the no-sport overload
-        @test select_by_start_date(conn, "2026-02-06", sport=nothing) == ["456", "789"]
+        @test select_by_start_date(conn, "2026-02-06", sport = nothing) == ["456", "789"]
     end
 end
 
 @testset "select_by_time_range" begin
     with_activities_db() do conn
-        @test select_by_time_range(conn,
+        @test select_by_time_range(
+            conn,
             DateTime(2026, 2, 6, 4, 30),
-            DateTime(2026, 2, 6, 5, 30)) == ["456"]
+            DateTime(2026, 2, 6, 5, 30)
+        ) == ["456"]
     end
 
     with_activities_db() do conn
         # multiple matches: time range spanning more than one activity
-        @test select_by_time_range(conn,
+        @test select_by_time_range(
+            conn,
             DateTime(2026, 2, 6, 4, 30),
-            DateTime(2026, 2, 6, 15, 30)) == ["456", "789"]
+            DateTime(2026, 2, 6, 15, 30)
+        ) == ["456", "789"]
     end
 
     with_activities_db() do conn
         # upper boundary: start_time exactly equal to t1 is excluded (range is >= t0, < t1)
-        @test select_by_time_range(conn,
+        @test select_by_time_range(
+            conn,
             DateTime(2026, 2, 5, 5, 00),
-            DateTime(2026, 2, 6, 5, 00)) == ["123"]
+            DateTime(2026, 2, 6, 5, 00)
+        ) == ["123"]
     end
 
     with_activities_db() do conn
         # sport filter that matches seed data — only cycling returned
-        @test select_by_time_range(conn,
+        @test select_by_time_range(
+            conn,
             DateTime(2026, 2, 6, 4, 30),
             DateTime(2026, 2, 6, 15, 30),
-            sport="cycling") == ["789"]
+            sport = "cycling"
+        ) == ["789"]
     end
 
     with_activities_db() do conn
         # sport filter that matches no activities in range — empty result
-        @test select_by_time_range(conn,
+        @test select_by_time_range(
+            conn,
             DateTime(2026, 2, 6, 4, 30),
             DateTime(2026, 2, 6, 15, 30),
-            sport="running") == []
+            sport = "running"
+        ) == []
     end
 
     with_activities_db() do conn
         # sport=nothing behaves identically to the no-sport overload
-        @test select_by_time_range(conn,
+        @test select_by_time_range(
+            conn,
             DateTime(2026, 2, 6, 4, 30),
             DateTime(2026, 2, 6, 15, 30),
-            sport=nothing) == ["456", "789"]
+            sport = nothing
+        ) == ["456", "789"]
     end
 end
 
