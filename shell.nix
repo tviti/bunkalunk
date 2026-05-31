@@ -70,7 +70,11 @@ let
     rope
     mypy
   ]);
-
+  # Install opencode outside of nix so it can autoupdate, but project-level
+  # config can live here
+  opencodeConfig = builtins.toJSON {
+    instructions = [ "docs/spec.md" ];
+  };
 in
 pkgs.mkShell {
   buildInputs = [ pythonEnv ]
@@ -90,5 +94,6 @@ pkgs.mkShell {
     export JULIA_PROJECT=''${PWD}/src/julia
     export PYTEST_DIR=''${PWD}/src/python/tests
     export PATH=/home/taylor/.julia/bin:''${PATH}
+    export OPENCODE_CONFIG_CONTENT='${opencodeConfig}'
   '';
 }
