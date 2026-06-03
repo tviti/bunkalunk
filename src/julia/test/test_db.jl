@@ -345,3 +345,21 @@ end
         @test fetch_segment_path(db, "segment") == "path/to/segment"
     end
 end
+
+@testset "fetch_segment_names" begin
+    # Happy path and and results ordered by name
+    create_connection(":memory:") do db
+        DBInterface.execute(
+            db,
+            """
+            INSERT INTO segments (name, definition_fingerprint, definition_path)
+            VALUES
+                ("c", "fingerprint-c", "path/to/c"),
+                ("b", "fingerprint-b", "path/to/b"),
+                ("a", "fingerprint-a", "path/to/a");
+            """
+        )
+        names = fetch_segment_names(db)
+        @test names == ["a", "b", "c"]
+    end
+end

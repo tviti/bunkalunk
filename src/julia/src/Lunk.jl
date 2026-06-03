@@ -16,15 +16,19 @@ export create_connection,
     select_by_time_range,
     upsert_segment,
     upsert_segment_effort,
-    fetch_segment_path
+    fetch_segment_path,
+    fetch_segment_names
 
 include("segments.jl")
 export Segment,
-    read_segment
+    read_segment,
+    compute_fingerprint
 
 include("geo.jl")
 export compute_ecef_r,
     crosses_gate,
     on_polyline,
     haversine_distance
+
+include("cli.jl")
 end

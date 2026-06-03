@@ -1,14 +1,35 @@
 using ArgParse
 using Lunk
 
-function main()
-    db_path = BUNK_HOME * "/db.sqlite3"
-    args = parse_commandline()
-    for arg in args
-        println("Argument: ", arg)
-    end
-    return
+const ArgDict = Dict{String, Any}
+const CommandMap = Dict{String, Function}
+
+struct Context
+    db_path::String
+    activity_store::String
+    verbose::Bool
+    io::IO
 end
+
+function Context(db_path::String, activity_store::String, verbose::Bool)
+    return Context(db_path, activity_store, verbose, stdout)
+end
+
+function run_segment_command(
+        args::ArgDict, ctx::Context, command_map::CommandMap = SEGMENT_SUBCOMMANDS
+    )
+    subcommand = args["%COMMAND%"]
+    subcommand !== nothing || throw(ArgumentError("No sub-command given"))
+
+    handler = get(command_map, subcommand, nothing)
+    handler !== nothing || throw(ArgumentError("Unknown subcommand $subcommand"))
+
+    return handler(args[subcommand], ctx)
+end
+
+const COMMANDS = CommandMap(
+    "segment" => run_segment_command
+)
 
 function parse_commandline()
 
@@ -44,11 +65,12 @@ function parse_commandline()
 
         @add_arg_table! segment_settings["register"] begin
             "name"
-            required = false
+            required = true
             action = :store_arg
-            help = "Segment name. Omit to infer from segment file."
+            help = "Segment name."
 
             "path"
+            required = true
             action = :store_arg
             help = "Path to segment file."
         end
@@ -69,6 +91,83 @@ function parse_commandline()
     end
 
     return parse_args(settings)
+end
+
+function run_command(
+        args::ArgDict, ctx::Context, command_map::CommandMap = COMMANDS
+    )
+    command = args["%COMMAND%"]
+
+    command !== nothing || throw(
+        ArgumentError(
+            "run_command called but no command given"
+        )
+    )
+
+    handler = get(command_map, command, nothing)
+    handler !== nothing || throw(ArgumentError("Unknown command $command"))
+
+    return handler(args[command], ctx)
+
+end
+
+function run_segment_register(args::ArgDict, ctx::Context)
+    name::String = args["name"]
+    path::String = abspath(args["path"])
+
+    fingerprint = open(path, "r") do f
+        compute_fingerprint(f)
+    end
+
+    create_connection(ctx.db_path) do conn
+        upsert_segment(conn, name, path, fingerprint)
+    end
+
+    return
+end
+
+function run_segment_list(args::ArgDict, ctx::Context)
+    create_connection(ctx.db_path) do conn
+        names = fetch_segment_names(conn)
+        for name in names
+            path = fetch_segment_path(conn, name)
+            println(ctx.io, "$name: $path")
+        end
+    end
+    return
+end
+
+function run_segment_match(args::ArgDict, ctx::Context)
+    throw(ArgumentError("lunk segment match: not yet implemented"))
+end
+
+function run_segment_show(args::ArgDict, ctx::Context)
+    throw(ArgumentError("lunk segment show: not yet implemented"))
+end
+
+const SEGMENT_SUBCOMMANDS = Dict{String, Function}(
+    "register" => run_segment_register,
+    "list" => run_segment_list,
+    "match" => run_segment_match,
+    "show" => run_segment_show,
+)
+
+function main()
+    args = parse_commandline()
+
+    isdir(BUNK_HOME) || throw(ArgumentError("BUNK_HOME does not exist: $BUNK_HOME"))
+
+    isdir(ACTIVITY_STORE) || throw(ArgumentError("ACTIVITY_STORE does not exist: $ACTIVITY_STORE"))
+
+    ctx = Context(
+        BUNK_HOME * "/db.sqlite3",
+        ACTIVITY_STORE,
+        args["verbose"]
+    )
+
+    run_command(args, ctx)
+
+    return
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

@@ -175,3 +175,8 @@ function fetch_segment_path(db::SQLite.DB, name::String)::String
     segment_row = only(NamedTuple(r) for r in result)
     return segment_row[:definition_path]
 end
+
+function fetch_segment_names(db::SQLite.DB)::Vector{String}
+    result = DBInterface.execute(db, "SELECT name FROM segments ORDER BY name")
+    return [r[:name] for r in result]
+end
