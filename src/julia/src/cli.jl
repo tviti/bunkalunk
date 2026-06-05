@@ -17,7 +17,7 @@ end
 
 function run_segment_command(
         args::ArgDict, ctx::Context, command_map::CommandMap = SEGMENT_SUBCOMMANDS
-    )
+    )::Cint
     subcommand = args["%COMMAND%"]
     subcommand !== nothing || throw(ArgumentError("No sub-command given"))
 
@@ -95,7 +95,7 @@ end
 
 function run_command(
         args::ArgDict, ctx::Context, command_map::CommandMap = COMMANDS
-    )
+    )::Cint
     command = args["%COMMAND%"]
 
     command !== nothing || throw(
@@ -111,7 +111,7 @@ function run_command(
 
 end
 
-function run_segment_register(args::ArgDict, ctx::Context)
+function run_segment_register(args::ArgDict, ctx::Context)::Cint
     name::String = args["name"]
     path::String = abspath(args["path"])
 
@@ -123,10 +123,10 @@ function run_segment_register(args::ArgDict, ctx::Context)
         upsert_segment(conn, name, path, fingerprint)
     end
 
-    return
+    return 0
 end
 
-function run_segment_list(args::ArgDict, ctx::Context)
+function run_segment_list(args::ArgDict, ctx::Context)::Cint
     create_connection(ctx.db_path) do conn
         names = fetch_segment_names(conn)
         for name in names
@@ -134,14 +134,14 @@ function run_segment_list(args::ArgDict, ctx::Context)
             println(ctx.io, "$name: $path")
         end
     end
-    return
+    return 0
 end
 
-function run_segment_match(args::ArgDict, ctx::Context)
+function run_segment_match(args::ArgDict, ctx::Context)::Cint
     throw(ArgumentError("lunk segment match: not yet implemented"))
 end
 
-function run_segment_show(args::ArgDict, ctx::Context)
+function run_segment_show(args::ArgDict, ctx::Context)::Cint
     throw(ArgumentError("lunk segment show: not yet implemented"))
 end
 
@@ -165,7 +165,8 @@ function main()
         args["verbose"]
     )
 
-    run_command(args, ctx)
+    exit_code = run_command(args, ctx)
+    exit(exit_code)
 
     return
 end

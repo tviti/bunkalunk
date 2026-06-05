@@ -21,10 +21,10 @@ end
         command_map = Lunk.CommandMap(
             "segment" => (x, y) -> begin
                 called[] = true
-                return "fake result"
+                return 0
             end
         )
-        @test Lunk.run_command(args, ctx, command_map) == "fake result"
+        @test Lunk.run_command(args, ctx, command_map) == 0
         @test called[]
     end
 
@@ -60,20 +60,20 @@ end
         called = Ref("")
         subcommand_map = Lunk.CommandMap(
             "register" => (x, y) -> begin
-                called[] = "register"; return
+                called[] = "register"; return 0
             end,
             "list" => (x, y) -> begin
-                called[] = "list"; return
+                called[] = "list"; return 0
             end,
             "match" => (x, y) -> begin
-                called[] = "match"; return
+                called[] = "match"; return 0
             end,
             "show" => (x, y) -> begin
-                called[] = "show"; return
+                called[] = "show"; return 0
             end,
         )
         args = Dict("%COMMAND%" => "list", "list" => Dict())
-        Lunk.run_segment_command(args, ctx, subcommand_map)
+        @test Lunk.run_segment_command(args, ctx, subcommand_map) == 0
         @test called[] == "list"
     end
 
@@ -105,7 +105,7 @@ end
             compute_fingerprint(f)
         end
 
-        Lunk.run_segment_register(args, ctx)
+        @test Lunk.run_segment_register(args, ctx) == 0
 
         row = create_connection(ctx.db_path) do conn
             result = DBInterface.execute(
@@ -130,7 +130,7 @@ end
 
         cd(dir) do
             write(args["path"], "test")
-            Lunk.run_segment_register(args, ctx)
+            @test Lunk.run_segment_register(args, ctx) == 0
         end
 
         row = create_connection(ctx.db_path) do conn

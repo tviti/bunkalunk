@@ -281,6 +281,7 @@ src/
 	  paths.jl         — shared path-resolution helpers and constants
 	  segments.jl      — segment file decoders/parsers
 	test/
+	  runtest.jl       — julia test-suite entrypoint
   python/
     pyproject.toml
     bunkalunk/
@@ -370,6 +371,14 @@ The project directory contains no runtime state.
 
 Commit messages follow the 50/70 rule (subject line ≤ 50 characters,
 body lines ≤ 70 characters). No heading prefixes.
+
+### Testing
+
+Run Julia tests via `runtests.jl` instead of `Pkg.test()` to environment
+rebuilding. From `src/julia':
+
+
+    julia --project test/runtests.jl
 
 ### Task-tracker
 
