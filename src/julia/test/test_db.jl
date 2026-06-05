@@ -138,7 +138,6 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
     return
 end
 
-
 function with_activities_db(f::Function)
     conn = SQLite.DB()
     return try
@@ -335,6 +334,28 @@ end
         @test segment_efforts_row[:elapsed_time_s] == 222.0
         @test segment_efforts_row[:matched_at] == 14
         @test segment_efforts_row[:matcher_version] == 654321
+    end
+end
+
+@testset "select_all" begin
+    # No sport returns all rows
+    with_activities_db() do db
+        @test select_all(db) == [(1, "123"), (2, "456"), (3, "789"), (4, "abc")]
+    end
+
+    # Selects only requested sport
+    with_activities_db() do db
+        @test select_all(db, sport = "cycling") == [(1, "123"), (3, "789"), (4, "abc")]
+    end
+
+    # No matches yields empty result
+    with_activities_db() do db
+        @test select_all(db, sport = "running") == []
+    end
+
+    # sport = nothing behaves same as no sport
+    with_activities_db() do db
+        @test select_all(db, sport = nothing) == [(1, "123"), (2, "456"), (3, "789"), (4, "abc")]
     end
 end
 

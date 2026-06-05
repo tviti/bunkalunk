@@ -49,6 +49,13 @@ function get_content_fingerprint(db::SQLite.DB, source_path::String)::String
     return only(row[:content_fingerprint] for row in result)
 end
 
+function add_sport_to_query(query::String, sport::Union{String, Nothing} = nothing)
+    if sport !== nothing
+        return query * " AND sport = :sport"
+    end
+    return query
+end
+
 function select_by_start_date(
         db::SQLite.DB,
         start_date::String;
@@ -62,9 +69,7 @@ function select_by_start_date(
       WHERE start_time >= :t0_epoch
       AND start_time < :t1_epoch
     """
-    if !(sport === nothing)
-        query *= " and sport = :sport"
-    end
+    query = add_sport_to_query(query, sport)
     result = DBInterface.execute(
         db,
         query,
@@ -86,15 +91,29 @@ function select_by_time_range(
       WHERE start_time >= :t0_epoch
       AND start_time < :t1_epoch
     """
-    if !(sport === nothing)
-        query *= " and sport = :sport"
-    end
+    query = add_sport_to_query(query, sport)
     result = DBInterface.execute(
         db,
         query,
         Dict(:t0_epoch => t0_epoch, :t1_epoch => t1_epoch, :sport => sport)
     )
     return [row[:source_fingerprint] for row in result]
+end
+
+function select_all(
+        db::SQLite.DB; sport::Union{String, Nothing} = nothing
+    )::Vector{Tuple{Int, String}}
+    query = "SELECT activity_id, source_fingerprint FROM activities"
+    if sport !== nothing
+        query *= " WHERE sport = :sport"
+    end
+    query *= " ORDER BY start_time"
+    result = DBInterface.execute(
+        db,
+        query,
+        Dict(:sport => sport)
+    )
+    return [(row[:activity_id], row[:source_fingerprint]) for row in result]
 end
 
 function upsert_segment(
