@@ -1,4 +1,5 @@
 using ArgParse
+using Logging
 using Lunk
 
 const ArgDict = Dict{String, Any}
@@ -38,6 +39,10 @@ function parse_commandline()
     @add_arg_table! settings begin
         "--verbose", "-v"
         help = "Enable verbose output"
+        action = :store_true
+
+        "--debug"
+        help = "Enable debug-level logging"
         action = :store_true
 
         "segment"
@@ -152,6 +157,10 @@ const SEGMENT_SUBCOMMANDS = Dict{String, Function}(
 
 function main()
     args = parse_commandline()
+
+    if get(args, "debug", false)
+        global_logger(ConsoleLogger(stderr, Logging.Debug))
+    end
 
     isdir(BUNK_HOME) || throw(ArgumentError("BUNK_HOME does not exist: $BUNK_HOME"))
 
