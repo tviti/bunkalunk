@@ -185,14 +185,22 @@ function upsert_segment_effort(
     return
 end
 
-function fetch_segment_path(db::SQLite.DB, name::String)::String
+function fetch_segment_registration(db::SQLite.DB, name::String)::NamedTuple
     result = DBInterface.execute(
         db,
         "SELECT * FROM segments WHERE name = ?",
         [name]
     )
     segment_row = only(NamedTuple(r) for r in result)
-    return segment_row[:definition_path]
+    return segment_row
+end
+
+function fetch_segment_registration(db::SQLite.DB)::Vector{NamedTuple}
+    result = DBInterface.execute(
+        db,
+        "SELECT * FROM segments ORDER BY name"
+    )
+    return [NamedTuple(r) for r in result]
 end
 
 function fetch_segment_names(db::SQLite.DB)::Vector{String}

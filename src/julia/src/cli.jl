@@ -128,10 +128,8 @@ end
 
 function run_segment_list(args::ArgDict, ctx::Context)::Cint
     create_connection(ctx.db_path) do conn
-        names = fetch_segment_names(conn)
-        for name in names
-            path = fetch_segment_path(conn, name)
-            println(ctx.io, "$name: $path")
+        for reg in fetch_segment_registration(conn)
+            println(ctx.io, "$(reg[:name]): $(reg[:definition_path])")
         end
     end
     return 0

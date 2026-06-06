@@ -359,11 +359,41 @@ end
     end
 end
 
-@testset "fetch_segment_path" begin
+@testset "fetch_segment_registration" begin
     # Happy path
     create_connection(":memory:") do db
         upsert_segment(db, "segment", "path/to/segment", "fingerprint")
-        @test fetch_segment_path(db, "segment") == "path/to/segment"
+        reg = fetch_segment_registration(db, "segment")
+        @test reg[:segment_id] == 1
+        @test reg[:name] == "segment"
+        @test reg[:definition_path] == "path/to/segment"
+        @test reg[:definition_fingerprint] == "fingerprint"
+    end
+end
+
+@testset "fetch_segment_registration all" begin
+    # Returns all rows ordered by name
+    create_connection(":memory:") do db
+        DBInterface.execute(
+            db,
+            """
+            INSERT INTO segments (name, definition_fingerprint, definition_path)
+            VALUES
+                ("c", "fingerprint-c", "path/to/c"),
+                ("b", "fingerprint-b", "path/to/b"),
+                ("a", "fingerprint-a", "path/to/a");
+            """
+        )
+        regs = fetch_segment_registration(db)
+        @test regs[1][:name] == "a"
+        @test regs[2][:name] == "b"
+        @test regs[3][:name] == "c"
+        @test regs[1][:definition_path] == "path/to/a"
+        @test regs[2][:definition_path] == "path/to/b"
+        @test regs[3][:definition_path] == "path/to/c"
+        @test regs[1][:definition_fingerprint] == "fingerprint-a"
+        @test regs[2][:definition_fingerprint] == "fingerprint-b"
+        @test regs[3][:definition_fingerprint] == "fingerprint-c"
     end
 end
 
