@@ -19,7 +19,9 @@ export create_connection,
     upsert_segment,
     upsert_segment_effort,
     fetch_segment_registration,
-    fetch_segment_names
+    fetch_segment_names,
+    remove_segment,
+    remove_segment_efforts
 
 include("segments.jl")
 export Segment,

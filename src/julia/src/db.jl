@@ -207,3 +207,28 @@ function fetch_segment_names(db::SQLite.DB)::Vector{String}
     result = DBInterface.execute(db, "SELECT name FROM segments ORDER BY name")
     return [r[:name] for r in result]
 end
+
+function remove_segment(db::SQLite.DB, name::String)::Union{NamedTuple, Nothing}
+    result = DBInterface.execute(
+        db,
+        "DELETE FROM segments WHERE name = ? RETURNING *",
+        [name]
+    )
+    rows = [NamedTuple(r) for r in result]
+
+    if length(rows) == 0
+        return nothing
+    end
+
+    return only(rows)
+end
+
+function remove_segment_efforts(db::SQLite.DB, segment_id::Integer)::Vector{NamedTuple}
+    result = DBInterface.execute(
+        db,
+        "DELETE FROM segment_efforts WHERE segment_id = ? RETURNING *",
+        [segment_id]
+    )
+    # TODO: Replace list comprehensions with broadcast syntax
+    return [NamedTuple(r) for r in result]
+end

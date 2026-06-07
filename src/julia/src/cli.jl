@@ -1,6 +1,7 @@
 using ArgParse
 using Logging
 using Lunk
+using SQLite
 
 const ArgDict = Dict{String, Any}
 const CommandMap = Dict{String, Function}
@@ -55,6 +56,14 @@ function parse_commandline()
             action = :command
             help = "Add a new segment to the database."
 
+            "remove"
+            action = :command
+            help = "Remove a segment and its efforts from the database."
+
+            "rename"
+            action = :command
+            help = "Rename a segment in the database."
+
             "list"
             action = :command
             help = "List all registered segments."
@@ -78,6 +87,13 @@ function parse_commandline()
             required = true
             action = :store_arg
             help = "Path to segment file."
+        end
+
+        @add_arg_table! segment_settings["remove"] begin
+            "name"
+            required = true
+            action = :store_arg
+            help = "Segment name."
         end
 
         @add_arg_table! segment_settings["match"] begin
@@ -137,6 +153,22 @@ function run_segment_register(args::ArgDict, ctx::Context)::Cint
     return 0
 end
 
+function run_segment_remove(args::ArgDict, ctx::Context)::Cint
+    name::String = args["name"]
+    create_connection(ctx.db_path) do conn
+        DBInterface.transaction(conn) do
+            registration = remove_segment(conn, name)
+            if registration === nothing
+                @info "No segment found by name $name"
+                return 1
+            end
+            efforts = remove_segment_efforts(conn, registration[:segment_id])
+            @info "Removed $(length(efforts)) segment efforts"
+        end
+    end
+    return 0
+end
+
 function run_segment_list(args::ArgDict, ctx::Context)::Cint
     create_connection(ctx.db_path) do conn
         for reg in fetch_segment_registration(conn)
@@ -178,6 +210,7 @@ end
 
 const SEGMENT_SUBCOMMANDS = Dict{String, Function}(
     "register" => run_segment_register,
+    "remove" => run_segment_remove,
     "list" => run_segment_list,
     "match" => run_segment_match,
     "show" => run_segment_show,

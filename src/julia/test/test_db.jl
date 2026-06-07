@@ -3,7 +3,6 @@ using Lunk
 using SQLite
 using Dates
 
-
 function create_bunk_tables!(conn::SQLite.DB)::Nothing
     DBInterface.execute(
         conn, """
@@ -30,7 +29,6 @@ function create_bunk_tables!(conn::SQLite.DB)::Nothing
     return
 end
 
-
 function insert_source_file(conn::SQLite.DB, source_file::Dict)::Nothing
     DBInterface.execute(
         conn,
@@ -52,7 +50,6 @@ function insert_source_file(conn::SQLite.DB, source_file::Dict)::Nothing
     return
 end
 
-
 function seed_source_files_table!(conn::SQLite.DB)::Nothing
     insert_source_file(
         conn, Dict(
@@ -72,7 +69,6 @@ function seed_source_files_table!(conn::SQLite.DB)::Nothing
     )
     return
 end
-
 
 function insert_activity(conn::SQLite.DB, activity::Dict)::Nothing
     DBInterface.execute(
@@ -96,7 +92,6 @@ function insert_activity(conn::SQLite.DB, activity::Dict)::Nothing
     )
     return
 end
-
 
 function seed_activities_table!(conn::SQLite.DB)::Nothing
     insert_activity(
@@ -147,6 +142,39 @@ function with_activities_db(f::Function)
     finally
         close(conn)
     end
+end
+
+function seed_segments_table!(db::SQLite.DB)::Nothing
+    DBInterface.execute(
+        db,
+        """
+            INSERT INTO segments (name, definition_fingerprint, definition_path)
+            VALUES
+                ("c", "fingerprint-c", "path/to/c"),
+                ("b", "fingerprint-b", "path/to/b"),
+                ("a", "fingerprint-a", "path/to/a");
+        """
+    )
+    return
+end
+
+function seed_segment_efforts_table!(db::SQLite.DB)::Nothing
+    DBInterface.execute(
+        db,
+        """
+            INSERT INTO segment_efforts (activity_id,
+                                         segment_id,
+                                         elapsed_time_s,
+                                         matched_at,
+                                         matcher_version)
+            VALUES
+                (1, 3, 100.0, 1234, 20260607),
+                (2, 2, 101.1, 1235, 20260607),
+                (100, 2, 102.2, 1236, 20260607),
+                (110, 1, 103.3, 1237, 20260607);
+        """
+    )
+    return
 end
 
 @testset "get_content_fingerprint" begin
@@ -399,18 +427,53 @@ end
 
 @testset "fetch_segment_names" begin
     # Happy path and and results ordered by name
-    create_connection(":memory:") do db
-        DBInterface.execute(
-            db,
-            """
-            INSERT INTO segments (name, definition_fingerprint, definition_path)
-            VALUES
-                ("c", "fingerprint-c", "path/to/c"),
-                ("b", "fingerprint-b", "path/to/b"),
-                ("a", "fingerprint-a", "path/to/a");
-            """
-        )
-        names = fetch_segment_names(db)
+    create_connection(":memory:") do conn
+        seed_segments_table!(conn)
+        names = fetch_segment_names(conn)
         @test names == ["a", "b", "c"]
+    end
+end
+
+@testset "remove_segment" begin
+    # Removes the requested segment from segments
+    create_connection(":memory:") do db
+        seed_segments_table!(db)
+        row = remove_segment(db, "b")
+        @test row[:name] == "b"
+        @test fetch_segment_names(db) == ["a", "c"]
+    end
+    # Unknown segment
+    create_connection(":memory:") do db
+        seed_segments_table!(db)
+        @test remove_segment(db, "nonexistent") === nothing
+        @test fetch_segment_names(db) == ["a", "b", "c"]
+    end
+end
+
+@testset "remove_segment_efforts" begin
+    # Removes the efforts for the given segment_id
+    create_connection(":memory:") do db
+        seed_segment_efforts_table!(db)
+        rows = remove_segment_efforts(db, 2)
+        @test length(rows) == 2
+        @test rows[1][:segment_id] == 2
+        @test rows[2][:segment_id] == 2
+        result = DBInterface.execute(
+            db, "SELECT * FROM segment_efforts ORDER BY effort_id"
+        )
+        rows = [NamedTuple(r) for r in result]
+        @test length(rows) == 2
+        @test rows[1][:segment_id] == 3
+        @test rows[2][:segment_id] == 1
+    end
+    # Does nothing for unknown segment_ids
+    create_connection(":memory:") do db
+        seed_segment_efforts_table!(db)
+        rows = remove_segment_efforts(db, 99999)
+        @test rows == []
+        result = DBInterface.execute(
+            db, "SELECT COUNT(*) AS n FROM segment_efforts"
+        )
+        @test only(NamedTuple(r) for r in result).n == 4
     end
 end
