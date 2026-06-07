@@ -19,6 +19,10 @@ function read_segment(path::String)::Segment
     return read_segment(Val(Symbol(ext)), path)
 end
 
+function read_segment(::Val{Symbol(".xml")}, path::String)::Segment
+    return read_segment(Val(Symbol(".osm")), path)
+end
+
 function read_segment(::Val{Symbol(".osm")}, path::String)::Segment
     doc = XML.read(path, Node)
     root = doc[end]
