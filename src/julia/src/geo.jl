@@ -131,6 +131,9 @@ function on_polyline(p::Vector{<:Real}, polyline::Matrix{<:Real}, radius::Real):
     return false
 end
 
+function linterp(q_1, q_2, t)
+    return (1 - t) * q_1 + t * q_2
+end
 
 function haversine_distance(p₁::Tuple{Float64, Float64}, p₂::Tuple{Float64, Float64})::Float64
     # p1 and p2 are tuples of (lat, lon) in degrees
