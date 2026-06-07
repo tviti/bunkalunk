@@ -2,7 +2,8 @@ module Lunk
 
 include("cache.jl")
 export CacheData,
-    read_cache
+    read_cache,
+    filter_track_nans
 
 include("paths.jl")
 export BUNK_HOME,
