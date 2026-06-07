@@ -131,6 +131,8 @@ def fit_to_cache(fit_data: FitData) -> CacheData:
             "Cache schema requires start_time, but given fit_data has none!"
         )
 
+    sport = str(fit_data.sport) if fit_data.sport is not None else None
+
     time = [t.timestamp() for t in fit_data.timestamp]
     return CacheData(
         heart_rate=fit_data.heart_rate,
@@ -138,5 +140,5 @@ def fit_to_cache(fit_data: FitData) -> CacheData:
         longitude=fit_data.position_long,
         time=time,
         start_time=fit_data.start_time.timestamp(),
-        sport=fit_data.sport,
+        sport=sport,
     )

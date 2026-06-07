@@ -72,6 +72,16 @@ def test_fit_to_cache_converts_start_time_to_epoch(fake_reader_activity_fit):
     assert cache_data.start_time == 1777593600.0
 
 
+def test_fit_to_cache_coerces_non_string_sport():
+    fit_data = FitData(
+        start_time=datetime.fromisoformat("2026-05-01T00:00:00+00:00"),
+        sport=42,  # type: ignore[assignment]
+    )
+    cache_data = fit_to_cache(fit_data)
+    assert cache_data.sport == "42"
+    assert isinstance(cache_data.sport, str)
+
+
 def patch_fit_reader(monkeypatch, reader):
     def _get_fake_reader(fit_path, processor):
         return reader

@@ -1,4 +1,5 @@
 import h5py
+import numpy as np
 import pytest
 from numpy.testing import assert_equal
 
@@ -72,6 +73,31 @@ def test_write_cache_cleanup(tmp_path, monkeypatch):
         write_cache(file_path, data)
     ls_after = [f for f in file_path.parent.iterdir()]
     assert ls_before == ls_after
+
+
+def test_write_cache_attribute_types(tmp_path, monkeypatch):
+    file_path = tmp_path / "test.hdf5"
+    data = make_cache_data()
+
+    monkeypatch.setattr(cache, "CACHE_VERSION", _CACHE_VERSION)
+
+    write_cache(file_path, data)
+
+    with h5py.File(file_path, "r") as cache_file:
+        assert isinstance(cache_file.attrs["cache_version"], np.int64)
+        assert isinstance(cache_file.attrs["start_time"], float)
+        assert isinstance(cache_file.attrs["sport"], str)
+
+
+def test_write_cache_rejects_non_string_sport(tmp_path, monkeypatch):
+    file_path = tmp_path / "test.hdf5"
+    data = make_cache_data()
+
+    monkeypatch.setattr(cache, "CACHE_VERSION", _CACHE_VERSION)
+    data.sport = 42  # type: ignore[assignment]
+
+    with pytest.raises(CacheWriteFailure):
+        write_cache(file_path, data)
 
 
 def test_resolve_cache_path_creates_parents(tmp_path):

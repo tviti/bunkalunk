@@ -8,7 +8,7 @@ from tempfile import mkstemp
 import h5py
 
 
-CACHE_VERSION = 20260510
+CACHE_VERSION = 20260606
 _SUFFIX = ".h5"
 
 
@@ -50,10 +50,10 @@ def _write_cache_file(file_path: Path, data: CacheData) -> None:
             "longitude", shape=(n,), dtype="float64"
         )
 
-        cache.attrs["cache_version"] = CACHE_VERSION
+        cache.attrs.create("cache_version", CACHE_VERSION, dtype=int)
 
-        cache.attrs["start_time"] = data.start_time
-        cache.attrs["sport"] = data.sport
+        cache.attrs.create("start_time", data.start_time, dtype=float)
+        cache.attrs.create("sport", data.sport, dtype=h5py.string_dtype())
         time[:] = data.time[:]
         latitude[:] = data.latitude[:]
         longitude[:] = data.longitude[:]
