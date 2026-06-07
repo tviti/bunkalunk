@@ -3,7 +3,7 @@ module Lunk
 include("cache.jl")
 export CacheData,
     read_cache,
-    filter_track_nans
+    drop_invalid_gps_points
 
 include("paths.jl")
 export BUNK_HOME,
@@ -15,9 +15,10 @@ export create_connection,
     get_content_fingerprint,
     select_by_start_date,
     select_by_time_range,
+    select_all,
     upsert_segment,
     upsert_segment_effort,
-    fetch_segment_path,
+    fetch_segment_registration,
     fetch_segment_names
 
 include("segments.jl")
@@ -29,7 +30,13 @@ include("geo.jl")
 export compute_ecef_r,
     crosses_gate,
     on_polyline,
-    haversine_distance
+    haversine_distance,
+    linterp
+
+include("match.jl")
+export load_activities,
+    match_to_activities,
+    matcher_version
 
 include("cli.jl")
 end

@@ -4,6 +4,12 @@ using Lunk
 
 const matcher_version = 20260606
 
+"""
+    load_activities(activities::Vector{Tuple{Int, String}})::Dict{Int, CacheData}
+
+Load cached `CacheData` objects for a vector of `(activity_id, source_fingerprint)`
+tuples and return a `Dict` keyed by activity ID.
+"""
 function load_activities(
         activities::Vector{Tuple{Int, String}}
     )::Dict{Int, CacheData}
@@ -20,7 +26,34 @@ struct MatchResult
     matched_at::Int64
 end
 
-function match_to_activities(segment::Segment, activities::Dict{Int, CacheData})::Vector{MatchResult}
+"""
+    match_to_activities(segment::Segment, activities::Dict{Int, CacheData})::Vector{MatchResult}
+
+Match a single `Segment` to a `Dict` of decode artifacts keyed by activity ID.
+
+Calculations are performed in cartesian ECEF coordinates using the WGS84
+ellipsoid, with both the `segment` and `activities` GPS tracks shifted to the
+ellipsoid's surface (i.e. the height coordinate of the `activities` is ignored.
+
+The start/finish gates used in the matching algorithm are defined by the vectors
+connecting the first/last `segment` points to their neighbors. The gates are
+thus directional, and crossings are only valid when they are in the same
+direction as the gate vectors.
+
+The gate crossing times for each match are calculated by linearly interpolating
+the timestamps of the crossing edge's track points. In other words, the
+algorithm assumes that the user is traveling at a constant velocity along the
+crossing edge.
+
+A match is considered valid only when all sampled track points between the
+start/finish gate crossings are within the segment polyline cooridoor defined by
+`tape_radius`. Gate crossings must also occur within `tape_radius` of the
+first/last segment points in order to be registered.
+"""
+function match_to_activities(
+        segment::Segment,
+        activities::Dict{Int, CacheData}
+    )::Vector{MatchResult}
     tape_radius = 15.0  # cooridor of allowed deviation off segment
     fixed_height = 0.0  # height above ellipsoid [m]
 
@@ -57,7 +90,7 @@ function match_to_activities(segment::Segment, activities::Dict{Int, CacheData})
 
         # Tracks can start with NaN, likely because the device hadn't acquired GPS
         # lock when the activity was started. Remove them
-        filtered_cache = filter_track_nans(cache)
+        filtered_cache = drop_invalid_gps_points(cache)
 
         track_ecef = compute_ecef_r.(cache.latitude, cache.longitude, fixed_height)
         num_track = length(track_ecef)

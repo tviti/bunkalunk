@@ -85,6 +85,12 @@ function parse_commandline()
             required = true
             action = :store_arg
             help = "Segment name."
+
+            "sport"
+            required = false
+            action = :store_arg
+            default = nothing
+            help = "Match only activities with this sport."
         end
 
         @add_arg_table! segment_settings["show"] begin
@@ -141,7 +147,29 @@ function run_segment_list(args::ArgDict, ctx::Context)::Cint
 end
 
 function run_segment_match(args::ArgDict, ctx::Context)::Cint
-    throw(ArgumentError("lunk segment match: not yet implemented"))
+    segment_name::String = args["name"]
+    sport::Union{String, Nothing} = args["sport"]
+    create_connection(ctx.db_path) do db_conn
+        segment_reg = fetch_segment_registration(db_conn, segment_name)
+        segment_id::Int64 = segment_reg[:segment_id]
+        segment = read_segment(segment_reg[:definition_path])
+
+        activities = select_all(db_conn, sport = sport)
+        activities_data = load_activities(activities)
+
+        match_results = match_to_activities(segment, activities_data)
+        for (; activity_date, activity_id, segment_time, matched_at) in match_results
+            upsert_segment_effort(
+                db_conn,
+                activity_id,
+                segment_id,
+                segment_time,
+                matched_at,
+                matcher_version
+            )
+        end
+    end
+    return 0
 end
 
 function run_segment_show(args::ArgDict, ctx::Context)::Cint
