@@ -223,69 +223,74 @@ class AddCommand(Command):
         record_cache_creation(conn, cache_data, content_fingerprint)
         record_decode_outcome(conn, source_file.source_path, state=DecodeState.SUCCESS)
 
-    def run(self, ctx: Context, args: argparse.Namespace) -> int:
-        """Execute the add command."""
-        path: Path = args.path
-        logger = ctx.get_logger()
-
-        is_valid = validate_extension(path)
-        if not is_valid:
-            logger.error("File '%s' has unsuppored extension '%s'.", path, path.suffix)
-            return 1
-
-        source_path = resolve_source_path(path)
-        cache_path: Path | None = None
-        conn: Connection | None = None
+    def _add_file(self, conn, source_path, logger, ctx):
         already_cached = False
-        logger.info("add: working on '%s'", source_path)
+        cache_path: Path | None = None
         try:
-            with create_connection(ctx.db_path) as conn:
-                with open(source_path, "rb") as f:
-                    content_fingerprint = compute_fingerprint(f)
+            logger.info("add: working on '%s'", source_path)
+            with open(source_path, "rb") as f:
+                content_fingerprint = compute_fingerprint(f)
 
-                    source_file = SourceFile(
-                        source_path=source_path,
-                        content_fingerprint=content_fingerprint,
-                    )
-
-                    cache_path = resolve_cache_path(
-                        content_fingerprint, ctx.activity_store
-                    )
-                    already_cached = cache_path.exists()
-                    if already_cached and not is_stale(conn, content_fingerprint):
-                        logger.info("Decode artifact already exists")
-                        upsert_source_file(conn, source_file)
-                        record_decode_outcome(
-                            conn, source_file.source_path, state=DecodeState.SUCCESS
-                        )
-                        return 0
-
-                    try:
-                        fit_data = read_fit(f, logger=logger)
-                    except UnsupportedFITFileType:
-                        logger.exception(
-                            f"File '{source_path}' has an unsupported type."
-                        )
-                        return 1
-                    except Exception:
-                        logger.exception(f"Decode on '{source_path}' failed")
-                        return 1
-
-                cache_data = fit_to_cache(fit_data)
-                write_cache(cache_path, cache_data)
-                self._record_decode_write_success(
-                    conn, source_file, cache_data, content_fingerprint
+                source_file = SourceFile(
+                    source_path=source_path,
+                    content_fingerprint=content_fingerprint,
                 )
+
+                cache_path = resolve_cache_path(content_fingerprint, ctx.activity_store)
+                already_cached = cache_path.exists()
+                if already_cached and not is_stale(conn, content_fingerprint):
+                    logger.info("Decode artifact already exists")
+                    upsert_source_file(conn, source_file)
+                    record_decode_outcome(
+                        conn, source_file.source_path, state=DecodeState.SUCCESS
+                    )
+                    return 0
+
+                try:
+                    fit_data = read_fit(f, logger=logger)
+                except UnsupportedFITFileType:
+                    logger.exception(f"File '{source_path}' has an unsupported type.")
+                    return 1
+                except Exception:
+                    logger.exception(f"Decode on '{source_path}' failed")
+                    return 1
+
+            cache_data = fit_to_cache(fit_data)
+            write_cache(cache_path, cache_data)
+            self._record_decode_write_success(
+                conn, source_file, cache_data, content_fingerprint
+            )
         except Exception:
             logger.exception("Add failed after decode")
-            if conn is not None:
-                conn.rollback()
+            conn.rollback()
             if not already_cached and cache_path is not None:
                 cache_path.unlink(missing_ok=True)
                 try:
                     cache_path.parent.rmdir()
                 except OSError:
                     pass
+            return 1
+
+        return 0
+
+    def run(self, ctx: Context, args: argparse.Namespace) -> int:
+        """Execute the add command."""
+        path: Path = args.path
+        logger = ctx.get_logger()
+
+        try:
+            with create_connection(ctx.db_path) as conn:
+                is_valid = validate_extension(path)
+                if not is_valid:
+                    logger.error(
+                        "File '%s' has unsuppored extension '%s'.", path, path.suffix
+                    )
+                    return 1
+
+                source_path = resolve_source_path(path)
+                return self._add_file(conn, source_path, logger, ctx)
+        except Exception:
+            logger.exception("Error during db open")
             return 1
 
         return 0

@@ -134,9 +134,12 @@ class TestAddCommand:
     def test_add_rejects_unsupported_extension(self, monkeypatch, tmp_path):
         """bunk add should reject files with unsupported extensions."""
         patch_home(monkeypatch, tmp_path)
-        return_code = main(["add", "bad-extension.unfit"])
+        bad_path = tmp_path / "bad-extension.unfit"
+        bad_path.write_bytes(b"not a fit file")
+        return_code = main(["add", str(bad_path)])
         assert return_code == 1
-        _assert_no_db(tmp_path)
+        with create_bunk_db_conn(tmp_path) as conn:
+            assert get_source_file(conn, str(bad_path)) is None
 
     @pytest.mark.skip(
         "P2: redundant with add_decode_success and DB-level source-file registration tests."
