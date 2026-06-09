@@ -31,7 +31,7 @@ leaderboard.
 
 In scope:
 
-- accepting explicit local file paths
+- accepting one or more explicit local file paths
 - decoding supported formats into a stable HDF5 artifact
 - recording a source-file index in SQLite
 - computing segment efforts
@@ -74,13 +74,21 @@ queries and writes to a narrow set of analysis-owned tables.
 
 - One source file decodes to exactly one activity. 
 - `.fit` is the only supported format initially.
-- Explicit file paths only; no recursive directory ingestion.
+- One or more explicit file path operands only; no recursive directory
+  ingestion.
 
 ## Input Contract
 
-- Input is by explicit file path only.
+- Input is by one or more explicit file path operands.
+- Shell expansion happens before invocation and is outside Bunk. Shell-driven
+  globbing or recursion may produce path operands, but Bunk does not implement
+  globbing or recursive traversal itself.
 - Only `.fit` files are accepted initially.
-- Unsupported files are rejected up front and do not create `source_files` rows.
+- Directory operands are invalid.
+- `bunk add` processes operands independently in argv order.
+- A failed `bunk add` operand must not leave behind a `source_files` row, a
+  path-attributable `activities` row, or a newly created decode artifact that
+  is attributable only to that operand.
 
 ## Storage Model
 
@@ -176,8 +184,14 @@ staleness signal.
 - "success"
 - "error"
 
-`bunk add` only inserts a `source_files` row after a successful decode. Failed
-add attempts are not represented in the table.
+`bunk add` only inserts a `source_files` row after a successful decode for that
+input path. Failed add operands are not represented in the table. Successful
+operands from the same invocation remain committed even if later operands fail.
+
+Because decoded artifacts are content-addressed by source fingerprint,
+successful inputs may share the same `activities` row and HDF5 artifact.
+Failures for one path do not imply deletion of a pre-existing or concurrently
+successful shared CAS entry.
 
 ### HDF5
 
@@ -197,8 +211,8 @@ The canonical schema includes:
 - latitude / longitude (nullable)
 - heart rate (nullable)
 
-Failed or interrupted decodes must not leave a completed artifact at
-the final path.
+Failed or interrupted decodes must not leave a completed artifact at the final
+path.
 
 ## Decode Contract
 
@@ -216,21 +230,27 @@ not because a record is analytically inconvenient.
 
 ## Ingestion Workflow
 
-On `bunk add <path>`:
+On `bunk add <path>...`:
 
-1. Verify supported file extension.
-2. Compute SHA-256 fingerprint.
-3. Decode file and write HDF5 artifact.
-4. Register or update `source_files` row in SQLite with successful decode
-   metadata.
-5. Insert or update `activities` row in SQLite.
+1. Iterate input operands in argv order.
+2. For each operand, verify that it is an explicit file path and that its
+   extension is supported.
+3. Compute the operand's SHA-256 fingerprint.
+4. Decode the file and write the HDF5 artifact.
+5. Register or update the operand's `source_files` row in SQLite with
+   successful decode metadata.
+6. Insert or update the corresponding `activities` row in SQLite.
+7. Commit each successful operand independently. If an operand fails, roll back
+   any state attributable to that operand and continue processing remaining
+   operands.
 
 ## CLI
 
 ### `bunk`
 
-- `add <path>` — decode file at `<path>` immediately; on success, register it
-  in the source-file index
+- `add <path>...` — decode each explicit file-path operand immediately; on
+  success, register it in the source-file index. Return `0` if all operands
+  succeed, `1` if any operand fails.
 - `decode [path]` — manually re-decode previously added files; use this to
   replace stale, missing, or corrupt cache entries (e.g. after a schema bump, or
   a write failure). Takes one or zero paths (zero paths rebuilds the entire
