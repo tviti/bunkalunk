@@ -1,4 +1,5 @@
-((julia-mode . ((eglot-ignored-server-capabilities . (:inlayHintProvider))
+((julia-mode . ((inferior-julia-program . "julia-dev")
+                (eglot-ignored-server-capabilities . (:inlayHintProvider))
                 (eval . (add-hook 'before-save-hook
 				  (lambda ()
 				    (eglot-format-buffer)

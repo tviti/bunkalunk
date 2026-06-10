@@ -8,5 +8,6 @@
 /.direnv/
 /src/python/bunkalunk.egg-info/
 /src/julia/scratch/
+/src/julia/dev_sysimage.so
 /.agent-shell/
 /opencode.json

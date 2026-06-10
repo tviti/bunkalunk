@@ -1,0 +1,13 @@
+[deps]
+# Self-contained dev-only project used to build the dev sysimage.
+# The runtime deps below mirror [deps] in ../Project.toml (minus stdlibs,
+# dev/editor tooling, and visualization libraries like GLMakie/Plots that
+# are listed in Lunk's [deps] but never imported by its source). Keep in
+# sync when adding/removing runtime deps to Lunk.
+PackageCompiler = "9b87118b-4619-50d2-8e1e-99f35a4d4d9d"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
+HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+SQLite = "0aa819cd-b072-5ff4-a722-6bc24af294d9"
+XML = "72c71f33-b9b6-44de-8c94-c961784809e2"
