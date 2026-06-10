@@ -1,6 +1,8 @@
 using Test
 using SQLite
 using Lunk
+using Logging
+
 
 function make_context(dir; io = IOBuffer())
     db_path = dir * "/db.sqlite3"
@@ -143,6 +145,69 @@ end
 
         @test isabspath(row[:definition_path])
     end
+
+    # run_segment_register collisions
+    mktempdir() do dir
+        ctx = make_context(dir)
+        cd(dir) do
+            segment_path = abspath(dir * "/segment.osm")
+            write(segment_path, "test")
+            fingerprint = open(segment_path, "r") do f
+                compute_fingerprint(f)
+            end
+            create_connection(ctx.db_path) do conn
+                DBInterface.execute(
+                    conn,
+                    """
+                    INSERT INTO segments (
+                        name,
+                        definition_fingerprint,
+                        definition_path
+                    ) VALUES (
+                        "segment",
+                        ?,
+                        ?
+                    )
+                    """,
+                    [fingerprint, segment_path]
+                )
+            end
+
+            # Path collision
+            let args::Dict{String, Any} = Dict(
+                    "name" => "new-segment",
+                    "path" => segment_path
+                )
+                write(args["path"], "new-test")
+                @test Lunk.run_segment_register(args, ctx) == 1
+            end
+
+            # Name collision
+            let new_segment_path, args
+                new_segment_path = abspath(dir * "/new-segment.osm")
+                args::Dict{String, Any} = Dict(
+                    "name" => "segment",
+                    "path" => new_segment_path
+                )
+                write(args["path"], "new-test")
+                @test Lunk.run_segment_register(args, ctx) == 1
+            end
+
+            # Fingerprint collision (i.e. identical file contents)
+            let new_segment_path, args
+                new_segment_path = abspath(dir * "/new-segment.osm")
+                args::Dict{String, Any} = Dict(
+                    "name" => "new-segment",
+                    "path" => new_segment_path
+                )
+                write(args["path"], "test")
+                @test Lunk.run_segment_register(args, ctx) == 1
+            end
+        end
+    end
+
+    # run_segment_register with --force overwrites on collision and purges
+    # segment_efforts
 end
 
 @testset "run_command segment match" begin

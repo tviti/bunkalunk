@@ -135,7 +135,6 @@ function run_command(
     handler !== nothing || throw(ArgumentError("Unknown command $command"))
 
     return handler(args[command], ctx)
-
 end
 
 function run_segment_register(args::ArgDict, ctx::Context)::Cint
@@ -145,12 +144,22 @@ function run_segment_register(args::ArgDict, ctx::Context)::Cint
     fingerprint = open(path, "r") do f
         compute_fingerprint(f)
     end
-
-    create_connection(ctx.db_path) do conn
-        insert_segment(conn, name, path, fingerprint)
+    @debug "Segment fingerprint: $fingerprint"
+    return create_connection(ctx.db_path) do conn
+        try
+            insert_segment(conn, name, path, fingerprint)
+            return 0
+        catch e
+            if e isa SQLiteException
+                m = match(r"UNIQUE constraint failed: (.+)", e.msg)
+                m !== nothing || rethrow(e)
+                @error "Row collision on $(m.captures[1])"
+                return 1
+            else
+                rethrow(e)
+            end
+        end
     end
-
-    return 0
 end
 
 function run_segment_remove(args::ArgDict, ctx::Context)::Cint
@@ -234,9 +243,7 @@ function main()
     )
 
     exit_code = run_command(args, ctx)
-    exit(exit_code)
-
-    return
+    return exit(exit_code)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
