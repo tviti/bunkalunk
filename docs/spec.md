@@ -1,9 +1,5 @@
 # Bunkalunk Specification
 
-## Status
-
-Accepted
-
 ## Overview
 
 Bunkalunk is a local-first ride-data analysis tool. It accepts
@@ -53,7 +49,6 @@ Out of scope:
 - HDF5: decoded activity cache
 - `fitdecode`: FIT parsing
 - `h5py`: HDF5 access
-- `DataFrames`, `ArchGDAL`, `Shapefile`: Julia analysis support
 
 ## Architecture
 
@@ -217,16 +212,13 @@ path.
 ## Decode Contract
 
 - Dispatch by file extension.
-- Parse source file, extract core fields into the canonical HDF5
-  schema.
+- Parse source file, extract core fields into the canonical HDF5 schema.
 - Write decoded artifact to HDF5 store.
 - Update decode metadata in SQLite.
 - One decoded activity per source file (MVP assumption).
 
 The decoder treats FitData as a sparse row-aligned table: one row per
 FIT record, timestamp always present, other fields may be None.
-Decode errors should only happen for actual decode/contract failures,
-not because a record is analytically inconvenient.
 
 ## Ingestion Workflow
 
@@ -251,20 +243,19 @@ On `bunk add <path>...`:
 - `add <path>...` — decode each explicit file-path operand immediately; on
   success, register it in the source-file index. Return `0` if all operands
   succeed, `1` if any operand fails.
-- `decode [path]` — manually re-decode previously added files; use this to
-  replace stale, missing, or corrupt cache entries (e.g. after a schema bump, or
-  a write failure). Takes one or zero paths (zero paths rebuilds the entire
-  store).
+- `decode [path]` — re-decode previously added files; use this to replace stale,
+  missing, or corrupt cache entries (e.g. after a schema bump, or a write
+  failure). Takes one or zero paths (zero paths rebuilds the entire store).
   
 `bunk decode` is idempotent and safe to run at any time.
 
 ### `lunk`
 
-- `segment register <name> <path>` — register or update a segment definition
-  by name; `<path>` is the absolute path to the OSM definition file
+- `segment register [--force] <name> <path>` — register or update a segment
+  definition by name; `<path>` is the absolute path to the OSM definition file
 - `segment list` — list registered segments
-- `segment match <segment-name>` — compute and persist segment
-  efforts for activities not yet matched against this segment
+- `segment match <segment-name>` — compute and persist segment efforts for
+  activities not yet matched against this segment
 - `segment show <segment-name>` — display leaderboard from cached results
 - `segment rename <old-name> <new-name>` — rename a segment in the database
 - `ride show <activity-id|ride-tag>` — display activity summary
@@ -323,39 +314,18 @@ docs/
 State lives under `~/.bunk/` by default, or `$BUNK_HOME` if set.
 The project directory contains no runtime state.
 
-## Deferred
-- The cache schema should include:
-	- elevation (nullable)
-	- distance (nullable)
-	- speed (nullable)
-- Richer status reporting
-- Semantic deduplication
-- App framework model
-- Vendor integrations
-- Multi-session source files
-
 ## Decisions Recorded
 
-- `decode_fingerprint` is omitted from the MVP. `schema_version` on the HDF5
-  artifact is sufficient for cache invalidation. If decoder logic changes, bump
-  `schema_version` manually.
 - Python owns SQLite schema, migrations, and ingestion logic.
-- Julia reads SQLite directly for analysis; writes only to
-  analysis-owned tables.
-- The MVP assumes one activity per source file; the schema supports
-  relaxing this later.
+- Julia reads SQLite directly for analysis; writes only to analysis-owned
+  tables.
 - All state is rooted under `BUNK_HOME`.
-- HDF5 cache files carry a `schema_version` attribute; stale entries
-  are rebuilt manually via `bunk decode`.
-- FitData is a sparse row-aligned table, not cleaned analysis-ready
-  tracks. The FIT protocol makes very few guarantees about what fields
-  are present in any given record, so the decoder preserves record
-  alignment without imposing stricter constraints than the protocol
-  requires. Invariants: timestamp, position_lat, position_long,
-  heart_rate have equal lengths; each index corresponds to one FIT
-  record; timestamp[i] is present. Decode errors are for contract
-  failures only, not analytical inconvenience. session.sport is read
-  with fallback; optional metadata stays optional.
+- Stale cache entries are rebuilt manually via `bunk decode`.
+- FitData is a sparse row-aligned table. The FIT protocol makes very few
+  guarantees about what fields are present in any given record, so the decoder
+  preserves record alignment without imposing stricter constraints than the
+  protocol requires. Invariants: timestamp, position_lat, position_long,
+  heart_rate have equal lengths; each index corresponds to one FIT record.
 - `activities.start_time` is stored as REAL (Unix epoch seconds, UTC).
   The source datetime from fitdecode (a timezone-aware Python
   `datetime`) is converted via `.timestamp()` at the FitData →
@@ -363,29 +333,16 @@ The project directory contains no runtime state.
   SQLite function-call problems that come with string formats, and
   enables direct indexed numeric range queries in both Python and
   Julia without `date()`/`datetime()` wrappers.
-- `segments.name` is the natural key and CLI selector. `segment_id`
-  is kept as an INTEGER PRIMARY KEY (rowid alias) for monotonic
-  ordering and is what the current Julia implementation stores in
-  `segment_efforts`.
-- `segments.definition_path` is stored as an absolute path,
-  consistent with `source_files.source_path`. Bunk decouples storage
-  layout from its own semantics; users manage their own file
-  organization.
-- `segments.version` is replaced by `definition_fingerprint`
-  (SHA-256). Fingerprint-based staleness detection is automatic and
-  per-artifact; a manual integer would require discipline to maintain.
-- Bunk does not archive or own segment definition files. Storing a
-  blob or a managed copy would require explicit re-registration on
-  edit, risking silently invalid matches if the user forgets. The
-  fingerprint gives a loud staleness signal at match time instead.
+- `segments.definition_path` is stored as an absolute path, consistent with
+  `source_files.source_path`. 
+- Bunk does not archive or own source files, nor does lunk archive/own segment
+  definition files. Users manage their own file organization.
 - `definition_path` and `definition_fingerprint` both carry UNIQUE
   constraints. Path uniqueness prevents the same file being registered
   twice under different names. Fingerprint uniqueness prevents two
   different files with identical content from being registered under
   different names, which would produce duplicate effort computation.
 - Segment registration is explicit via `lunk segment register`.
-  Implicit registration on first match would conflate two distinct
-  user intentions and make segment naming incidental to matching.
 
 ## Contribution
 
@@ -394,9 +351,8 @@ body lines ≤ 70 characters). No heading prefixes.
 
 ### Testing
 
-Run Julia tests via `runtests.jl` instead of `Pkg.test()` to environment
-rebuilding. From `src/julia':
-
+Run Julia tests via `runtests.jl` instead of `Pkg.test()` (this avoids costly
+environment rebuilds). From `src/julia':
 
     julia --project test/runtests.jl
 
