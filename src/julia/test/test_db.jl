@@ -307,10 +307,10 @@ end
     @test !SQLite.isopen(ref[])
 end
 
-@testset "upsert_segment" begin
+@testset "insert_segment" begin
     # Happy path
     create_connection(":memory:") do db
-        upsert_segment(db, "segment", "path/to/segment", "fingerprint")
+        insert_segment(db, "segment", "path/to/segment", "fingerprint")
         result = DBInterface.execute(
             db,
             "SELECT * FROM segments WHERE name = ?",
@@ -321,17 +321,31 @@ end
         @test row[:definition_path] == "path/to/segment"
         @test row[:definition_fingerprint] == "fingerprint"
 
-        # Conflict updates row
-        upsert_segment(db, "segment", "new/path/to/segment", "new-fingerprint")
+        # Name conflict throws SQLiteException
+        @test_throws SQLiteException insert_segment(
+            db, "segment", "new/path/to/segment", "new-fingerprint"
+        )
+
+        # Path conflict throws SQLiteException
+        @test_throws SQLiteException insert_segment(
+            db, "new-segment", "path/to/segment", "new-fingerprint"
+        )
+
+        # Fingerprint conflict throws SQLiteException
+        @test_throws SQLiteException insert_segment(
+            db, "new-segment", "new-path/to/segment", "fingerprint"
+        )
+
+        # Conflicts must not partially update the original row.
         result = DBInterface.execute(
             db,
             "SELECT * FROM segments WHERE name = ?",
             ["segment"]
         )
-        segment_row = only(NamedTuple(r) for r in result)
-        @test segment_row[:name] == "segment"
-        @test segment_row[:definition_path] == "new/path/to/segment"
-        @test segment_row[:definition_fingerprint] == "new-fingerprint"
+        row = only(NamedTuple(row) for row in result)
+        @test row[:name] == "segment"
+        @test row[:definition_path] == "path/to/segment"
+        @test row[:definition_fingerprint] == "fingerprint"
     end
 end
 
@@ -390,7 +404,7 @@ end
 @testset "fetch_segment_registration" begin
     # Happy path
     create_connection(":memory:") do db
-        upsert_segment(db, "segment", "path/to/segment", "fingerprint")
+        insert_segment(db, "segment", "path/to/segment", "fingerprint")
         reg = fetch_segment_registration(db, "segment")
         @test reg[:segment_id] == 1
         @test reg[:name] == "segment"

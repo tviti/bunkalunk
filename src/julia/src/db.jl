@@ -116,7 +116,7 @@ function select_all(
     return [(row[:activity_id], row[:source_fingerprint]) for row in result]
 end
 
-function upsert_segment(
+function insert_segment(
         db::SQLite.DB,
         name::String,
         definition_path::String,
@@ -133,9 +133,7 @@ function upsert_segment(
             :name,
             :definition_fingerprint,
             :definition_path
-        ) ON CONFLICT(name) DO UPDATE SET
-            definition_fingerprint=excluded.definition_fingerprint,
-            definition_path=excluded.definition_path
+        )
         """,
         Dict(
             :name => name,

@@ -147,7 +147,7 @@ function run_segment_register(args::ArgDict, ctx::Context)::Cint
     end
 
     create_connection(ctx.db_path) do conn
-        upsert_segment(conn, name, path, fingerprint)
+        insert_segment(conn, name, path, fingerprint)
     end
 
     return 0
