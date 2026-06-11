@@ -182,7 +182,8 @@ end
                     "name" => "new-segment",
                     "path" => segment_path
                 )
-                @test Lunk.run_segment_register(args, ctx) == 1
+                result = @test_logs (:error,) Lunk.run_segment_register(args, ctx)
+                @test result == 1
                 args["force"] = true
                 @test Lunk.run_segment_register(args, ctx) == 0
             end
@@ -195,7 +196,8 @@ end
                     "name" => "new-segment",
                     "path" => other_path
                 )
-                @test Lunk.run_segment_register(args, ctx) == 1
+                result = @test_logs (:error,) Lunk.run_segment_register(args, ctx)
+                @test result == 1
                 args["force"] = true
                 @test Lunk.run_segment_register(args, ctx) == 0
             end
@@ -216,7 +218,8 @@ end
                     "name" => "brand-new-name",
                     "path" => fp_path
                 )
-                @test Lunk.run_segment_register(args, ctx) == 1
+                result = @test_logs (:error,) Lunk.run_segment_register(args, ctx)
+                @test result == 1
                 args["force"] = true
                 @test Lunk.run_segment_register(args, ctx) == 0
             end
@@ -254,10 +257,12 @@ end
                 "name" => "myseg",
                 "path" => path
             )
-            @test Lunk.run_segment_register(args, ctx) == 0
+            result = @test_logs (:info,) Lunk.run_segment_register(args, ctx)
+            @test result == 0
             # Also with --force, should still be no-op
             args["force"] = true
-            @test Lunk.run_segment_register(args, ctx) == 0
+            result = @test_logs (:info,) Lunk.run_segment_register(args, ctx)
+            @test result == 0
 
             create_connection(ctx.db_path) do conn
                 result = DBInterface.execute(
@@ -309,7 +314,8 @@ end
                 "name" => "segment-a",
                 "path" => path_b
             )
-            @test Lunk.run_segment_register(collision_args, ctx) == 1
+            result = @test_logs (:error,) Lunk.run_segment_register(collision_args, ctx)
+            @test result == 1
 
             rows_after_no_force = create_connection(ctx.db_path) do conn
                 fetch_segment_registration(conn)
@@ -318,7 +324,8 @@ end
 
             # Even with --force, multi-axis fails
             collision_args["force"] = true
-            @test Lunk.run_segment_register(collision_args, ctx) == 1
+            result = @test_logs (:error,) Lunk.run_segment_register(collision_args, ctx)
+            @test result == 1
 
             rows_after_force = create_connection(ctx.db_path) do conn
                 fetch_segment_registration(conn)
@@ -401,7 +408,8 @@ end
                         "name" => "segment",
                         "sport" => nothing
                     )
-                    @test Lunk.run_segment_match(args, ctx) == 1
+                    result = @test_logs (:error,) Lunk.run_segment_match(args, ctx)
+                    @test result == 1
                 end
             end
         end

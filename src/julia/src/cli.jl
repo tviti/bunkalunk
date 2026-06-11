@@ -224,17 +224,20 @@ function run_segment_register(args::ArgDict, ctx::Context)::Cint
                 return 0
             end
 
-            @error "registration would replace $num_matches distinct existing segments:"
-            for (column, row) in column_matches
-                let id, name, path, fingerprint
-                    id = row[:segment_id]
-                    name = row[:name]
-                    path = row[:definition_path]
-                    fingerprint = row[:definition_fingerprint]
-                    @error "  $column -> segment_id=$id (name=$name, path=$path, fingerprint=$fingerprint)"
-                end
-            end
-            @error "Resolve manually with `lunk segment remove` before retrying."
+            details = join(
+                [
+                    "  $column -> segment_id=$(row[:segment_id]) " *
+                        "(name=$(row[:name]), path=$(row[:definition_path]), " *
+                        "fingerprint=$(row[:definition_fingerprint]))"
+                    for (column, row) in column_matches
+                ],
+                "\n"
+            )
+            @error (
+                "registration would replace $num_matches distinct existing segments:\n" *
+                    details * "\n" *
+                    "Resolve manually with `lunk segment remove` before retrying."
+            )
             return 1
         end
     end
