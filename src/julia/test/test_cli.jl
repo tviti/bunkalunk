@@ -99,6 +99,7 @@ end
     mktempdir() do dir
         ctx = make_context(dir)
         args::Dict{String, Any} = Dict(
+            "force" => false,
             "name" => "segment",
             "path" => dir * "/segment.osm"
         )
@@ -126,10 +127,10 @@ end
     mktempdir() do dir
         ctx = make_context(dir)
         args::Dict{String, Any} = Dict(
+            "force" => false,
             "name" => "segment",
             "path" => "./segment.osm"
         )
-
         cd(dir) do
             write(args["path"], "test")
             @test Lunk.run_segment_register(args, ctx) == 0
@@ -151,6 +152,7 @@ end
         ctx = make_context(dir)
         cd(dir) do
             segment_path = abspath(dir * "/segment.osm")
+            other_path = abspath(dir * "/other.osm")
             write(segment_path, "test")
             fingerprint = open(segment_path, "r") do f
                 compute_fingerprint(f)
@@ -173,41 +175,202 @@ end
                 )
             end
 
-            # Path collision
-            let args::Dict{String, Any} = Dict(
+            # Path collision: same path, new name, new content
+            write(segment_path, "new-content")
+            let args = Dict{String, Any}(
+                    "force" => false,
                     "name" => "new-segment",
                     "path" => segment_path
                 )
-                write(args["path"], "new-test")
                 @test Lunk.run_segment_register(args, ctx) == 1
+                args["force"] = true
+                @test Lunk.run_segment_register(args, ctx) == 0
             end
 
-            # Name collision
-            let new_segment_path, args
-                new_segment_path = abspath(dir * "/new-segment.osm")
-                args::Dict{String, Any} = Dict(
-                    "name" => "segment",
-                    "path" => new_segment_path
-                )
-                write(args["path"], "new-test")
-                @test Lunk.run_segment_register(args, ctx) == 1
-            end
-
-            # Fingerprint collision (i.e. identical file contents)
-            let new_segment_path, args
-                new_segment_path = abspath(dir * "/new-segment.osm")
-                args::Dict{String, Any} = Dict(
+            # Name collision: same name, new path, new content
+            let
+                write(other_path, "other-content")
+                args = Dict{String, Any}(
+                    "force" => false,
                     "name" => "new-segment",
-                    "path" => new_segment_path
+                    "path" => other_path
                 )
-                write(args["path"], "test")
                 @test Lunk.run_segment_register(args, ctx) == 1
+                args["force"] = true
+                @test Lunk.run_segment_register(args, ctx) == 0
+            end
+
+            # Fingerprint collision: same content, new name, new path
+            let fp_path = abspath(dir * "/fp.osm")
+                write(fp_path, "other-content")  # same content as "other.osm" above
+                fp = open(fp_path, "r") do f
+                    compute_fingerprint(f)
+                end
+                # Verify fingerprint matches the just-registered segment
+                create_connection(ctx.db_path) do conn
+                    row = Lunk.fetch_segment_registration_by_name(conn, "new-segment")
+                    @test row[:definition_fingerprint] == fp
+                end
+                args = Dict{String, Any}(
+                    "force" => false,
+                    "name" => "brand-new-name",
+                    "path" => fp_path
+                )
+                @test Lunk.run_segment_register(args, ctx) == 1
+                args["force"] = true
+                @test Lunk.run_segment_register(args, ctx) == 0
             end
         end
     end
 
-    # run_segment_register with --force overwrites on collision and purges
-    # segment_efforts
+    # Exact match: same name, path, content -> no-op exit 0
+    mktempdir() do dir
+        ctx = make_context(dir)
+        cd(dir) do
+            path = abspath(dir * "/seg.osm")
+            write(path, "test")
+            args = Dict{String, Any}(
+                "force" => false,
+                "name" => "myseg",
+                "path" => path
+            )
+            @test Lunk.run_segment_register(args, ctx) == 0
+
+            old_sid = create_connection(ctx.db_path) do conn
+                row = fetch_segment_registration(conn, "myseg")
+                row[:segment_id]
+            end
+            create_connection(ctx.db_path) do conn
+                DBInterface.execute(
+                    conn,
+                    "INSERT INTO segment_efforts (activity_id, segment_id, elapsed_time_s, matched_at, matcher_version) VALUES (1, ?, 100.0, 1234, 20260607)",
+                    [old_sid]
+                )
+            end
+
+            # Register again with same inputs
+            args = Dict{String, Any}(
+                "force" => false,
+                "name" => "myseg",
+                "path" => path
+            )
+            @test Lunk.run_segment_register(args, ctx) == 0
+            # Also with --force, should still be no-op
+            args["force"] = true
+            @test Lunk.run_segment_register(args, ctx) == 0
+
+            create_connection(ctx.db_path) do conn
+                result = DBInterface.execute(
+                    conn,
+                    "SELECT COUNT(*) AS n FROM segment_efforts WHERE segment_id = ?",
+                    [old_sid]
+                )
+                @test only(NamedTuple(r) for r in result).n == 1
+            end
+        end
+    end
+
+    # Multi-axis collision: name matches one row, path matches another
+    # -> always exit 1, even with --force
+    mktempdir() do dir
+        ctx = make_context(dir)
+        cd(dir) do
+            path_a = abspath(dir * "/a.osm")
+            path_b = abspath(dir * "/b.osm")
+            write(path_a, "content-a")
+            write(path_b, "content-b")
+
+            let args = Dict{String, Any}(
+                    "force" => false,
+                    "name" => "segment-a",
+                    "path" => path_a
+                )
+                @test Lunk.run_segment_register(args, ctx) == 0
+            end
+
+            let args = Dict{String, Any}(
+                    "force" => false,
+                    "name" => "segment-b",
+                    "path" => path_b
+                )
+                @test Lunk.run_segment_register(args, ctx) == 0
+            end
+
+            original_rows = create_connection(ctx.db_path) do conn
+                fetch_segment_registration(conn)
+            end
+
+            @test length(original_rows) == 2
+            @test original_rows[1][:name] == "segment-a"
+            @test original_rows[2][:name] == "segment-b"
+
+            collision_args = Dict{String, Any}(
+                "force" => false,
+                "name" => "segment-a",
+                "path" => path_b
+            )
+            @test Lunk.run_segment_register(collision_args, ctx) == 1
+
+            rows_after_no_force = create_connection(ctx.db_path) do conn
+                fetch_segment_registration(conn)
+            end
+            @test rows_after_no_force == original_rows
+
+            # Even with --force, multi-axis fails
+            collision_args["force"] = true
+            @test Lunk.run_segment_register(collision_args, ctx) == 1
+
+            rows_after_force = create_connection(ctx.db_path) do conn
+                fetch_segment_registration(conn)
+            end
+            @test rows_after_force == original_rows
+        end
+    end
+
+    # Efforts are purged when --force replaces a segment
+    mktempdir() do dir
+        ctx = make_context(dir)
+        cd(dir) do
+            path = abspath(dir * "/seg.osm")
+            write(path, "test")
+            args = Dict{String, Any}(
+                "force" => false,
+                "name" => "myseg",
+                "path" => path
+            )
+            @test Lunk.run_segment_register(args, ctx) == 0
+
+            # Get segment_id
+            old_sid = create_connection(ctx.db_path) do conn
+                row = fetch_segment_registration(conn, "myseg")
+                row[:segment_id]
+            end
+
+            # Seed segment_efforts
+            create_connection(ctx.db_path) do conn
+                DBInterface.execute(
+                    conn,
+                    "INSERT INTO segment_efforts (activity_id, segment_id, elapsed_time_s, matched_at, matcher_version) VALUES (1, ?, 100.0, 1234, 20260607)",
+                    [old_sid]
+                )
+            end
+
+            # Force-register with same path but different content -> replaces
+            write(path, "new-content")
+            args["force"] = true
+            @test Lunk.run_segment_register(args, ctx) == 0
+
+            # Verify old efforts are gone
+            create_connection(ctx.db_path) do conn
+                result = DBInterface.execute(
+                    conn,
+                    "SELECT COUNT(*) AS n FROM segment_efforts WHERE segment_id = ?",
+                    [old_sid]
+                )
+                @test only(NamedTuple(r) for r in result).n == 0
+            end
+        end
+    end
 end
 
 @testset "run_command segment match" begin

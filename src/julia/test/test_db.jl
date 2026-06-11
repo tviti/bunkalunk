@@ -491,3 +491,61 @@ end
         @test only(NamedTuple(r) for r in result).n == 4
     end
 end
+
+@testset "fetch_segment_registration_by_name" begin
+    create_connection(":memory:") do db
+        seed_segments_table!(db)
+        row = Lunk.fetch_segment_registration_by_name(db, "b")
+        @test row !== nothing
+        @test row[:name] == "b"
+        @test row[:definition_fingerprint] == "fingerprint-b"
+        @test row[:definition_path] == "path/to/b"
+
+        @test Lunk.fetch_segment_registration_by_name(db, "nonexistent") === nothing
+    end
+end
+
+@testset "fetch_segment_registration_by_fingerprint" begin
+    create_connection(":memory:") do db
+        seed_segments_table!(db)
+        row = Lunk.fetch_segment_registration_by_fingerprint(db, "fingerprint-b")
+        @test row !== nothing
+        @test row[:name] == "b"
+        @test row[:definition_fingerprint] == "fingerprint-b"
+        @test row[:definition_path] == "path/to/b"
+
+        @test Lunk.fetch_segment_registration_by_fingerprint(db, "nonexistent-fp") === nothing
+    end
+end
+
+@testset "fetch_segment_registration_by_path" begin
+    create_connection(":memory:") do db
+        seed_segments_table!(db)
+        row = Lunk.fetch_segment_registration_by_path(db, "path/to/b")
+        @test row !== nothing
+        @test row[:name] == "b"
+        @test row[:definition_fingerprint] == "fingerprint-b"
+        @test row[:definition_path] == "path/to/b"
+
+        @test Lunk.fetch_segment_registration_by_path(db, "nonexistent/path") === nothing
+    end
+end
+
+@testset "remove_segment by id" begin
+    create_connection(":memory:") do db
+        seed_segments_table!(db)
+        @test length(fetch_segment_names(db)) == 3
+
+        row = Lunk.remove_segment(db, 2)
+        @test row[:segment_id] == 2
+        @test row[:name] == "b"
+        @test fetch_segment_names(db) == ["a", "c"]
+    end
+
+    # Silent no-op on missing segment_id
+    create_connection(":memory:") do db
+        seed_segments_table!(db)
+        @test Lunk.remove_segment(db, 99999) === nothing
+        @test fetch_segment_names(db) == ["a", "b", "c"]
+    end
+end

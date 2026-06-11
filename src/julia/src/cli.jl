@@ -78,6 +78,10 @@ function parse_commandline()
         end
 
         @add_arg_table! segment_settings["register"] begin
+            "--force"
+            help = "Force overwrite of an existing segment"
+            action = :store_true
+
             "name"
             required = true
             action = :store_arg
@@ -137,7 +141,26 @@ function run_command(
     return handler(args[command], ctx)
 end
 
+function find_column_matches(
+        conn::SQLite.DB, name::String, path::String, fingerprint::String
+    )::Vector{Tuple{String, Any}}
+    by_name = fetch_segment_registration_by_name(conn, name)
+    by_path = fetch_segment_registration_by_path(conn, path)
+    by_fingerprint = fetch_segment_registration_by_fingerprint(conn, fingerprint)
+
+    column_matches = Tuple{String, Any}[]
+    by_name === nothing || push!(column_matches, ("name", by_name))
+    by_path === nothing || push!(column_matches, ("path", by_path))
+    by_fingerprint === nothing || push!(column_matches, ("fingerprint", by_fingerprint))
+
+    segment_ids = [row[:segment_id] for (_, row) in column_matches]
+    unique_indices = indexin(unique(segment_ids), segment_ids)
+
+    return column_matches[unique_indices]
+end
+
 function run_segment_register(args::ArgDict, ctx::Context)::Cint
+    force::Bool = args["force"]
     name::String = args["name"]
     path::String = abspath(args["path"])
 
@@ -145,19 +168,74 @@ function run_segment_register(args::ArgDict, ctx::Context)::Cint
         compute_fingerprint(f)
     end
     @debug "Segment fingerprint: $fingerprint"
+
     return create_connection(ctx.db_path) do conn
-        try
-            insert_segment(conn, name, path, fingerprint)
-            return 0
-        catch e
-            if e isa SQLiteException
-                m = match(r"UNIQUE constraint failed: (.+)", e.msg)
-                m !== nothing || rethrow(e)
-                @error "Row collision on $(m.captures[1])"
-                return 1
-            else
-                rethrow(e)
+        DBInterface.transaction(conn) do
+            # Check for potential collisions
+            column_matches = find_column_matches(conn, name, path, fingerprint)
+            num_matches = length(column_matches)
+
+            # No collisions -> cleared for takeoff
+            if num_matches == 0
+                insert_segment(conn, name, path, fingerprint)
+                return 0
             end
+
+            # One collision -> forcing is possible
+            if num_matches == 1
+                matched_column, row = first(column_matches)
+                segment_id = row[:segment_id]
+
+                if row[:name] == name &&
+                        row[:definition_path] == path &&
+                        row[:definition_fingerprint] == fingerprint
+
+                    @info(
+                        "Segment '$name' already registered with this path and " *
+                            "content; no change.\n" *
+                            "(To force a full re-registration and purge " *
+                            "segment_efforts, run\n" *
+                            " `lunk segment remove $name` followed by " *
+                            "`lunk segment register ...`.)"
+                    )
+                    return 0
+                end
+
+                if !force
+                    if matched_column == "name"
+                        value = name
+                    elseif matched_column == "path"
+                        value = path
+                    else
+                        value = fingerprint
+                    end
+                    @error """
+                    $matched_column '$value' already registered as segment_id=$segment_id
+                           (name=$(row[:name]), path=$(row[:definition_path])).
+                    Re-run with --force to replace.
+                    """
+                    return 1
+                end
+
+                removed = remove_segment(conn, segment_id)
+                removed === nothing && error("Expected segment_id=$segment_id to exist")
+                remove_segment_efforts(conn, segment_id)
+                insert_segment(conn, name, path, fingerprint)
+                return 0
+            end
+
+            @error "registration would replace $num_matches distinct existing segments:"
+            for (column, row) in column_matches
+                let id, name, path, fingerprint
+                    id = row[:segment_id]
+                    name = row[:name]
+                    path = row[:definition_path]
+                    fingerprint = row[:definition_fingerprint]
+                    @error "  $column -> segment_id=$id (name=$name, path=$path, fingerprint=$fingerprint)"
+                end
+            end
+            @error "Resolve manually with `lunk segment remove` before retrying."
+            return 1
         end
     end
 end

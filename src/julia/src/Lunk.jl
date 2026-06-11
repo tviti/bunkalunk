@@ -20,6 +20,9 @@ export create_connection,
     upsert_segment_effort,
     fetch_segment_registration,
     fetch_segment_names,
+    fetch_segment_registration_by_name,
+    fetch_segment_registration_by_fingerprint,
+    fetch_segment_registration_by_path,
     remove_segment,
     remove_segment_efforts
 

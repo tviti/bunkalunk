@@ -221,6 +221,66 @@ function remove_segment(db::SQLite.DB, name::String)::Union{NamedTuple, Nothing}
     return only(rows)
 end
 
+function remove_segment(db::SQLite.DB, segment_id::Integer)::Union{NamedTuple, Nothing}
+    result = DBInterface.execute(
+        db,
+        "DELETE FROM segments WHERE segment_id = ? RETURNING *",
+        [segment_id]
+    )
+    rows = [NamedTuple(r) for r in result]
+
+    if length(rows) == 0
+        return nothing
+    end
+
+    return only(rows)
+end
+
+function fetch_segment_registration_by_name(
+        db::SQLite.DB, name::String
+    )::Union{NamedTuple, Nothing}
+    result = DBInterface.execute(
+        db,
+        "SELECT * FROM segments WHERE name = ?",
+        [name]
+    )
+    rows = [NamedTuple(r) for r in result]
+    if isempty(rows)
+        return nothing
+    end
+    return only(rows)
+end
+
+function fetch_segment_registration_by_fingerprint(
+        db::SQLite.DB, fingerprint::String
+    )::Union{NamedTuple, Nothing}
+    result = DBInterface.execute(
+        db,
+        "SELECT * FROM segments WHERE definition_fingerprint = ?",
+        [fingerprint]
+    )
+    rows = [NamedTuple(r) for r in result]
+    if isempty(rows)
+        return nothing
+    end
+    return only(rows)
+end
+
+function fetch_segment_registration_by_path(
+        db::SQLite.DB, path::String
+    )::Union{NamedTuple, Nothing}
+    result = DBInterface.execute(
+        db,
+        "SELECT * FROM segments WHERE definition_path = ?",
+        [path]
+    )
+    rows = [NamedTuple(r) for r in result]
+    if isempty(rows)
+        return nothing
+    end
+    return only(rows)
+end
+
 function remove_segment_efforts(db::SQLite.DB, segment_id::Integer)::Vector{NamedTuple}
     result = DBInterface.execute(
         db,
