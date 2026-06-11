@@ -268,11 +268,22 @@ end
 function run_segment_match(args::ArgDict, ctx::Context)::Cint
     segment_name::String = args["name"]
     sport::Union{String, Nothing} = args["sport"]
-    create_connection(ctx.db_path) do db_conn
+    return create_connection(ctx.db_path) do db_conn
         segment_reg = fetch_segment_registration(db_conn, segment_name)
         segment_id::Int64 = segment_reg[:segment_id]
-        segment = read_segment(segment_reg[:definition_path])
 
+        fingerprint = open(segment_reg[:definition_path], "r") do f
+            return compute_fingerprint(f)
+        end
+        if fingerprint != segment_reg[:definition_fingerprint]
+            @error (
+                "Segment $segment_name changed on disk (fingerprint mismatch). " *
+                    "Re-register to purge old efforts, then try again."
+            )
+            return 1
+        end
+
+        segment = read_segment(segment_reg[:definition_path])
         activities = select_all(db_conn, sport = sport)
         activities_data = load_activities(activities)
 
@@ -287,8 +298,8 @@ function run_segment_match(args::ArgDict, ctx::Context)::Cint
                 matcher_version
             )
         end
+        return 0
     end
-    return 0
 end
 
 function run_segment_show(args::ArgDict, ctx::Context)::Cint

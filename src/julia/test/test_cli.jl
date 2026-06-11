@@ -373,8 +373,39 @@ end
     end
 end
 
-@testset "run_command segment match" begin
-    @test_skip "stub: match activities against segment"
+@testset "run_segment_match" begin
+    # Returns error on changed segment fingerprint
+    mktempdir() do dir
+        ctx = make_context(dir)
+        cd(dir) do
+            segment_path = dir * "/segment.osm"
+            create_connection(ctx.db_path) do conn
+                # Fake fingerprint ensures there will be a mismatch
+                DBInterface.execute(
+                    conn,
+                    """
+                    INSERT INTO segments (
+                        name,
+                        definition_fingerprint,
+                        definition_path
+                    ) VALUES (
+                        "segment",
+                        "fake-fingerprint",
+                        ?
+                    )
+                    """,
+                    [segment_path]
+                )
+                write(segment_path, "test")
+                let args::Dict{String, Any} = Dict(
+                        "name" => "segment",
+                        "sport" => nothing
+                    )
+                    @test Lunk.run_segment_match(args, ctx) == 1
+                end
+            end
+        end
+    end
 end
 
 @testset "run_command segment show" begin
