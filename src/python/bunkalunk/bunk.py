@@ -213,7 +213,10 @@ class AddCommand(Command):
     def add_arguments(cls, parser: argparse.ArgumentParser) -> None:
         """Add command-specific arguments for add operation."""
         parser.add_argument(
-            "path", type=Path, help="Local path (i.e. source file) to add to db"
+            "paths",
+            type=Path,
+            nargs="+",
+            help="Local paths (i.e. source files) to add to db",
         )
 
     def _record_decode_write_success(
@@ -260,6 +263,7 @@ class AddCommand(Command):
             self._record_decode_write_success(
                 conn, source_file, cache_data, content_fingerprint
             )
+            conn.commit()
         except Exception:
             logger.exception("Add failed after decode")
             conn.rollback()
@@ -275,25 +279,30 @@ class AddCommand(Command):
 
     def run(self, ctx: Context, args: argparse.Namespace) -> int:
         """Execute the add command."""
-        path: Path = args.path
+        paths: list[Path] = args.paths
         logger = ctx.get_logger()
 
+        errors: list[int] = []
         try:
             with create_connection(ctx.db_path) as conn:
-                is_valid = validate_extension(path)
-                if not is_valid:
-                    logger.error(
-                        "File '%s' has unsuppored extension '%s'.", path, path.suffix
-                    )
-                    return 1
+                for path in paths:
+                    is_valid = validate_extension(path)
+                    if not is_valid:
+                        logger.error(
+                            "File '%s' has unsuppored extension '%s'.",
+                            path,
+                            path.suffix,
+                        )
+                        errors.append(1)
+                        continue
 
-                source_path = resolve_source_path(path)
-                return self._add_file(conn, source_path, logger, ctx)
+                    source_path = resolve_source_path(path)
+                    errors.append(self._add_file(conn, source_path, logger, ctx))
         except Exception:
-            logger.exception("Error during db open")
+            logger.exception("Error during registration.")
             return 1
 
-        return 0
+        return 1 if any(errors) else 0
 
 
 class DecodeCommand(Command):

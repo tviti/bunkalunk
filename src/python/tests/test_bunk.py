@@ -141,20 +141,6 @@ class TestAddCommand:
         with create_bunk_db_conn(tmp_path) as conn:
             assert get_source_file(conn, str(bad_path)) is None
 
-    @pytest.mark.skip(
-        "P2: redundant with add_decode_success and DB-level source-file registration tests."
-    )
-    def test_add_registers_source_file(self, fit_file, db_conn, tmp_path):
-        """bunk add should register a new row in source_files."""
-        pass
-
-    @pytest.mark.skip(
-        "P2: CLI idempotency is lower priority; DB upsert idempotency already covers the core behavior."
-    )
-    def test_add_idempotent(self, fit_file, db_conn, tmp_path):
-        """bunk add should be idempotent for the same file path."""
-        pass
-
     def test_add_decode_success(self, monkeypatch, tmp_path, fit_path):
         """bunk add should decode a valid FIT file end-to-end."""
         patch_home(monkeypatch, tmp_path)
@@ -263,6 +249,95 @@ class TestAddCommand:
         assert called
         _assert_no_decode_artifact(fit_path)
 
+    def test_add_multiple_files_late_failure_keeps_prior_commit(
+        self, monkeypatch, tmp_path, fit_path
+    ):
+        """A later add failure should not roll back an earlier committed operand."""
+        patch_home(monkeypatch, tmp_path)
+
+        first_path = tmp_path / "first.fit"
+        fit_bytes = fit_path.read_bytes()
+        first_path.write_bytes(fit_bytes)
+
+        # Fudge a new fingerprint by stacking FIT data streams
+        second_path = tmp_path / "second.fit"
+        second_path.write_bytes(fit_bytes + fit_bytes)
+
+        original_record_decode_outcome = bunk.record_decode_outcome
+        success_calls = 0
+
+        def mock_record_decode_outcome(conn, source_path, *, state, error=None):
+            nonlocal success_calls
+            if state is DecodeState.SUCCESS:
+                success_calls += 1
+                if success_calls == 2:
+                    raise RuntimeError("mock late DB failure")
+
+            return original_record_decode_outcome(
+                conn, source_path, state=state, error=error
+            )
+
+        monkeypatch.setattr(bunk, "record_decode_outcome", mock_record_decode_outcome)
+
+        return_code = main(["add", str(first_path), str(second_path)])
+        assert return_code == 1
+        assert success_calls == 2
+
+        with open(first_path, "rb") as f:
+            first_fingerprint = compute_fingerprint(f)
+        with open(second_path, "rb") as f:
+            second_fingerprint = compute_fingerprint(f)
+
+        activity_store = resolve_activity_store(create=False)
+        first_cache_path = resolve_cache_path(first_fingerprint, activity_store)
+        second_cache_path = resolve_cache_path(second_fingerprint, activity_store)
+
+        with create_bunk_db_conn(tmp_path) as conn:
+            first_source_file = get_source_file(conn, str(first_path))
+            second_source_file = get_source_file(conn, str(second_path))
+            first_activities = _fetch_activities_by_fingerprint(conn, first_fingerprint)
+            second_activities = _fetch_activities_by_fingerprint(
+                conn, second_fingerprint
+            )
+
+        assert first_source_file.decode_state == DecodeState.SUCCESS
+        assert first_source_file.decode_error is None
+        assert second_source_file is None
+        assert len(first_activities) == 1
+        assert second_activities == []
+        assert first_cache_path.exists()
+        assert not second_cache_path.exists()
+
+    def test_add_multiple_files_accepted_extensions(self, monkeypatch, tmp_path):
+        patch_home(monkeypatch, tmp_path)
+        num_calls = 0
+
+        def mock_add_file(self, conn, source_path, logger, ctx):
+            nonlocal num_calls
+            num_calls += 1
+            return 0
+
+        monkeypatch.setattr(bunk.AddCommand, "_add_file", mock_add_file)
+        assert 0 == main(["add", "a.fit", "b.fit", "c.fit", "d.fit"])
+        assert num_calls == 4
+
+    def test_add_multiple_files_some_bad_extensions(self, monkeypatch, tmp_path):
+        patch_home(monkeypatch, tmp_path)
+        num_calls = 0
+        accepted_files: list[str] = []
+
+        def mock_add_file(self, conn, source_path, logger, ctx):
+            nonlocal num_calls
+            nonlocal accepted_files
+            num_calls += 1
+            accepted_files.append(os.path.basename(source_path))
+            return 0
+
+        monkeypatch.setattr(bunk.AddCommand, "_add_file", mock_add_file)
+        assert 1 == main(["add", "a.fit", "b.unfit", "c.fit", "d.unfit"])
+        assert num_calls == 2
+        assert accepted_files == ["a.fit", "c.fit"]
+
 
 class TestDecodeCommand:
     def test_decode_rebuilds_pending(self, monkeypatch, tmp_path, fit_path):
@@ -343,13 +418,6 @@ class TestDecodeCommand:
         assert 1 == main(["decode", "not/in/source_files"])
 
     @pytest.mark.skip(
-        "P2: fingerprint-change handling is already covered by path-registration tests."
-    )
-    def test_decode_detects_fingerprint_change(self, fit_file, db_conn, tmp_path):
-        """bunk decode should detect when source file content has changed."""
-        pass
-
-    @pytest.mark.skip(
         "P1: cover decode failure after fingerprint drift updates source_files."
     )
     def test_decode_fingerprint_drift_failure_keeps_activities_consistent(
@@ -375,13 +443,6 @@ class TestDecodeCommand:
         activity_store = resolve_activity_store(create=False)
         cache_path = resolve_cache_path(source_file.content_fingerprint, activity_store)
         assert cache_path.exists()
-
-    @pytest.mark.skip(
-        "P2: decode idempotency is lower priority than the core triage flows."
-    )
-    def test_decode_is_idempotent(self, db_conn, tmp_path):
-        """bunk decode should be safe to run multiple times."""
-        pass
 
     def test_decode_specific_path_success(self, monkeypatch, tmp_path, fit_path):
         """bunk decode <path> should succeed and leave decode_state = success."""
