@@ -22,7 +22,7 @@ SELECT
 FROM segment_efforts se
 JOIN activities a ON a.activity_id = se.activity_id
 JOIN segments s ON s.segment_id = se.segment_id
-WHERE se.segment_id = 2;
+WHERE s.name = :segment_name;
 
 SELECT * FROM segment_efforts_readable
 ORDER BY elapsed_time_s;

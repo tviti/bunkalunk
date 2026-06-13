@@ -290,3 +290,24 @@ function remove_segment_efforts(db::SQLite.DB, segment_id::Integer)::Vector{Name
     # TODO: Replace list comprehensions with broadcast syntax
     return [NamedTuple(r) for r in result]
 end
+
+function fetch_segment_efforts_by_name(db::SQLite.DB, name::String)::Vector{NamedTuple}
+    query = """
+    SELECT
+        se.effort_id,
+        se.activity_id,
+        CAST(a.start_time AS REAL) AS start_time,
+        se.segment_id,
+    	s.name,
+        se.elapsed_time_s,
+        se.matched_at,
+        se.matcher_version
+    FROM segment_efforts se
+    JOIN activities a ON a.activity_id = se.activity_id
+    JOIN segments s ON s.segment_id = se.segment_id
+    WHERE s.name = ?
+    ORDER BY elapsed_time_s;
+    """
+    results = DBInterface.execute(db, query, [name])
+    return [NamedTuple(r) for r in results]
+end

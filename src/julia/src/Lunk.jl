@@ -24,7 +24,8 @@ export create_connection,
     fetch_segment_registration_by_fingerprint,
     fetch_segment_registration_by_path,
     remove_segment,
-    remove_segment_efforts
+    remove_segment_efforts,
+    fetch_segment_efforts_by_name
 
 include("segments.jl")
 export Segment,

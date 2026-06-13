@@ -2,6 +2,8 @@ using ArgParse
 using Logging
 using Lunk
 using SQLite
+using Dates
+using Printf
 
 const ArgDict = Dict{String, Any}
 const CommandMap = Dict{String, Function}
@@ -118,6 +120,12 @@ function parse_commandline()
             required = true
             action = :store_arg
             help = "Segment name."
+
+            "--top"
+            arg_type = Int
+            action = :store_arg
+            default = 10
+            help = "Number of efforts to show."
         end
     end
 
@@ -229,7 +237,7 @@ function run_segment_register(args::ArgDict, ctx::Context)::Cint
                     "  $column -> segment_id=$(row[:segment_id]) " *
                         "(name=$(row[:name]), path=$(row[:definition_path]), " *
                         "fingerprint=$(row[:definition_fingerprint]))"
-                    for (column, row) in column_matches
+                        for (column, row) in column_matches
                 ],
                 "\n"
             )
@@ -305,8 +313,64 @@ function run_segment_match(args::ArgDict, ctx::Context)::Cint
     end
 end
 
+function seconds2hms(t::Real)::Tuple{Int, Int, Real}
+    t_h = divrem(t, 60)
+    hours = floor(t / 3600.0)
+    minutes = Int(t_h[1])
+    seconds = t_h[2]
+    return (hours, minutes, seconds)
+end
+
 function run_segment_show(args::ArgDict, ctx::Context)::Cint
-    throw(ArgumentError("lunk segment show: not yet implemented"))
+    segment_name::String = args["name"]
+    top::Int = args["top"]
+
+    efforts = create_connection(ctx.db_path) do conn
+        fetch_segment_efforts_by_name(conn, segment_name)
+    end
+
+    num_efforts = length(efforts)
+    if num_efforts == 0
+        println("No efforts for segment $segment_name")
+        return 0
+    end
+
+    max_hours_ago = 24.0
+    today = datetime2unix(Dates.now())
+    stale = [today - row[:matched_at] > max_hours_ago * 3600 for row in efforts]
+    if any(stale)
+        @warn (
+            "Warning: $(sum(stale)) of $num_efforts efforts are older than " *
+                "$max_hours_ago hours, re-run `lunk segment match` to ensure efforts are up to date"
+        )
+    end
+
+    println(ctx.io, "")
+    println(ctx.io, repeat("-", 55))
+    println(ctx.io, "  Segment name: $segment_name")
+    println(ctx.io, "  $num_efforts efforts total")
+    println(ctx.io, "")
+    @printf(ctx.io, "  %-4s  %-24s  %11s\n", "Rank", "Activity Date", "Segment Time")
+    println(repeat("-", 55))
+
+    i = 1
+    for (; effort_id, start_time, activity_id, elapsed_time_s) in efforts
+        start_time_iso = unix2datetime(start_time)
+        hms_string = let (h, m, s) = seconds2hms(elapsed_time_s)
+            if h != 0
+                @sprintf("%d:%d:%0.4f", h, m, s)
+            else
+                @sprintf("%d:%0.4f", m, s)
+            end
+        end
+        @printf(ctx.io, "  %-4s  %-24s  %11s\n", i, start_time_iso, hms_string)
+        i = i + 1
+        if i > top
+            break
+        end
+    end
+
+    return 0
 end
 
 const SEGMENT_SUBCOMMANDS = Dict{String, Function}(
