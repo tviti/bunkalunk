@@ -19,10 +19,22 @@ function read_segment(path::String)::Segment
     return read_segment(Val(Symbol(ext)), path)
 end
 
+"""
+    read_segment(::Val{Symbol(".xml")}, path::String)::Segment
+
+Thin wrapper for OSM XML segment parser.
+"""
 function read_segment(::Val{Symbol(".xml")}, path::String)::Segment
     return read_segment(Val(Symbol(".osm")), path)
 end
 
+"""
+    read_segment(::Val{Symbol(".osm")}, path::String)::Segment
+
+Read an OpenStreetMaps XML formatted segment file at `path`. Supports only OSM
+files with with one `way` (raises `ArgumentError` for files with more than one
+`way`).
+"""
 function read_segment(::Val{Symbol(".osm")}, path::String)::Segment
     doc = XML.read(path, Node)
     root = doc[end]
