@@ -1,4 +1,5 @@
 using SHA
+using JSON
 using XML
 import XML: attributes
 
@@ -6,6 +7,21 @@ struct Segment
     name::String
     latitude::Vector{Float64}
     longitude::Vector{Float64}
+end
+
+struct GeoJsonGeometry
+    type::String
+    coordinates::Matrix{Float64}
+end
+
+struct GeoJsonProperties
+    name::Union{String, Nothing}
+end
+
+struct GeoJsonRoot
+    type::String
+    geometry::GeoJsonGeometry
+    properties::Union{GeoJsonProperties, Missing}
 end
 
 """
@@ -17,6 +33,69 @@ generated `Segment`. Throws `ArgumentError` on unsupported extensions.
 function read_segment(path::String)::Segment
     ext = splitext(path)[2]
     return read_segment(Val(Symbol(ext)), path)
+end
+
+"""
+    read_segment(::Val{Symbol(".geojson")}, path::String)::Segment
+
+Read a GeoJSON formatted segment file at `path`. Supports only GeoJSON files
+with one Feature with `geometry.type = "LineString"`. Raises `ArgumentError`
+otherwise. Warns and defaults `name` to `""` when the feature has no
+`properties.name`.
+"""
+function read_segment(::Val{Symbol(".geojson")}, path::String)::Segment
+    raw_json = open(path, "r") do f
+        read(f, String)
+    end
+
+    result = let data
+        data = JSON.lazy(raw_json)
+        file_type = JSON.parse(data.type, String)
+        file_type == "Feature" || throw(
+            ArgumentError(
+                "Expected file type = \"Feature\", got $file_type"
+            )
+        )
+        geometry_type = JSON.parse(data.geometry.type, String)
+        geometry_type == "LineString" || throw(
+            ArgumentError(
+                "Expected geometry.type = \"LineString\", got $(geometry_type)"
+            )
+        )
+
+        feature = try
+            JSON.parse(data, GeoJsonRoot)
+        catch e
+            if e isa TypeError
+                throw(
+                    ArgumentError(
+                        "Could not parse $path as GeoJSON, inspect file contents for missing required attrs"
+                    )
+                )
+            else
+                rethrow(e)
+            end
+        end
+
+        if feature.properties === missing || feature.properties.name === nothing
+            @warn "Segment file $path has no name"
+            name = ""
+        else
+            name = feature.properties.name
+        end
+
+        (name = name, feature = feature)
+    end
+
+    coords = result.feature.geometry.coordinates
+    num_coords = size(coords, 2)
+    num_coords >= 2 || throw(
+        ArgumentError(
+            "Segment file $path must contain at least two points, got $num_coords"
+        )
+    )
+
+    return Segment(result.name, coords[2, :], coords[1, :])
 end
 
 """

@@ -252,7 +252,8 @@ On `bunk add <path>...`:
 ### `lunk`
 
 - `segment register [--force] <name> <path>` — register or update a segment
-  definition by name; `<path>` is the absolute path to the OSM definition file
+  definition by name; `<path>` is the absolute path to the segment definition
+  file (`.osm` or `.geojson`)
 - `segment list` — list registered segments
 - `segment match <segment-name>` — compute and persist segment efforts for
   activities not yet matched against this segment
@@ -262,8 +263,12 @@ On `bunk add <path>...`:
 
 ## Segment Definitions
 
-Segment definitions are OSM XML files (`resources/segments/*.osm`). Additional
-formats may be supported later.
+Segment definitions live in `resources/segments/` and may be either OSM XML
+files (`*.osm`) or GeoJSON files (`*.geojson`). The decoder dispatches on
+file extension.
+
+### OSM XML
+
 - https://wiki.openstreetmap.org/wiki/OSM_XML
 
 OSM XML files must include node elements with `lat`/`lon` attributes alongside
@@ -277,6 +282,16 @@ https://api.openstreetmap.org/api/0.6/way/<id>/full
 
 This returns all referenced node elements with coordinates, making the file
 self-contained and suitable for segment matching.
+
+### GeoJSON
+
+- https://geojson.org/
+
+GeoJSON segment files must contain a single `Feature` whose `geometry.type`
+is `"LineString"` and whose `geometry.coordinates` array contains at least
+two positions. Each position is a `[longitude, latitude]` pair per the
+GeoJSON spec. The segment name is read from `properties.name`; a missing
+`properties.name` is permitted and produces a warning with an empty name.
 
 ## Directory Layout
 

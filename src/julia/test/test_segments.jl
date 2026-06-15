@@ -1,12 +1,11 @@
 using Test
 using Lunk
 
-function write_osm(dir::String, xml::String)::String
-    path = joinpath(dir, "segment.osm")
-    write(path, xml)
+function write_test_segment(dir::String, data::String; extension = ".osm")::String
+    path = joinpath(dir, "segment" * extension)
+    write(path, data)
     return path
 end
-
 
 @testset "read_segment" begin
     @testset "unsupported extension throws" begin
@@ -16,7 +15,6 @@ end
         end
     end
 end
-
 
 @testset "read_segment OSM" begin
 
@@ -32,7 +30,7 @@ end
             </osm> 
         """
         mktempdir() do dir
-            path = write_osm(dir, xml)
+            path = write_test_segment(dir, xml)
             segment = read_segment(path)
             @test segment.name == "segment"
             @test segment.latitude == [1.5]
@@ -51,7 +49,7 @@ end
             </osm> 
         """
         mktempdir() do dir
-            path = write_osm(dir, xml)
+            path = write_test_segment(dir, xml)
             @test_logs (:warn, "Segment file $path has no name") begin
                 segment = read_segment(path)
                 @test segment.name == ""
@@ -73,7 +71,7 @@ end
             </notosm> 
         """
         mktempdir() do dir
-            path = write_osm(dir, xml)
+            path = write_test_segment(dir, xml)
             @test_throws r"ArgumentError:.*tag is not 'osm', got" read_segment(path)
         end
     end
@@ -89,7 +87,7 @@ end
             </osm> 
         """
         mktempdir() do dir
-            path = write_osm(dir, xml)
+            path = write_test_segment(dir, xml)
             @test_throws r"ArgumentError:.*no nodes" read_segment(path)
         end
     end
@@ -103,7 +101,7 @@ end
             </osm> 
         """
         mktempdir() do dir
-            path = write_osm(dir, xml)
+            path = write_test_segment(dir, xml)
             @test_throws r"ArgumentError:.*must contain exactly one way" read_segment(path)
         end
     end
@@ -125,7 +123,7 @@ end
             </osm> 
         """
         mktempdir() do dir
-            path = write_osm(dir, xml)
+            path = write_test_segment(dir, xml)
             @test_throws r"ArgumentError:.*must contain exactly one way" read_segment(path)
         end
     end
@@ -143,7 +141,7 @@ end
             </osm> 
         """
         mktempdir() do dir
-            path = write_osm(dir, xml)
+            path = write_test_segment(dir, xml)
             @test_throws r"ArgumentError:.*no matching node" read_segment(path)
         end
     end
@@ -165,7 +163,7 @@ end
             </osm> 
         """
         mktempdir() do dir
-            path = write_osm(dir, xml)
+            path = write_test_segment(dir, xml)
             segment = read_segment(path)
             @test segment.name == "segment"
             @test segment.latitude == [1.1, 1.2, 1.3]
@@ -173,4 +171,151 @@ end
         end
     end
 
+end
+
+@testset "read_segment geojson" begin
+    @testset "Roundtrip" begin
+        json = """
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [[1.5, 2.25], [2.5, 3.25]]
+            },
+            "properties": {
+                "name": "segment"
+            }
+        }
+        """
+        segment = mktempdir() do dir
+            path = write_test_segment(dir, json, extension = ".geojson")
+            read_segment(path)
+        end
+        @test segment.name == "segment"
+        @test segment.latitude == [2.25, 3.25]
+        @test segment.longitude == [1.5, 2.5]
+    end
+
+    @testset "rejects non-LineString Feature" begin
+        json = """
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [1.5, 2.25]
+            },
+            "properties": {
+                "name": "point"
+            }
+        }
+        """
+        mktempdir() do dir
+            path = write_test_segment(dir, json, extension = ".geojson")
+            @test_throws ArgumentError read_segment(path)
+        end
+    end
+
+    @testset "rejects FeatureCollection" begin
+        json = """
+        {
+            "type": "FeatureCollection",
+            "features": []
+        }
+        """
+        mktempdir() do dir
+            path = write_test_segment(dir, json, extension = ".geojson")
+            @test_throws ArgumentError read_segment(path)
+        end
+    end
+
+    @testset "rejects Feature-less file" begin
+        json = """
+        {
+          "type": "LineString",
+          "coordinates": [
+            [0.0, 0.0],
+            [1.0, 1.0]
+          ]
+        }
+        """
+        mktempdir() do dir
+            path = write_test_segment(dir, json, extension = ".geojson")
+            @test_throws ArgumentError read_segment(path)
+        end
+    end
+
+    @testset "no name property" begin
+        json = """
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [[1.5, 2.25], [2.5, 3.25]]
+            },
+            "properties": {}
+        }
+        """
+        mktempdir() do dir
+            path = write_test_segment(dir, json, extension = ".geojson")
+            segment = @test_logs (:warn,) read_segment(path)
+            @test segment.name == ""
+            @test segment.latitude == [2.25, 3.25]
+            @test segment.longitude == [1.5, 2.5]
+        end
+    end
+
+    @testset "missing properties attr" begin
+        json = """
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [[1.5, 2.25], [2.5, 3.25]]
+            }
+        }
+        """
+        mktempdir() do dir
+            path = write_test_segment(dir, json, extension = ".geojson")
+            @test_throws ArgumentError read_segment(path)
+        end
+    end
+
+    @testset "null properties attr" begin
+        json = """
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [[1.5, 2.25], [2.5, 3.25]]
+            },
+            "properties": null
+        }
+        """
+        mktempdir() do dir
+            path = write_test_segment(dir, json, extension = ".geojson")
+            segment = @test_logs (:warn,) read_segment(path)
+            @test segment.name == ""
+            @test segment.latitude == [2.25, 3.25]
+            @test segment.longitude == [1.5, 2.5]
+        end
+    end
+
+    @testset "rejects LineString with fewer than 2 points" begin
+        json = """
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [[1.5, 2.25]]
+            },
+            "properties": {
+                "name": "segment"
+            }
+        }
+        """
+        mktempdir() do dir
+            path = write_test_segment(dir, json, extension = ".geojson")
+            @test_throws ArgumentError read_segment(path)
+        end
+    end
 end
