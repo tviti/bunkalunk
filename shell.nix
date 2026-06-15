@@ -26,19 +26,15 @@ let
     instructions = [ "docs/spec.md" ];
   };
 
-  # Project-rooted binaries so direnv (which skips shellHook) still picks
-  # them up via buildInputs PATH.
-  projectRoot = "/home/taylor/Source/bunkalunk_bunk-recursive-add";
-
   lunkJuliaDev = pkgs.writeShellScriptBin "julia-dev" ''
-    PROJECT_ROOT='${projectRoot}'
+    PROJECT_ROOT=$(git rev-parse --show-toplevel)
     export JULIA_PROJECT="$PROJECT_ROOT/src/julia"
     export BUNK_DEV_SYSIMAGE="$PROJECT_ROOT/src/julia/dev_sysimage.so"
     exec julia --sysimage="$BUNK_DEV_SYSIMAGE" --project="$JULIA_PROJECT" "$@"
   '';
 
   lunkBuildSysimage = pkgs.writeShellScriptBin "build-sysimage" ''
-    PROJECT_ROOT='${projectRoot}'
+    PROJECT_ROOT=$(git rev-parse --show-toplevel)
     unset JULIA_PROJECT JULIA_LOAD_PATH
     exec julia --project="$PROJECT_ROOT/src/julia/scripts" \
       "$PROJECT_ROOT/src/julia/scripts/build_sysimage.jl"
