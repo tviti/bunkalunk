@@ -56,7 +56,10 @@ function parse_commandline()
         @add_arg_table! segment_settings begin
             "register"
             action = :command
-            help = "Add a new segment to the database."
+            help = """Add a new segment to the database. Supports OSM XML files
+            and GeoJSON. Only supports GeoJSON Feature file-types with
+            LineString geometry, all other rejected. Generate using ogr2ogr with
+            GeoJSONSeq formatted output."""
 
             "remove"
             action = :command
