@@ -101,8 +101,10 @@ function write_minimal_osm(path; name="segment")
     xml = """
         <osm>
             <node id="1" visible="true" lat="1.5" lon="2.25" />
+            <node id="2" visible="true" lat="1.6" lon="2.35" />
             <way id="1" visible="true">
                     <nd ref="1" />
+                    <nd ref="2" />
                     <tag k="name" v="$name" />
             </way>
         </osm> 

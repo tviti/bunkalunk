@@ -23,8 +23,10 @@ end
         xml = """
             <osm>
                 <node id="1" visible="true" lat="1.5" lon="2.25" />
+                <node id="2" visible="true" lat="1.6" lon="2.35" />
                 <way id="1" visible="true">
                      <nd ref="1" />
+                     <nd ref="2" />
                      <tag k="name" v="segment" />
                 </way>
             </osm> 
@@ -33,8 +35,8 @@ end
             path = write_test_segment(dir, xml)
             segment = read_segment(path)
             @test segment.name == "segment"
-            @test segment.latitude == [1.5]
-            @test segment.longitude == [2.25]
+            @test segment.latitude == [1.5, 1.6]
+            @test segment.longitude == [2.25, 2.35]
         end
     end
 
@@ -43,8 +45,10 @@ end
         xml = """
             <osm>
                 <node id="1" visible="true" lat="1.5" lon="2.25" />
+                <node id="2" visible="true" lat="1.6" lon="2.35" />
                 <way id="1" visible="true">
                      <nd ref="1" />
+                     <nd ref="2" />
                 </way>
             </osm> 
         """
@@ -53,9 +57,25 @@ end
             @test_logs (:warn, "Segment file $path has no name") begin
                 segment = read_segment(path)
                 @test segment.name == ""
-                @test segment.latitude == [1.5]
-                @test segment.longitude == [2.25]
+                @test segment.latitude == [1.5, 1.6]
+                @test segment.longitude == [2.25, 2.35]
             end
+        end
+    end
+
+    @testset "too few points" begin
+        xml = """
+            <osm>
+                <node id="1" visible="true" lat="1.5" lon="2.25" />
+                <way id="1" visible="true">
+                     <nd ref="1" />
+                     <tag k="name" v="segment" />
+                </way>
+            </osm> 
+        """
+        mktempdir() do dir
+            path = write_test_segment(dir, xml)
+            @test_throws r"ArgumentError: Segment file .* must contain at least two points, got 1" read_segment(path)
         end
     end
 

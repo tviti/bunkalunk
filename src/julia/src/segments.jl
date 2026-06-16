@@ -142,6 +142,11 @@ function read_segment(::Val{Symbol(".osm")}, path::String)::Segment
     way_children = children(ways[1])
     nd = filter(x -> tag(x) == "nd", way_children)
     N_nd = length(nd)
+    N_nd >= 2 || throw(
+        ArgumentError(
+            "Segment file $path must contain at least two points, got $N_nd"
+        )
+    )
 
     latitude = Vector{Float64}(undef, N_nd)
     longitude = Vector{Float64}(undef, N_nd)
