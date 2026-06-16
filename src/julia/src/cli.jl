@@ -279,6 +279,31 @@ function run_segment_list(args::ArgDict, ctx::Context)::Cint
     return 0
 end
 
+function is_stale_segment(
+        segment_name::String, definition_path::String, definition_fingerprint::String
+    )::Bool
+    fingerprint = open(definition_path, "r") do f
+        return compute_fingerprint(f)
+    end
+    if fingerprint != definition_fingerprint
+        @error (
+            "Segment $segment_name changed on disk (fingerprint mismatch). " *
+                "Re-register to purge old efforts, then try again."
+        )
+        return true
+    end
+    return false
+end
+
+function load_matcher_inputs(
+        db_conn::SQLite.DB, definition_path::String, sport::Union{String, Nothing}
+    )::Tuple{Segment, Dict{Int, CacheData}}
+    segment = read_segment(definition_path)
+    activities = select_all(db_conn, sport = sport)
+    activities_data = load_activities(activities)
+    return (segment, activities_data)
+end
+
 function run_segment_match(args::ArgDict, ctx::Context)::Cint
     segment_name::String = args["name"]
     sport::Union{String, Nothing} = args["sport"]
@@ -286,20 +311,15 @@ function run_segment_match(args::ArgDict, ctx::Context)::Cint
         segment_reg = fetch_segment_registration(db_conn, segment_name)
         segment_id::Int64 = segment_reg[:segment_id]
 
-        fingerprint = open(segment_reg[:definition_path], "r") do f
-            return compute_fingerprint(f)
-        end
-        if fingerprint != segment_reg[:definition_fingerprint]
-            @error (
-                "Segment $segment_name changed on disk (fingerprint mismatch). " *
-                    "Re-register to purge old efforts, then try again."
+        if is_stale_segment(
+                segment_name, segment_reg[:definition_path], segment_reg[:definition_fingerprint]
             )
             return 1
         end
 
-        segment = read_segment(segment_reg[:definition_path])
-        activities = select_all(db_conn, sport = sport)
-        activities_data = load_activities(activities)
+        (segment, activities_data) = load_matcher_inputs(
+            db_conn, segment_reg[:definition_path], sport
+        )
 
         match_results = match_to_activities(segment, activities_data)
         for (; activity_date, activity_id, segment_time, matched_at) in match_results
