@@ -94,6 +94,22 @@ end
     end
 end
 
+function write_minimal_osm(path; name="segment")
+    # minimal valid file: one way, N nodes, nd refs match, name tag present
+    # changing the name kwarg is an easy way to change the file contents (and
+    # hence change the fingerprint)
+    xml = """
+        <osm>
+            <node id="1" visible="true" lat="1.5" lon="2.25" />
+            <way id="1" visible="true">
+                    <nd ref="1" />
+                    <tag k="name" v="$name" />
+            </way>
+        </osm> 
+    """
+    write(path, xml)
+end
+
 @testset "run_segment_register" begin
     # Happy path
     mktempdir() do dir
@@ -103,7 +119,7 @@ end
             "name" => "segment",
             "path" => dir * "/segment.osm"
         )
-        write(args["path"], "test")
+        write_minimal_osm(args["path"])
         fingerprint = open(args["path"], "r") do f
             compute_fingerprint(f)
         end
@@ -132,7 +148,7 @@ end
             "path" => "./segment.osm"
         )
         cd(dir) do
-            write(args["path"], "test")
+            write_minimal_osm(args["path"])
             @test Lunk.run_segment_register(args, ctx) == 0
         end
 
@@ -145,6 +161,21 @@ end
         end
 
         @test isabspath(row[:definition_path])
+    end
+
+    # Exit on decode failure
+    mktempdir() do dir
+        ctx = make_context(dir)
+        args::Dict{String, Any} = Dict(
+            "force" => false,
+            "name" => "segment",
+            "path" => dir * "/segment.osm"
+        )
+        cd(dir) do
+            write(args["path"], "invalid-segment")
+            result = @test_logs (:error,) Lunk.run_segment_register(args, ctx)
+            @test result == 1
+        end
     end
 
     # run_segment_register collisions
@@ -176,7 +207,7 @@ end
             end
 
             # Path collision: same path, new name, new content
-            write(segment_path, "new-content")
+            write_minimal_osm(segment_path, name="new-name")
             let args = Dict{String, Any}(
                     "force" => false,
                     "name" => "new-segment",
@@ -189,9 +220,8 @@ end
             end
 
             # Name collision: same name, new path, new content
-            let
-                write(other_path, "other-content")
-                args = Dict{String, Any}(
+            write_minimal_osm(other_path, name="other-name")
+            let args = Dict{String, Any}(
                     "force" => false,
                     "name" => "new-segment",
                     "path" => other_path
@@ -204,7 +234,7 @@ end
 
             # Fingerprint collision: same content, new name, new path
             let fp_path = abspath(dir * "/fp.osm")
-                write(fp_path, "other-content")  # same content as "other.osm" above
+                write_minimal_osm(fp_path, name="other-name")  # same content as "other.osm" above
                 fp = open(fp_path, "r") do f
                     compute_fingerprint(f)
                 end
@@ -231,7 +261,7 @@ end
         ctx = make_context(dir)
         cd(dir) do
             path = abspath(dir * "/seg.osm")
-            write(path, "test")
+            write_minimal_osm(path, name="myseg")
             args = Dict{String, Any}(
                 "force" => false,
                 "name" => "myseg",
@@ -282,8 +312,8 @@ end
         cd(dir) do
             path_a = abspath(dir * "/a.osm")
             path_b = abspath(dir * "/b.osm")
-            write(path_a, "content-a")
-            write(path_b, "content-b")
+            write_minimal_osm(path_a, name="segment-a")
+            write_minimal_osm(path_b, name="segment-b")
 
             let args = Dict{String, Any}(
                     "force" => false,
@@ -339,7 +369,7 @@ end
         ctx = make_context(dir)
         cd(dir) do
             path = abspath(dir * "/seg.osm")
-            write(path, "test")
+            write_minimal_osm(path, name="myseg")
             args = Dict{String, Any}(
                 "force" => false,
                 "name" => "myseg",
@@ -363,7 +393,7 @@ end
             end
 
             # Force-register with same path but different content -> replaces
-            write(path, "new-content")
+            write_minimal_osm(path, name="new-content")
             args["force"] = true
             @test Lunk.run_segment_register(args, ctx) == 0
 

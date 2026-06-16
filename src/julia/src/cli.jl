@@ -175,6 +175,15 @@ function run_segment_register(args::ArgDict, ctx::Context)::Cint
     name::String = args["name"]
     path::String = abspath(args["path"])
 
+    # Verify that the segment is decodable
+    try
+        read_segment(path)
+    catch e
+        showerror(ctx.io, e)
+        @error "Segment at $path could not be decoded"
+        return 1
+    end
+
     fingerprint = open(path, "r") do f
         compute_fingerprint(f)
     end
