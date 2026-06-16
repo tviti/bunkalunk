@@ -190,362 +190,447 @@ end
 end
 
 @testset "select_by_start_date" begin
-    with_activities_db() do conn
-        @test select_by_start_date(conn, "2026-02-05") == ["123"]
+    @testset "Happy path" begin
+        with_activities_db() do conn
+            @test select_by_start_date(conn, "2026-02-05") == ["123"]
+        end
     end
-    with_activities_db() do conn
-        # multiple matches: two activities with start_time on the same date
-        @test select_by_start_date(conn, "2026-02-06") == ["456", "789"]
+
+    @testset "multiple matches: two activities with start_time on the same date" begin
+        with_activities_db() do conn
+            @test select_by_start_date(conn, "2026-02-06") == ["456", "789"]
+        end
     end
-    with_activities_db() do conn
-        # upper boundary: exactly midnight opening the next day should be excluded
-        @test select_by_start_date(conn, "2026-02-07") == []
+
+    @testset "upper boundary: exactly midnight opening the next day should be excluded" begin
+        with_activities_db() do conn
+            @test select_by_start_date(conn, "2026-02-07") == []
+        end
     end
-    with_activities_db() do conn
-        # sport filter that matches seed data — only cycling returned
-        @test select_by_start_date(conn, "2026-02-06", sport = "cycling") == ["789"]
+
+    @testset "sport filter that matches seed data — only cycling returned" begin
+        with_activities_db() do conn
+            @test select_by_start_date(conn, "2026-02-06", sport = "cycling") == ["789"]
+        end
     end
-    with_activities_db() do conn
-        # sport filter that matches no activities — empty result
-        @test select_by_start_date(conn, "2026-02-06", sport = "running") == []
+
+    @testset "sport filter that matches no activities — empty result" begin
+        with_activities_db() do conn
+            @test select_by_start_date(conn, "2026-02-06", sport = "running") == []
+        end
     end
-    with_activities_db() do conn
-        # sport=nothing behaves identically to the no-sport overload
-        @test select_by_start_date(conn, "2026-02-06", sport = nothing) == ["456", "789"]
+
+    @testset "sport=nothing behaves identically to the no-sport overload" begin
+        with_activities_db() do conn
+            @test select_by_start_date(conn, "2026-02-06", sport = nothing) == ["456", "789"]
+        end
     end
 end
 
 @testset "select_by_time_range" begin
-    with_activities_db() do conn
-        @test select_by_time_range(
-            conn,
-            DateTime(2026, 2, 6, 4, 30),
-            DateTime(2026, 2, 6, 5, 30)
-        ) == ["456"]
+    @testset "Happy path" begin
+        with_activities_db() do conn
+            @test select_by_time_range(
+                conn,
+                DateTime(2026, 2, 6, 4, 30),
+                DateTime(2026, 2, 6, 5, 30)
+            ) == ["456"]
+        end
     end
 
-    with_activities_db() do conn
-        # multiple matches: time range spanning more than one activity
-        @test select_by_time_range(
-            conn,
-            DateTime(2026, 2, 6, 4, 30),
-            DateTime(2026, 2, 6, 15, 30)
-        ) == ["456", "789"]
+    @testset "multiple matches: time range spanning more than one activity" begin
+        with_activities_db() do conn
+            @test select_by_time_range(
+                conn,
+                DateTime(2026, 2, 6, 4, 30),
+                DateTime(2026, 2, 6, 15, 30)
+            ) == ["456", "789"]
+        end
     end
 
-    with_activities_db() do conn
-        # upper boundary: start_time exactly equal to t1 is excluded (range is >= t0, < t1)
-        @test select_by_time_range(
-            conn,
-            DateTime(2026, 2, 5, 5, 00),
-            DateTime(2026, 2, 6, 5, 00)
-        ) == ["123"]
+    @testset "upper boundary: start_time exactly equal to t1 is excluded (range is >= t0, < t1)" begin
+        with_activities_db() do conn
+            @test select_by_time_range(
+                conn,
+                DateTime(2026, 2, 5, 5, 00),
+                DateTime(2026, 2, 6, 5, 00)
+            ) == ["123"]
+        end
     end
 
-    with_activities_db() do conn
-        # sport filter that matches seed data — only cycling returned
-        @test select_by_time_range(
-            conn,
-            DateTime(2026, 2, 6, 4, 30),
-            DateTime(2026, 2, 6, 15, 30),
-            sport = "cycling"
-        ) == ["789"]
+    @testset "sport filter that matches seed data — only cycling returned" begin
+        with_activities_db() do conn
+            @test select_by_time_range(
+                conn,
+                DateTime(2026, 2, 6, 4, 30),
+                DateTime(2026, 2, 6, 15, 30),
+                sport = "cycling"
+            ) == ["789"]
+        end
     end
 
-    with_activities_db() do conn
-        # sport filter that matches no activities in range — empty result
-        @test select_by_time_range(
-            conn,
-            DateTime(2026, 2, 6, 4, 30),
-            DateTime(2026, 2, 6, 15, 30),
-            sport = "running"
-        ) == []
+    @testset "sport filter that matches no activities in range — empty result" begin
+        with_activities_db() do conn
+            @test select_by_time_range(
+                conn,
+                DateTime(2026, 2, 6, 4, 30),
+                DateTime(2026, 2, 6, 15, 30),
+                sport = "running"
+            ) == []
+        end
     end
 
-    with_activities_db() do conn
-        # sport=nothing behaves identically to the no-sport overload
-        @test select_by_time_range(
-            conn,
-            DateTime(2026, 2, 6, 4, 30),
-            DateTime(2026, 2, 6, 15, 30),
-            sport = nothing
-        ) == ["456", "789"]
+    @testset "sport=nothing behaves identically to the no-sport overload" begin
+        with_activities_db() do conn
+            @test select_by_time_range(
+                conn,
+                DateTime(2026, 2, 6, 4, 30),
+                DateTime(2026, 2, 6, 15, 30),
+                sport = nothing
+            ) == ["456", "789"]
+        end
     end
 end
 
 @testset "create_connection" begin
-    # verifies table schemas created by create_connection
-    create_connection(":memory:") do db
-        cols = DBInterface.execute(db, "PRAGMA table_info(segments)")
-        names = [row[:name] for row in cols]
-        @test names == [
-            "segment_id", "name", "definition_fingerprint", "definition_path",
-        ]
-
-        cols = DBInterface.execute(db, "PRAGMA table_info(segment_efforts)")
-        names = [row[:name] for row in cols]
-        @test names == [
-            "effort_id", "activity_id", "segment_id", "elapsed_time_s", "matched_at",
-            "matcher_version",
-        ]
-    end
-
-    # errors thrown inside the do-block should propagate out
-    @test_throws ErrorException create_connection(":memory:") do db
-        error("test error")
-    end
-
-    # connection is closed even when the do-block raises an error
-    ref = Ref{SQLite.DB}()
-    try
+    @testset "verifies table schemas created by create_connection" begin
         create_connection(":memory:") do db
-            ref[] = db
+            cols = DBInterface.execute(db, "PRAGMA table_info(segments)")
+            names = [row[:name] for row in cols]
+            @test names == [
+                "segment_id", "name", "definition_fingerprint", "definition_path",
+            ]
+
+            cols = DBInterface.execute(db, "PRAGMA table_info(segment_efforts)")
+            names = [row[:name] for row in cols]
+            @test names == [
+                "effort_id", "activity_id", "segment_id", "elapsed_time_s", "matched_at",
+                "matcher_version",
+            ]
+        end
+    end
+
+    @testset "errors thrown inside the do-block should propagate out" begin
+        @test_throws ErrorException create_connection(":memory:") do db
             error("test error")
         end
-    catch
     end
-    @test !SQLite.isopen(ref[])
+
+    @testset "connection is closed even when the do-block raises an error" begin
+        ref = Ref{SQLite.DB}()
+        try
+            create_connection(":memory:") do db
+                ref[] = db
+                error("test error")
+            end
+        catch
+        end
+        @test !SQLite.isopen(ref[])
+    end
 end
 
 @testset "insert_segment" begin
-    # Happy path
-    create_connection(":memory:") do db
-        insert_segment(db, "segment", "path/to/segment", "fingerprint")
-        result = DBInterface.execute(
-            db,
-            "SELECT * FROM segments WHERE name = ?",
-            ["segment"]
-        )
-        row = only(NamedTuple(row) for row in result)
-        @test row[:name] == "segment"
-        @test row[:definition_path] == "path/to/segment"
-        @test row[:definition_fingerprint] == "fingerprint"
+    @testset "Happy path" begin
+        create_connection(":memory:") do db
+            insert_segment(db, "segment", "path/to/segment", "fingerprint")
+            result = DBInterface.execute(
+                db,
+                "SELECT * FROM segments WHERE name = ?",
+                ["segment"]
+            )
+            row = only(NamedTuple(row) for row in result)
+            @test row[:name] == "segment"
+            @test row[:definition_path] == "path/to/segment"
+            @test row[:definition_fingerprint] == "fingerprint"
+        end
+    end
 
-        # Name conflict throws SQLiteException
-        @test_throws SQLiteException insert_segment(
-            db, "segment", "new/path/to/segment", "new-fingerprint"
-        )
+    @testset "Name conflict throws SQLiteException" begin
+        create_connection(":memory:") do db
+            insert_segment(db, "segment", "path/to/segment", "fingerprint")
+            @test_throws SQLiteException insert_segment(
+                db, "segment", "new/path/to/segment", "new-fingerprint"
+            )
+        end
+    end
 
-        # Path conflict throws SQLiteException
-        @test_throws SQLiteException insert_segment(
-            db, "new-segment", "path/to/segment", "new-fingerprint"
-        )
+    @testset "Path conflict throws SQLiteException" begin
+        create_connection(":memory:") do db
+            insert_segment(db, "segment", "path/to/segment", "fingerprint")
+            @test_throws SQLiteException insert_segment(
+                db, "new-segment", "path/to/segment", "new-fingerprint"
+            )
+        end
+    end
 
-        # Fingerprint conflict throws SQLiteException
-        @test_throws SQLiteException insert_segment(
-            db, "new-segment", "new-path/to/segment", "fingerprint"
-        )
+    @testset "Fingerprint conflict throws SQLiteException" begin
+        create_connection(":memory:") do db
+            insert_segment(db, "segment", "path/to/segment", "fingerprint")
+            @test_throws SQLiteException insert_segment(
+                db, "new-segment", "new-path/to/segment", "fingerprint"
+            )
+        end
+    end
 
-        # Conflicts must not partially update the original row.
-        result = DBInterface.execute(
-            db,
-            "SELECT * FROM segments WHERE name = ?",
-            ["segment"]
-        )
-        row = only(NamedTuple(row) for row in result)
-        @test row[:name] == "segment"
-        @test row[:definition_path] == "path/to/segment"
-        @test row[:definition_fingerprint] == "fingerprint"
+    @testset "Conflicts must not partially update the original row" begin
+        create_connection(":memory:") do db
+            insert_segment(db, "segment", "path/to/segment", "fingerprint")
+            @test_throws SQLiteException insert_segment(
+                db, "new-segment", "new-path/to/segment", "fingerprint"
+            )
+
+            result = DBInterface.execute(
+                db,
+                "SELECT * FROM segments WHERE name = ?",
+                ["segment"]
+            )
+            row = only(NamedTuple(row) for row in result)
+            @test row[:name] == "segment"
+            @test row[:definition_path] == "path/to/segment"
+            @test row[:definition_fingerprint] == "fingerprint"
+        end
     end
 end
 
 @testset "upsert_segment_effort" begin
-    create_connection(":memory:") do db
-        # Happy path
-        upsert_segment_effort(db, 1, 10, 123.456, 13, 123456)
-        result = DBInterface.execute(
-            db,
-            "SELECT * FROM segment_efforts WHERE segment_id = ?",
-            [10]
-        )
-        segment_efforts_row = only(NamedTuple(r) for r in result)
-        @test segment_efforts_row[:activity_id] == 1
-        @test segment_efforts_row[:segment_id] == 10
-        @test segment_efforts_row[:elapsed_time_s] == 123.456
-        @test segment_efforts_row[:matched_at] == 13
-        @test segment_efforts_row[:matcher_version] == 123456
+    @testset "Happy path" begin
+        create_connection(":memory:") do db
+            upsert_segment_effort(db, 1, 10, 123.456, 13, 123456)
+            result = DBInterface.execute(
+                db,
+                "SELECT * FROM segment_efforts WHERE segment_id = ?",
+                [10]
+            )
+            segment_efforts_row = only(NamedTuple(r) for r in result)
+            @test segment_efforts_row[:activity_id] == 1
+            @test segment_efforts_row[:segment_id] == 10
+            @test segment_efforts_row[:elapsed_time_s] == 123.456
+            @test segment_efforts_row[:matched_at] == 13
+            @test segment_efforts_row[:matcher_version] == 123456
+        end
+    end
 
-        # Repeating the same match should update the existing row, not add a duplicate.
-        upsert_segment_effort(db, 1, 10, 222.0, 14, 654321)
-        result = DBInterface.execute(
-            db,
-            "SELECT * FROM segment_efforts WHERE activity_id = ? AND segment_id = ?",
-            [1, 10]
-        )
-        segment_efforts_row = only(NamedTuple(r) for r in result)
-        @test segment_efforts_row[:elapsed_time_s] == 222.0
-        @test segment_efforts_row[:matched_at] == 14
-        @test segment_efforts_row[:matcher_version] == 654321
+    @testset "Repeating the same match should update the existing row, not add a duplicate" begin
+        create_connection(":memory:") do db
+            upsert_segment_effort(db, 1, 10, 123.456, 13, 123456)
+            upsert_segment_effort(db, 1, 10, 222.0, 14, 654321)
+            result = DBInterface.execute(
+                db,
+                "SELECT * FROM segment_efforts WHERE activity_id = ? AND segment_id = ?",
+                [1, 10]
+            )
+            segment_efforts_row = only(NamedTuple(r) for r in result)
+            @test segment_efforts_row[:elapsed_time_s] == 222.0
+            @test segment_efforts_row[:matched_at] == 14
+            @test segment_efforts_row[:matcher_version] == 654321
+        end
     end
 end
 
 @testset "select_all" begin
-    # No sport returns all rows
-    with_activities_db() do db
-        @test select_all(db) == [(1, "123"), (2, "456"), (3, "789"), (4, "abc")]
+    @testset "No sport returns all rows" begin
+        with_activities_db() do db
+            @test select_all(db) == [(1, "123"), (2, "456"), (3, "789"), (4, "abc")]
+        end
     end
 
-    # Selects only requested sport
-    with_activities_db() do db
-        @test select_all(db, sport = "cycling") == [(1, "123"), (3, "789"), (4, "abc")]
+    @testset "Selects only requested sport" begin
+        with_activities_db() do db
+            @test select_all(db, sport = "cycling") == [(1, "123"), (3, "789"), (4, "abc")]
+        end
     end
 
-    # No matches yields empty result
-    with_activities_db() do db
-        @test select_all(db, sport = "running") == []
+    @testset "No matches yields empty result" begin
+        with_activities_db() do db
+            @test select_all(db, sport = "running") == []
+        end
     end
 
-    # sport = nothing behaves same as no sport
-    with_activities_db() do db
-        @test select_all(db, sport = nothing) == [(1, "123"), (2, "456"), (3, "789"), (4, "abc")]
+    @testset "sport = nothing behaves same as no sport" begin
+        with_activities_db() do db
+            @test select_all(db, sport = nothing) == [(1, "123"), (2, "456"), (3, "789"), (4, "abc")]
+        end
     end
 end
 
 @testset "fetch_segment_registration" begin
-    # Happy path
-    create_connection(":memory:") do db
-        insert_segment(db, "segment", "path/to/segment", "fingerprint")
-        reg = fetch_segment_registration(db, "segment")
-        @test reg[:segment_id] == 1
-        @test reg[:name] == "segment"
-        @test reg[:definition_path] == "path/to/segment"
-        @test reg[:definition_fingerprint] == "fingerprint"
+    @testset "Happy path" begin
+        create_connection(":memory:") do db
+            insert_segment(db, "segment", "path/to/segment", "fingerprint")
+            reg = fetch_segment_registration(db, "segment")
+            @test reg[:segment_id] == 1
+            @test reg[:name] == "segment"
+            @test reg[:definition_path] == "path/to/segment"
+            @test reg[:definition_fingerprint] == "fingerprint"
+        end
     end
 end
 
 @testset "fetch_segment_registration all" begin
-    # Returns all rows ordered by name
-    create_connection(":memory:") do db
-        DBInterface.execute(
-            db,
-            """
-            INSERT INTO segments (name, definition_fingerprint, definition_path)
-            VALUES
-                ("c", "fingerprint-c", "path/to/c"),
-                ("b", "fingerprint-b", "path/to/b"),
-                ("a", "fingerprint-a", "path/to/a");
-            """
-        )
-        regs = fetch_segment_registration(db)
-        @test regs[1][:name] == "a"
-        @test regs[2][:name] == "b"
-        @test regs[3][:name] == "c"
-        @test regs[1][:definition_path] == "path/to/a"
-        @test regs[2][:definition_path] == "path/to/b"
-        @test regs[3][:definition_path] == "path/to/c"
-        @test regs[1][:definition_fingerprint] == "fingerprint-a"
-        @test regs[2][:definition_fingerprint] == "fingerprint-b"
-        @test regs[3][:definition_fingerprint] == "fingerprint-c"
+    @testset "Returns all rows ordered by name" begin
+        create_connection(":memory:") do db
+            DBInterface.execute(
+                db,
+                """
+                INSERT INTO segments (name, definition_fingerprint, definition_path)
+                VALUES
+                    ("c", "fingerprint-c", "path/to/c"),
+                    ("b", "fingerprint-b", "path/to/b"),
+                    ("a", "fingerprint-a", "path/to/a");
+                """
+            )
+            regs = fetch_segment_registration(db)
+            @test regs[1][:name] == "a"
+            @test regs[2][:name] == "b"
+            @test regs[3][:name] == "c"
+            @test regs[1][:definition_path] == "path/to/a"
+            @test regs[2][:definition_path] == "path/to/b"
+            @test regs[3][:definition_path] == "path/to/c"
+            @test regs[1][:definition_fingerprint] == "fingerprint-a"
+            @test regs[2][:definition_fingerprint] == "fingerprint-b"
+            @test regs[3][:definition_fingerprint] == "fingerprint-c"
+        end
     end
 end
 
 @testset "fetch_segment_names" begin
-    # Happy path and and results ordered by name
-    create_connection(":memory:") do conn
-        seed_segments_table!(conn)
-        names = fetch_segment_names(conn)
-        @test names == ["a", "b", "c"]
+    @testset "Happy path and and results ordered by name" begin
+        create_connection(":memory:") do conn
+            seed_segments_table!(conn)
+            names = fetch_segment_names(conn)
+            @test names == ["a", "b", "c"]
+        end
     end
 end
 
 @testset "remove_segment" begin
-    # Removes the requested segment from segments
-    create_connection(":memory:") do db
-        seed_segments_table!(db)
-        row = remove_segment(db, "b")
-        @test row[:name] == "b"
-        @test fetch_segment_names(db) == ["a", "c"]
+    @testset "Removes the requested segment from segments" begin
+        create_connection(":memory:") do db
+            seed_segments_table!(db)
+            row = remove_segment(db, "b")
+            @test row[:name] == "b"
+            @test fetch_segment_names(db) == ["a", "c"]
+        end
     end
-    # Unknown segment
-    create_connection(":memory:") do db
-        seed_segments_table!(db)
-        @test remove_segment(db, "nonexistent") === nothing
-        @test fetch_segment_names(db) == ["a", "b", "c"]
+
+    @testset "Unknown segment" begin
+        create_connection(":memory:") do db
+            seed_segments_table!(db)
+            @test remove_segment(db, "nonexistent") === nothing
+            @test fetch_segment_names(db) == ["a", "b", "c"]
+        end
     end
 end
 
 @testset "remove_segment_efforts" begin
-    # Removes the efforts for the given segment_id
-    create_connection(":memory:") do db
-        seed_segment_efforts_table!(db)
-        rows = remove_segment_efforts(db, 2)
-        @test length(rows) == 2
-        @test rows[1][:segment_id] == 2
-        @test rows[2][:segment_id] == 2
-        result = DBInterface.execute(
-            db, "SELECT * FROM segment_efforts ORDER BY effort_id"
-        )
-        rows = [NamedTuple(r) for r in result]
-        @test length(rows) == 2
-        @test rows[1][:segment_id] == 3
-        @test rows[2][:segment_id] == 1
+    @testset "Removes the efforts for the given segment_id" begin
+        create_connection(":memory:") do db
+            seed_segment_efforts_table!(db)
+            rows = remove_segment_efforts(db, 2)
+            @test length(rows) == 2
+            @test rows[1][:segment_id] == 2
+            @test rows[2][:segment_id] == 2
+            result = DBInterface.execute(
+                db, "SELECT * FROM segment_efforts ORDER BY effort_id"
+            )
+            rows = [NamedTuple(r) for r in result]
+            @test length(rows) == 2
+            @test rows[1][:segment_id] == 3
+            @test rows[2][:segment_id] == 1
+        end
     end
-    # Does nothing for unknown segment_ids
-    create_connection(":memory:") do db
-        seed_segment_efforts_table!(db)
-        rows = remove_segment_efforts(db, 99999)
-        @test rows == []
-        result = DBInterface.execute(
-            db, "SELECT COUNT(*) AS n FROM segment_efforts"
-        )
-        @test only(NamedTuple(r) for r in result).n == 4
+
+    @testset "Does nothing for unknown segment_ids" begin
+        create_connection(":memory:") do db
+            seed_segment_efforts_table!(db)
+            rows = remove_segment_efforts(db, 99999)
+            @test rows == []
+            result = DBInterface.execute(
+                db, "SELECT COUNT(*) AS n FROM segment_efforts"
+            )
+            @test only(NamedTuple(r) for r in result).n == 4
+        end
     end
 end
 
 @testset "fetch_segment_registration_by_name" begin
-    create_connection(":memory:") do db
-        seed_segments_table!(db)
-        row = Lunk.fetch_segment_registration_by_name(db, "b")
-        @test row !== nothing
-        @test row[:name] == "b"
-        @test row[:definition_fingerprint] == "fingerprint-b"
-        @test row[:definition_path] == "path/to/b"
+    @testset "Happy path" begin
+        create_connection(":memory:") do db
+            seed_segments_table!(db)
+            row = Lunk.fetch_segment_registration_by_name(db, "b")
+            @test row !== nothing
+            @test row[:name] == "b"
+            @test row[:definition_fingerprint] == "fingerprint-b"
+            @test row[:definition_path] == "path/to/b"
+        end
+    end
 
-        @test Lunk.fetch_segment_registration_by_name(db, "nonexistent") === nothing
+    @testset "Missing segment returns nothing" begin
+        create_connection(":memory:") do db
+            seed_segments_table!(db)
+            @test Lunk.fetch_segment_registration_by_name(db, "nonexistent") === nothing
+        end
     end
 end
 
 @testset "fetch_segment_registration_by_fingerprint" begin
-    create_connection(":memory:") do db
-        seed_segments_table!(db)
-        row = Lunk.fetch_segment_registration_by_fingerprint(db, "fingerprint-b")
-        @test row !== nothing
-        @test row[:name] == "b"
-        @test row[:definition_fingerprint] == "fingerprint-b"
-        @test row[:definition_path] == "path/to/b"
+    @testset "Happy path" begin
+        create_connection(":memory:") do db
+            seed_segments_table!(db)
+            row = Lunk.fetch_segment_registration_by_fingerprint(db, "fingerprint-b")
+            @test row !== nothing
+            @test row[:name] == "b"
+            @test row[:definition_fingerprint] == "fingerprint-b"
+            @test row[:definition_path] == "path/to/b"
+        end
+    end
 
-        @test Lunk.fetch_segment_registration_by_fingerprint(db, "nonexistent-fp") === nothing
+    @testset "Missing fingerprint returns nothing" begin
+        create_connection(":memory:") do db
+            seed_segments_table!(db)
+            @test Lunk.fetch_segment_registration_by_fingerprint(db, "nonexistent-fp") === nothing
+        end
     end
 end
 
 @testset "fetch_segment_registration_by_path" begin
-    create_connection(":memory:") do db
-        seed_segments_table!(db)
-        row = Lunk.fetch_segment_registration_by_path(db, "path/to/b")
-        @test row !== nothing
-        @test row[:name] == "b"
-        @test row[:definition_fingerprint] == "fingerprint-b"
-        @test row[:definition_path] == "path/to/b"
+    @testset "Happy path" begin
+        create_connection(":memory:") do db
+            seed_segments_table!(db)
+            row = Lunk.fetch_segment_registration_by_path(db, "path/to/b")
+            @test row !== nothing
+            @test row[:name] == "b"
+            @test row[:definition_fingerprint] == "fingerprint-b"
+            @test row[:definition_path] == "path/to/b"
+        end
+    end
 
-        @test Lunk.fetch_segment_registration_by_path(db, "nonexistent/path") === nothing
+    @testset "Missing path returns nothing" begin
+        create_connection(":memory:") do db
+            seed_segments_table!(db)
+            @test Lunk.fetch_segment_registration_by_path(db, "nonexistent/path") === nothing
+        end
     end
 end
 
 @testset "remove_segment by id" begin
-    create_connection(":memory:") do db
-        seed_segments_table!(db)
-        @test length(fetch_segment_names(db)) == 3
+    @testset "Happy path" begin
+        create_connection(":memory:") do db
+            seed_segments_table!(db)
+            @test length(fetch_segment_names(db)) == 3
 
-        row = Lunk.remove_segment(db, 2)
-        @test row[:segment_id] == 2
-        @test row[:name] == "b"
-        @test fetch_segment_names(db) == ["a", "c"]
+            row = Lunk.remove_segment(db, 2)
+            @test row[:segment_id] == 2
+            @test row[:name] == "b"
+            @test fetch_segment_names(db) == ["a", "c"]
+        end
     end
 
-    # Silent no-op on missing segment_id
-    create_connection(":memory:") do db
-        seed_segments_table!(db)
-        @test Lunk.remove_segment(db, 99999) === nothing
-        @test fetch_segment_names(db) == ["a", "b", "c"]
+    @testset "Silent no-op on missing segment_id" begin
+        create_connection(":memory:") do db
+            seed_segments_table!(db)
+            @test Lunk.remove_segment(db, 99999) === nothing
+            @test fetch_segment_names(db) == ["a", "b", "c"]
+        end
     end
 end

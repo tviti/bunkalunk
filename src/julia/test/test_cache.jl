@@ -79,63 +79,66 @@ cache_fields(c::CacheData) =
     (c.start_time, c.time, c.latitude, c.longitude, c.sport, c.heart_rate)
 
 @testset "drop_invalid_gps_points" begin
-    # No NaNs round trip w/ heart_rate
-    let cache = CacheData(
-            1.0,
-            [0.0, 0.1, 0.2],
-            [1.0, 1.1, 1.2],
-            [2.0, 2.1, 2.2],
-            "cycling",
-            [3.0, 3.1, 3.2]
-        ),
-            expected = CacheData(
-            1.0,
-            [0.0, 0.1, 0.2],
-            [1.0, 1.1, 1.2],
-            [2.0, 2.1, 2.2],
-            "cycling",
-            [3.0, 3.1, 3.2]
-        )
-        @test cache_fields(drop_invalid_gps_points(cache)) == cache_fields(expected)
+    @testset "No NaNs round trip w/ heart_rate" begin
+        let cache = CacheData(
+                1.0,
+                [0.0, 0.1, 0.2],
+                [1.0, 1.1, 1.2],
+                [2.0, 2.1, 2.2],
+                "cycling",
+                [3.0, 3.1, 3.2]
+            ),
+                expected = CacheData(
+                1.0,
+                [0.0, 0.1, 0.2],
+                [1.0, 1.1, 1.2],
+                [2.0, 2.1, 2.2],
+                "cycling",
+                [3.0, 3.1, 3.2]
+            )
+            @test cache_fields(drop_invalid_gps_points(cache)) == cache_fields(expected)
+        end
     end
 
-    # No NaNs round trip no heart_rate
-    let cache = CacheData(
-            1.0,
-            [0.0, 0.1, 0.2],
-            [1.0, 1.1, 1.2],
-            [2.0, 2.1, 2.2],
-            "cycling",
-            nothing
-        ),
-            expected = CacheData(
-            1.0,
-            [0.0, 0.1, 0.2],
-            [1.0, 1.1, 1.2],
-            [2.0, 2.1, 2.2],
-            "cycling",
-            nothing
-        )
-        @test cache_fields(drop_invalid_gps_points(cache)) == cache_fields(expected)
+    @testset "No NaNs round trip no heart_rate" begin
+        let cache = CacheData(
+                1.0,
+                [0.0, 0.1, 0.2],
+                [1.0, 1.1, 1.2],
+                [2.0, 2.1, 2.2],
+                "cycling",
+                nothing
+            ),
+                expected = CacheData(
+                1.0,
+                [0.0, 0.1, 0.2],
+                [1.0, 1.1, 1.2],
+                [2.0, 2.1, 2.2],
+                "cycling",
+                nothing
+            )
+            @test cache_fields(drop_invalid_gps_points(cache)) == cache_fields(expected)
+        end
     end
 
-    # Indexing is maintained after NaN removal
-    let cache = CacheData(
-            1.0,
-            [0.0, 0.1, 0.2, 0.3, 0.4],
-            [1.0, NaN, 1.2, 1.3, NaN],
-            [2.0, 2.1, NaN, 2.3, 2.4],
-            "cycling",
-            [3.0, 3.1, 3.2, 3.3, 3.4]
-        ),
-            expected = CacheData(
-            1.0,
-            [0.0, 0.3],
-            [1.0, 1.3],
-            [2.0, 2.3],
-            "cycling",
-            [3.0, 3.3]
-        )
-        @test cache_fields(drop_invalid_gps_points(cache)) == cache_fields(expected)
+    @testset "Indexing is maintained after NaN removal" begin
+        let cache = CacheData(
+                1.0,
+                [0.0, 0.1, 0.2, 0.3, 0.4],
+                [1.0, NaN, 1.2, 1.3, NaN],
+                [2.0, 2.1, NaN, 2.3, 2.4],
+                "cycling",
+                [3.0, 3.1, 3.2, 3.3, 3.4]
+            ),
+                expected = CacheData(
+                1.0,
+                [0.0, 0.3],
+                [1.0, 1.3],
+                [2.0, 2.3],
+                "cycling",
+                [3.0, 3.3]
+            )
+            @test cache_fields(drop_invalid_gps_points(cache)) == cache_fields(expected)
+        end
     end
 end
