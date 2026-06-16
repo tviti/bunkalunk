@@ -33,15 +33,35 @@ let
     exec julia --sysimage="$BUNK_DEV_SYSIMAGE" --project="$JULIA_PROJECT" "$@"
   '';
 
+  lunkJuliaTest = pkgs.writeShellScriptBin "julia-test" ''
+    PROJECT_ROOT=$(git rev-parse --show-toplevel)
+    export JULIA_PROJECT="$PROJECT_ROOT/src/julia"
+    export BUNK_TEST_SYSIMAGE="$PROJECT_ROOT/src/julia/test_sysimage.so"
+    exec julia --sysimage="$BUNK_TEST_SYSIMAGE" --project="$JULIA_PROJECT" "$@"
+  '';
+
   lunkBuildSysimage = pkgs.writeShellScriptBin "build-sysimage" ''
     PROJECT_ROOT=$(git rev-parse --show-toplevel)
     unset JULIA_PROJECT JULIA_LOAD_PATH
     exec julia --project="$PROJECT_ROOT/src/julia/scripts" \
       "$PROJECT_ROOT/src/julia/scripts/build_sysimage.jl"
   '';
+
+  lunkBuildTestSysimage = pkgs.writeShellScriptBin "build-test-sysimage" ''
+    PROJECT_ROOT=$(git rev-parse --show-toplevel)
+    unset JULIA_PROJECT JULIA_LOAD_PATH
+    exec julia --project="$PROJECT_ROOT/src/julia/scripts" \
+      "$PROJECT_ROOT/src/julia/scripts/build_test_sysimage.jl"
+  '';
 in
 pkgs.mkShell {
-  buildInputs = [ pythonEnv lunkJuliaDev lunkBuildSysimage ]
+  buildInputs = [
+    pythonEnv
+    lunkJuliaDev
+    lunkJuliaTest
+    lunkBuildSysimage
+    lunkBuildTestSysimage
+  ]
                 ++ (with pkgs;
                   [
                     ruff
@@ -61,5 +81,6 @@ pkgs.mkShell {
     export OPENCODE_CONFIG_CONTENT='${opencodeConfig}'
 
     export BUNK_DEV_SYSIMAGE=''${PWD}/src/julia/dev_sysimage.so
+    export BUNK_TEST_SYSIMAGE=''${PWD}/src/julia/test_sysimage.so
   '';
 }
