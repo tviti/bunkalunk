@@ -206,10 +206,8 @@ function run_segment_register(args::ArgDict, ctx::Context)::Cint
                 matched_column, row = first(column_matches)
                 segment_id = row[:segment_id]
 
-                if row[:name] == name &&
-                        row[:definition_path] == path &&
+                if row[:name] == name && row[:definition_path] == path &&
                         row[:definition_fingerprint] == fingerprint
-
                     @info(
                         "Segment '$name' already registered with this path and " *
                             "content; no change.\n" *
