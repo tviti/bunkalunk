@@ -294,7 +294,7 @@ end
 
 @testset "create_connection" begin
     @testset "verifies table schemas created by create_connection" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             cols = DBInterface.execute(db, "PRAGMA table_info(segments)")
             names = [row[:name] for row in cols]
             @test names == [
@@ -311,7 +311,7 @@ end
     end
 
     @testset "errors thrown inside the do-block should propagate out" begin
-        @test_throws ErrorException create_connection(":memory:") do db
+        @test_throws ErrorException create_connection!(":memory:") do db
             error("test error")
         end
     end
@@ -319,7 +319,7 @@ end
     @testset "connection is closed even when the do-block raises an error" begin
         ref = Ref{SQLite.DB}()
         try
-            create_connection(":memory:") do db
+            create_connection!(":memory:") do db
                 ref[] = db
                 error("test error")
             end
@@ -331,8 +331,8 @@ end
 
 @testset "insert_segment" begin
     @testset "Happy path" begin
-        create_connection(":memory:") do db
-            insert_segment(db, "segment", "path/to/segment", "fingerprint")
+        create_connection!(":memory:") do db
+            insert_segment!(db, "segment", "path/to/segment", "fingerprint")
             result = DBInterface.execute(
                 db,
                 "SELECT * FROM segments WHERE name = ?",
@@ -346,36 +346,36 @@ end
     end
 
     @testset "Name conflict throws SQLiteException" begin
-        create_connection(":memory:") do db
-            insert_segment(db, "segment", "path/to/segment", "fingerprint")
-            @test_throws SQLiteException insert_segment(
+        create_connection!(":memory:") do db
+            insert_segment!(db, "segment", "path/to/segment", "fingerprint")
+            @test_throws SQLiteException insert_segment!(
                 db, "segment", "new/path/to/segment", "new-fingerprint"
             )
         end
     end
 
     @testset "Path conflict throws SQLiteException" begin
-        create_connection(":memory:") do db
-            insert_segment(db, "segment", "path/to/segment", "fingerprint")
-            @test_throws SQLiteException insert_segment(
+        create_connection!(":memory:") do db
+            insert_segment!(db, "segment", "path/to/segment", "fingerprint")
+            @test_throws SQLiteException insert_segment!(
                 db, "new-segment", "path/to/segment", "new-fingerprint"
             )
         end
     end
 
     @testset "Fingerprint conflict throws SQLiteException" begin
-        create_connection(":memory:") do db
-            insert_segment(db, "segment", "path/to/segment", "fingerprint")
-            @test_throws SQLiteException insert_segment(
+        create_connection!(":memory:") do db
+            insert_segment!(db, "segment", "path/to/segment", "fingerprint")
+            @test_throws SQLiteException insert_segment!(
                 db, "new-segment", "new-path/to/segment", "fingerprint"
             )
         end
     end
 
     @testset "Conflicts must not partially update the original row" begin
-        create_connection(":memory:") do db
-            insert_segment(db, "segment", "path/to/segment", "fingerprint")
-            @test_throws SQLiteException insert_segment(
+        create_connection!(":memory:") do db
+            insert_segment!(db, "segment", "path/to/segment", "fingerprint")
+            @test_throws SQLiteException insert_segment!(
                 db, "new-segment", "new-path/to/segment", "fingerprint"
             )
 
@@ -394,8 +394,8 @@ end
 
 @testset "upsert_segment_effort" begin
     @testset "Happy path" begin
-        create_connection(":memory:") do db
-            upsert_segment_effort(db, 1, 10, 123.456, 13, 123456)
+        create_connection!(":memory:") do db
+            upsert_segment_effort!(db, 1, 10, 123.456, 13, 123456)
             result = DBInterface.execute(
                 db,
                 "SELECT * FROM segment_efforts WHERE segment_id = ?",
@@ -411,9 +411,9 @@ end
     end
 
     @testset "Repeating the same match should update the existing row, not add a duplicate" begin
-        create_connection(":memory:") do db
-            upsert_segment_effort(db, 1, 10, 123.456, 13, 123456)
-            upsert_segment_effort(db, 1, 10, 222.0, 14, 654321)
+        create_connection!(":memory:") do db
+            upsert_segment_effort!(db, 1, 10, 123.456, 13, 123456)
+            upsert_segment_effort!(db, 1, 10, 222.0, 14, 654321)
             result = DBInterface.execute(
                 db,
                 "SELECT * FROM segment_efforts WHERE activity_id = ? AND segment_id = ?",
@@ -455,8 +455,8 @@ end
 
 @testset "fetch_segment_registration" begin
     @testset "Happy path" begin
-        create_connection(":memory:") do db
-            insert_segment(db, "segment", "path/to/segment", "fingerprint")
+        create_connection!(":memory:") do db
+            insert_segment!(db, "segment", "path/to/segment", "fingerprint")
             reg = fetch_segment_registration(db, "segment")
             @test reg[:segment_id] == 1
             @test reg[:name] == "segment"
@@ -468,7 +468,7 @@ end
 
 @testset "fetch_segment_registration all" begin
     @testset "Returns all rows ordered by name" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             DBInterface.execute(
                 db,
                 """
@@ -495,7 +495,7 @@ end
 
 @testset "fetch_segment_names" begin
     @testset "Happy path and and results ordered by name" begin
-        create_connection(":memory:") do conn
+        create_connection!(":memory:") do conn
             seed_segments_table!(conn)
             names = fetch_segment_names(conn)
             @test names == ["a", "b", "c"]
@@ -505,18 +505,18 @@ end
 
 @testset "remove_segment" begin
     @testset "Removes the requested segment from segments" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             seed_segments_table!(db)
-            row = remove_segment(db, "b")
+            row = remove_segment!(db, "b")
             @test row[:name] == "b"
             @test fetch_segment_names(db) == ["a", "c"]
         end
     end
 
     @testset "Unknown segment" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             seed_segments_table!(db)
-            @test remove_segment(db, "nonexistent") === nothing
+            @test remove_segment!(db, "nonexistent") === nothing
             @test fetch_segment_names(db) == ["a", "b", "c"]
         end
     end
@@ -524,9 +524,9 @@ end
 
 @testset "remove_segment_efforts" begin
     @testset "Removes the efforts for the given segment_id" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             seed_segment_efforts_table!(db)
-            rows = remove_segment_efforts(db, 2)
+            rows = remove_segment_efforts!(db, 2)
             @test length(rows) == 2
             @test rows[1][:segment_id] == 2
             @test rows[2][:segment_id] == 2
@@ -541,9 +541,9 @@ end
     end
 
     @testset "Does nothing for unknown segment_ids" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             seed_segment_efforts_table!(db)
-            rows = remove_segment_efforts(db, 99999)
+            rows = remove_segment_efforts!(db, 99999)
             @test rows == []
             result = DBInterface.execute(
                 db, "SELECT COUNT(*) AS n FROM segment_efforts"
@@ -555,7 +555,7 @@ end
 
 @testset "fetch_segment_registration_by_name" begin
     @testset "Happy path" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             seed_segments_table!(db)
             row = Lunk.fetch_segment_registration_by_name(db, "b")
             @test row !== nothing
@@ -566,7 +566,7 @@ end
     end
 
     @testset "Missing segment returns nothing" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             seed_segments_table!(db)
             @test Lunk.fetch_segment_registration_by_name(db, "nonexistent") === nothing
         end
@@ -575,7 +575,7 @@ end
 
 @testset "fetch_segment_registration_by_fingerprint" begin
     @testset "Happy path" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             seed_segments_table!(db)
             row = Lunk.fetch_segment_registration_by_fingerprint(db, "fingerprint-b")
             @test row !== nothing
@@ -586,7 +586,7 @@ end
     end
 
     @testset "Missing fingerprint returns nothing" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             seed_segments_table!(db)
             @test Lunk.fetch_segment_registration_by_fingerprint(db, "nonexistent-fp") === nothing
         end
@@ -595,7 +595,7 @@ end
 
 @testset "fetch_segment_registration_by_path" begin
     @testset "Happy path" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             seed_segments_table!(db)
             row = Lunk.fetch_segment_registration_by_path(db, "path/to/b")
             @test row !== nothing
@@ -606,7 +606,7 @@ end
     end
 
     @testset "Missing path returns nothing" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             seed_segments_table!(db)
             @test Lunk.fetch_segment_registration_by_path(db, "nonexistent/path") === nothing
         end
@@ -615,11 +615,11 @@ end
 
 @testset "remove_segment by id" begin
     @testset "Happy path" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             seed_segments_table!(db)
             @test length(fetch_segment_names(db)) == 3
 
-            row = Lunk.remove_segment(db, 2)
+            row = Lunk.remove_segment!(db, 2)
             @test row[:segment_id] == 2
             @test row[:name] == "b"
             @test fetch_segment_names(db) == ["a", "c"]
@@ -627,9 +627,9 @@ end
     end
 
     @testset "Silent no-op on missing segment_id" begin
-        create_connection(":memory:") do db
+        create_connection!(":memory:") do db
             seed_segments_table!(db)
-            @test Lunk.remove_segment(db, 99999) === nothing
+            @test Lunk.remove_segment!(db, 99999) === nothing
             @test fetch_segment_names(db) == ["a", "b", "c"]
         end
     end

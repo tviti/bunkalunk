@@ -189,7 +189,7 @@ function run_segment_register(args::ArgDict, ctx::Context)::Cint
     end
     @debug "Segment fingerprint: $fingerprint"
 
-    return create_connection(ctx.db_path) do conn
+    return create_connection!(ctx.db_path) do conn
         DBInterface.transaction(conn) do
             # Check for potential collisions
             column_matches = find_column_matches(conn, name, path, fingerprint)
@@ -197,7 +197,7 @@ function run_segment_register(args::ArgDict, ctx::Context)::Cint
 
             # No collisions -> cleared for takeoff
             if num_matches == 0
-                insert_segment(conn, name, path, fingerprint)
+                insert_segment!(conn, name, path, fingerprint)
                 return 0
             end
 
@@ -237,10 +237,10 @@ function run_segment_register(args::ArgDict, ctx::Context)::Cint
                     return 1
                 end
 
-                removed = remove_segment(conn, segment_id)
+                removed = remove_segment!(conn, segment_id)
                 removed === nothing && error("Expected segment_id=$segment_id to exist")
-                remove_segment_efforts(conn, segment_id)
-                insert_segment(conn, name, path, fingerprint)
+                remove_segment_efforts!(conn, segment_id)
+                insert_segment!(conn, name, path, fingerprint)
                 return 0
             end
 
@@ -265,14 +265,14 @@ end
 
 function run_segment_remove(args::ArgDict, ctx::Context)::Cint
     name::String = args["name"]
-    create_connection(ctx.db_path) do conn
+    create_connection!(ctx.db_path) do conn
         DBInterface.transaction(conn) do
-            registration = remove_segment(conn, name)
+            registration = remove_segment!(conn, name)
             if registration === nothing
                 @info "No segment found by name $name"
                 return 1
             end
-            efforts = remove_segment_efforts(conn, registration[:segment_id])
+            efforts = remove_segment_efforts!(conn, registration[:segment_id])
             @info "Removed $(length(efforts)) segment efforts"
         end
     end
@@ -280,7 +280,7 @@ function run_segment_remove(args::ArgDict, ctx::Context)::Cint
 end
 
 function run_segment_list(args::ArgDict, ctx::Context)::Cint
-    create_connection(ctx.db_path) do conn
+    create_connection!(ctx.db_path) do conn
         for reg in fetch_segment_registration(conn)
             println(ctx.io, "$(reg[:name]): $(reg[:definition_path])")
         end
@@ -316,7 +316,7 @@ end
 function run_segment_match(args::ArgDict, ctx::Context)::Cint
     segment_name::String = args["name"]
     sport::Union{String, Nothing} = args["sport"]
-    return create_connection(ctx.db_path) do db_conn
+    return create_connection!(ctx.db_path) do db_conn
         segment_reg = fetch_segment_registration(db_conn, segment_name)
         segment_id::Int64 = segment_reg[:segment_id]
 
@@ -332,7 +332,7 @@ function run_segment_match(args::ArgDict, ctx::Context)::Cint
 
         match_results = match_to_activities(segment, activities_data)
         for (; activity_date, activity_id, segment_time, matched_at) in match_results
-            upsert_segment_effort(
+            upsert_segment_effort!(
                 db_conn,
                 activity_id,
                 segment_id,
@@ -357,7 +357,7 @@ function run_segment_show(args::ArgDict, ctx::Context)::Cint
     segment_name::String = args["name"]
     top::Int = args["top"]
 
-    efforts = create_connection(ctx.db_path) do conn
+    efforts = create_connection!(ctx.db_path) do conn
         fetch_segment_efforts_by_name(conn, segment_name)
     end
 

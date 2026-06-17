@@ -1,7 +1,7 @@
 using SQLite
 using Dates
 
-function create_connection(db_path::String)::SQLite.DB
+function create_connection!(db_path::String)::SQLite.DB
     db = SQLite.DB(db_path)
     DBInterface.execute(
         db,
@@ -31,8 +31,8 @@ function create_connection(db_path::String)::SQLite.DB
     return db
 end
 
-function create_connection(f::Function, db_path::String)
-    db = create_connection(db_path)
+function create_connection!(f::Function, db_path::String)
+    db = create_connection!(db_path)
     try
         return f(db)
     finally
@@ -116,7 +116,7 @@ function select_all(
     return [(row[:activity_id], row[:source_fingerprint]) for row in result]
 end
 
-function insert_segment(
+function insert_segment!(
         db::SQLite.DB,
         name::String,
         definition_path::String,
@@ -144,7 +144,7 @@ function insert_segment(
     return
 end
 
-function upsert_segment_effort(
+function upsert_segment_effort!(
         db::SQLite.DB,
         activity_id::Int,
         segment_id::Int,
@@ -206,7 +206,7 @@ function fetch_segment_names(db::SQLite.DB)::Vector{String}
     return [r[:name] for r in result]
 end
 
-function remove_segment(db::SQLite.DB, name::String)::Union{NamedTuple, Nothing}
+function remove_segment!(db::SQLite.DB, name::String)::Union{NamedTuple, Nothing}
     result = DBInterface.execute(
         db,
         "DELETE FROM segments WHERE name = ? RETURNING *",
@@ -221,7 +221,7 @@ function remove_segment(db::SQLite.DB, name::String)::Union{NamedTuple, Nothing}
     return only(rows)
 end
 
-function remove_segment(db::SQLite.DB, segment_id::Integer)::Union{NamedTuple, Nothing}
+function remove_segment!(db::SQLite.DB, segment_id::Integer)::Union{NamedTuple, Nothing}
     result = DBInterface.execute(
         db,
         "DELETE FROM segments WHERE segment_id = ? RETURNING *",
@@ -281,7 +281,7 @@ function fetch_segment_registration_by_path(
     return only(rows)
 end
 
-function remove_segment_efforts(db::SQLite.DB, segment_id::Integer)::Vector{NamedTuple}
+function remove_segment_efforts!(db::SQLite.DB, segment_id::Integer)::Vector{NamedTuple}
     result = DBInterface.execute(
         db,
         "DELETE FROM segment_efforts WHERE segment_id = ? RETURNING *",

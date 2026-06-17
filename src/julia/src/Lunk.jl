@@ -11,20 +11,20 @@ export BUNK_HOME,
     resolve_cache_path
 
 include("db.jl")
-export create_connection,
+export create_connection!,
     get_content_fingerprint,
     select_by_start_date,
     select_by_time_range,
     select_all,
-    insert_segment,
-    upsert_segment_effort,
+    insert_segment!,
+    upsert_segment_effort!,
     fetch_segment_registration,
     fetch_segment_names,
     fetch_segment_registration_by_name,
     fetch_segment_registration_by_fingerprint,
     fetch_segment_registration_by_path,
-    remove_segment,
-    remove_segment_efforts,
+    remove_segment!,
+    remove_segment_efforts!,
     fetch_segment_efforts_by_name
 
 include("segments.jl")

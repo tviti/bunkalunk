@@ -137,7 +137,7 @@ end
 
             @test Lunk.run_segment_register(args, ctx) == 0
 
-            row = create_connection(ctx.db_path) do conn
+            row = create_connection!(ctx.db_path) do conn
                 result = DBInterface.execute(
                     conn,
                     "SELECT * FROM segments WHERE name = ?",
@@ -164,7 +164,7 @@ end
                 @test Lunk.run_segment_register(args, ctx) == 0
             end
 
-            row = create_connection(ctx.db_path) do conn
+            row = create_connection!(ctx.db_path) do conn
                 result = DBInterface.execute(
                     conn,
                     "SELECT * FROM segments WHERE name = \"segment\""
@@ -202,7 +202,7 @@ end
                 fingerprint = open(segment_path, "r") do f
                     compute_fingerprint(f)
                 end
-                create_connection(ctx.db_path) do conn
+                create_connection!(ctx.db_path) do conn
                     DBInterface.execute(
                         conn,
                         """
@@ -254,7 +254,7 @@ end
                         fp = open(fp_path, "r") do f
                             compute_fingerprint(f)
                         end
-                        create_connection(ctx.db_path) do conn
+                        create_connection!(ctx.db_path) do conn
                             row = Lunk.fetch_segment_registration_by_name(conn, "new-segment")
                             @test row[:definition_fingerprint] == fp
                         end
@@ -285,11 +285,11 @@ end
                     )
                     @test Lunk.run_segment_register(args, ctx) == 0
 
-                    old_sid = create_connection(ctx.db_path) do conn
+                    old_sid = create_connection!(ctx.db_path) do conn
                         row = fetch_segment_registration(conn, "myseg")
                         row[:segment_id]
                     end
-                    create_connection(ctx.db_path) do conn
+                    create_connection!(ctx.db_path) do conn
                         DBInterface.execute(
                             conn,
                             "INSERT INTO segment_efforts (activity_id, segment_id, elapsed_time_s, matched_at, matcher_version) VALUES (1, ?, 100.0, 1234, 20260607)",
@@ -308,7 +308,7 @@ end
                     result = @test_logs (:info,) Lunk.run_segment_register(args, ctx)
                     @test result == 0
 
-                    create_connection(ctx.db_path) do conn
+                    create_connection!(ctx.db_path) do conn
                         result = DBInterface.execute(
                             conn,
                             "SELECT COUNT(*) AS n FROM segment_efforts WHERE segment_id = ?",
@@ -345,7 +345,7 @@ end
                         @test Lunk.run_segment_register(args, ctx) == 0
                     end
 
-                    original_rows = create_connection(ctx.db_path) do conn
+                    original_rows = create_connection!(ctx.db_path) do conn
                         fetch_segment_registration(conn)
                     end
 
@@ -361,7 +361,7 @@ end
                     result = @test_logs (:error,) Lunk.run_segment_register(collision_args, ctx)
                     @test result == 1
 
-                    rows_after_no_force = create_connection(ctx.db_path) do conn
+                    rows_after_no_force = create_connection!(ctx.db_path) do conn
                         fetch_segment_registration(conn)
                     end
                     @test rows_after_no_force == original_rows
@@ -370,7 +370,7 @@ end
                     result = @test_logs (:error,) Lunk.run_segment_register(collision_args, ctx)
                     @test result == 1
 
-                    rows_after_force = create_connection(ctx.db_path) do conn
+                    rows_after_force = create_connection!(ctx.db_path) do conn
                         fetch_segment_registration(conn)
                     end
                     @test rows_after_force == original_rows
@@ -391,12 +391,12 @@ end
                     )
                     @test Lunk.run_segment_register(args, ctx) == 0
 
-                    old_sid = create_connection(ctx.db_path) do conn
+                    old_sid = create_connection!(ctx.db_path) do conn
                         row = fetch_segment_registration(conn, "myseg")
                         row[:segment_id]
                     end
 
-                    create_connection(ctx.db_path) do conn
+                    create_connection!(ctx.db_path) do conn
                         DBInterface.execute(
                             conn,
                             "INSERT INTO segment_efforts (activity_id, segment_id, elapsed_time_s, matched_at, matcher_version) VALUES (1, ?, 100.0, 1234, 20260607)",
@@ -408,7 +408,7 @@ end
                     args["force"] = true
                     @test Lunk.run_segment_register(args, ctx) == 0
 
-                    create_connection(ctx.db_path) do conn
+                    create_connection!(ctx.db_path) do conn
                         result = DBInterface.execute(
                             conn,
                             "SELECT COUNT(*) AS n FROM segment_efforts WHERE segment_id = ?",
@@ -428,7 +428,7 @@ end
             ctx = make_context(dir)
             cd(dir) do
                 segment_path = dir * "/segment.osm"
-                create_connection(ctx.db_path) do conn
+                create_connection!(ctx.db_path) do conn
                     # Fake fingerprint ensures there will be a mismatch
                     DBInterface.execute(
                         conn,
