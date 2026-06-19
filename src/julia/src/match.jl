@@ -95,8 +95,7 @@ function match_to_activities(
         track_ecef = compute_ecef_r.(cache.latitude, cache.longitude, fixed_height)
         num_track = length(track_ecef)
         if num_track == 0
-            @warn "ECEF track conversion has zero points, skipping.\n" *
-                "You may want to investigate activity $activity_id"
+            @debug "ECEF track conversion has zero points, skipping."
             continue
         end
 
