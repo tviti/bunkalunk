@@ -53,6 +53,17 @@ let
     exec julia --project="$PROJECT_ROOT/src/julia/scripts" \
       "$PROJECT_ROOT/src/julia/scripts/build_test_sysimage.jl"
   '';
+
+  lunkJuliaCtags = pkgs.writeShellScriptBin "julia-ctags" ''
+    PROJECT_ROOT=$(git rev-parse --show-toplevel)
+    exec ctags -R \
+      --languages=Julia \
+      --output-format=etags \
+      -f "$PROJECT_ROOT/src/julia/TAGS" \
+      "$PROJECT_ROOT/src/julia/src" \
+      "$PROJECT_ROOT/src/julia/test" \
+      "$PROJECT_ROOT/src/julia/scripts"
+  '';
 in
 pkgs.mkShell {
   buildInputs = [
@@ -61,9 +72,11 @@ pkgs.mkShell {
     lunkJuliaTest
     lunkBuildSysimage
     lunkBuildTestSysimage
+    lunkJuliaCtags
   ]
                 ++ (with pkgs;
                   [
+                    universal-ctags
                     ruff
                     sqlite
                   ]);

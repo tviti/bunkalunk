@@ -13,3 +13,4 @@
 /src/julia/scripts/test_sysimage/Manifest.toml
 /.agent-shell/
 /opencode.json
+*/**/TAGS
