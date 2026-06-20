@@ -44,5 +44,8 @@ export load_activities,
     match_to_activities,
     matcher_version
 
+include("export.jl")
+export write_geocsv!
+
 include("cli.jl")
 end

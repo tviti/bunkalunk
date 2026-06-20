@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "b9dcf4127374cc319a63865ce03b35e82948904d"
+project_hash = "81aeb23fad2f84cb82594e121964a9ff81b48d13"
 
 [[deps.ArgParse]]
 deps = ["Logging", "TextWrap"]
@@ -78,6 +78,12 @@ deps = ["CodeTracking", "Crayons", "Highlights", "InteractiveUtils", "JuliaInter
 git-tree-sha1 = "57956f38d917596ecb3999df2870156a1edb3d57"
 uuid = "31a5f54b-26ea-5ae9-a837-f05ce5417438"
 version = "0.7.16"
+
+[[deps.DelimitedFiles]]
+deps = ["Mmap"]
+git-tree-sha1 = "9e2f36d3c96a820c678f2f1f1782582fcf685bae"
+uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+version = "1.9.1"
 
 [[deps.DocStringExtensions]]
 git-tree-sha1 = "7442a5dfe1ebb773c29cc2962a8980f47221d76c"
@@ -237,7 +243,7 @@ uuid = "6f1432cf-f94c-5a45-995e-cdbf5db27b0b"
 version = "3.5.1"
 
 [[deps.Lunk]]
-deps = ["ArgParse", "Dates", "Debugger", "HDF5", "Infiltrator", "JSON", "LinearAlgebra", "Logging", "Printf", "Revise", "SHA", "SQLite", "Statistics", "Test", "XML"]
+deps = ["ArgParse", "Dates", "Debugger", "DelimitedFiles", "HDF5", "Infiltrator", "JSON", "LinearAlgebra", "Logging", "Printf", "Revise", "SHA", "SQLite", "Statistics", "Test", "XML"]
 path = "."
 uuid = "912dda38-6afc-4a31-bd3a-349cd7323e12"
 version = "0.0.0"
