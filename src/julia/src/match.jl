@@ -88,8 +88,6 @@ function match_to_activities(
         @debug "Working on activity $activity_id"
         @debug "Loaded $(length(cache.latitude)) track points"
 
-        idx_start_crossings = Vector{Int64}()
-        idx_end_crossings = Vector{Int64}()
         start_times = Vector{Float64}()
         end_times = Vector{Float64}()
 
@@ -127,7 +125,6 @@ function match_to_activities(
                         filtered_cache.time[i + 1],
                         start_crossing.t
                     )
-                    push!(idx_start_crossings, i)
                     push!(start_times, t_cross)
                 end
             end
@@ -151,7 +148,6 @@ function match_to_activities(
                             filtered_cache.time[i + 1],
                             end_crossing.t
                         )
-                        push!(idx_end_crossings, i)
                         push!(end_times, t_cross)
                         match_found = true
                         on_segment = false
