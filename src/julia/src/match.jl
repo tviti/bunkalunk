@@ -2,7 +2,7 @@ using SQLite
 using Dates
 using Lunk
 
-const matcher_version = 20260606
+const matcher_version = 20260620
 
 """
     load_activities(activities::Vector{Tuple{Int, String}})::Dict{Int, CacheData}
@@ -33,7 +33,12 @@ Match a single `Segment` to a `Dict` of decode artifacts keyed by activity ID.
 
 Calculations are performed in cartesian ECEF coordinates using the WGS84
 ellipsoid, with both the `segment` and `activities` GPS tracks shifted to the
-ellipsoid's surface (i.e. the height coordinate of the `activities` is ignored.
+ellipsoid's surface (i.e. the height coordinate of the `activities` is
+ignored. For each individual activity, NaN valued GPS tracks (in either of
+lat/lon) are dropped from the activity prior to matching, such that the non-NaN
+points adjacent to the NaN(s) are treated as an edge. This mostly of consequence
+for the gate crossing detection and interpolation, since it influences the gate
+crossing angle, hence influencing the crossing time and crossing affirmation.
 
 The start/finish gates used in the matching algorithm are defined by the vectors
 connecting the first/last `segment` points to their neighbors. The gates are
@@ -92,7 +97,9 @@ function match_to_activities(
         # lock when the activity was started. Remove them
         filtered_cache = drop_invalid_gps_points(cache)
 
-        track_ecef = compute_ecef_r.(cache.latitude, cache.longitude, fixed_height)
+        track_ecef = compute_ecef_r.(
+            filtered_cache.latitude, filtered_cache.longitude, fixed_height
+        )
         num_track = length(track_ecef)
         if num_track == 0
             @debug "ECEF track conversion has zero points, skipping."
