@@ -24,6 +24,8 @@ struct MatchResult
     activity_id::Int64
     segment_time::Float64
     matched_at::Int64
+    match_points::Vector{Vector{Float64}}
+    match_times::Vector{Float64}
 end
 
 """
@@ -67,6 +69,10 @@ function match_to_activities(
     segment_times = Vector{Float64}()
     matched_at = Vector{Float64}()
 
+    # TODO: Better names for these containers
+    match_points_vec = Vector{Vector{Vector{Float64}}}()
+    match_times_vec = Vector{Vector{Float64}}()
+
     segment_ecef = compute_ecef_r.(segment.latitude, segment.longitude, fixed_height)
     # TODO: This conversion happens at each compute_ecef_r callsite. Consider
     # changing the return type
@@ -90,6 +96,8 @@ function match_to_activities(
 
         start_times = Vector{Float64}()
         end_times = Vector{Float64}()
+        match_points = Vector{Vector{Float64}}()
+        match_times = Vector{Float64}
 
         # Tracks can start with NaN, likely because the device hadn't acquired GPS
         # lock when the activity was started. Remove them
@@ -125,7 +133,15 @@ function match_to_activities(
                         filtered_cache.time[i + 1],
                         start_crossing.t
                     )
+                    p_cross = linterp(
+                        [filtered_cache.longitude[i], filtered_cache.latitude[i]],
+                        [filtered_cache.longitude[i + 1], filtered_cache.latitude[i + 1]],
+                        start_crossing.t
+                    )
                     push!(start_times, t_cross)
+                    match_points = [p_cross]
+                    match_times = [t_cross]
+                    continue
                 end
             end
 
@@ -140,6 +156,12 @@ function match_to_activities(
                     continue
                 end
 
+                push!(
+                    match_points,
+                    [filtered_cache.longitude[i], filtered_cache.latitude[i]]
+                )
+                push!(match_times, filtered_cache.time[i])
+
                 let end_crossing = crosses_gate(s_end, l_end, p_1, p_2, tape_radius)
                     if end_crossing !== nothing
                         @debug "Found a finish crossing at i = $i"
@@ -148,7 +170,14 @@ function match_to_activities(
                             filtered_cache.time[i + 1],
                             end_crossing.t
                         )
+                        p_cross = linterp(
+                            [filtered_cache.longitude[i], filtered_cache.latitude[i]],
+                            [filtered_cache.longitude[i + 1], filtered_cache.latitude[i + 1]],
+                            end_crossing.t
+                        )
                         push!(end_times, t_cross)
+                        push!(match_points, p_cross)
+                        push!(match_times, t_cross)
                         match_found = true
                         on_segment = false
                     end
@@ -160,13 +189,23 @@ function match_to_activities(
             continue
         end
 
+        # TODO: Iterate over pairs of start/end times; a single activity yield
+        # multiple matches if the user laps the segment
         segment_time = end_times[1] - start_times[1]
 
         push!(activity_dates, unix2datetime(cache.start_time))
         push!(activity_ids, activity_id)
         push!(segment_times, segment_time)
         push!(matched_at, round(Int, time()))
-
+        push!(match_points_vec, match_points)
+        push!(match_times_vec, match_times)
     end
-    return MatchResult.(activity_dates, activity_ids, segment_times, matched_at)
+    return MatchResult.(
+        activity_dates,
+        activity_ids,
+        segment_times,
+        matched_at,
+        match_points_vec,
+        match_times_vec
+    )
 end

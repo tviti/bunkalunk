@@ -80,6 +80,15 @@ end
         @test result.activity_id == 7
         @test result.activity_date == unix2datetime(cache.start_time)
         @test isapprox(result.segment_time, 20.0; atol = 1.0e-9)
+        @test isapprox(
+            result.match_points,
+            [[0.0, 0.0], [0.0, 0.00005], [0.0, 0.00015], [0.0, 0.0002]],
+            atol = 1.0e-9
+        )
+        @test isapprox(
+            result.match_times,
+            [5.0, 10.0, 20.0, 25.0]
+        )
         @test lower <= result.matched_at <= upper
     end
 
