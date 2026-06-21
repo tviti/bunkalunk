@@ -386,6 +386,14 @@ function run_segment_show(args::ArgDict, ctx::Context)::Cint
         )
     end
 
+    stale_matcher = [row[:matcher_version] != matcher_version for row in efforts]
+    if any(stale_matcher)
+        @warn (
+            "Warning: $(sum(stale_matcher)) of $num_efforts efforts use an old matcher algorithm " *
+                ", re-run `lunk segment match` to ensure efforts are up to date"
+        )
+    end
+
     println(ctx.io, "")
     println(ctx.io, repeat("-", 55))
     println(ctx.io, "  Segment name: $segment_name")
