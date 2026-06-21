@@ -116,6 +116,12 @@ function parse_commandline()
             action = :store_arg
             default = nothing
             help = "Match only activities with this sport."
+
+            "--export"
+            required = false
+            action = :store_arg
+            arg_type = String
+            help = "Export match data to a GeoCSV + CSVT at the given path."
         end
 
         @add_arg_table! segment_settings["show"] begin
@@ -322,9 +328,32 @@ function load_matcher_inputs(
     return (segment, activities_data)
 end
 
+function accumulate_geocsv_data!(
+        g::GeoCSV, match::MatchResult
+    )::Nothing
+    activity_id = match.activity_id
+    for (p, t) in zip(match.match_points, match.match_times)
+        push!(g.x, p[1])
+        push!(g.y, p[2])
+        push!(g.time, unix2datetime(t))
+        push!(g.fields[1], activity_id)
+    end
+    return
+end
+
 function run_segment_match(args::ArgDict, ctx::Context)::Cint
     segment_name::String = args["name"]
     sport::Union{String, Nothing} = args["sport"]
+    export_path::Union{String, Nothing} = args["export"]
+
+    if export_path !== nothing
+        base_path, ext = splitext(export_path)
+        if ext != ".csv"
+            @error "Unrecognized file extension, got $ext"
+            return 1
+        end
+    end
+
     return create_connection!(ctx.db_path) do db_conn
         segment_reg = fetch_segment_registration(db_conn, segment_name)
         segment_id::Int64 = segment_reg[:segment_id]
@@ -339,16 +368,30 @@ function run_segment_match(args::ArgDict, ctx::Context)::Cint
             db_conn, segment_reg[:definition_path], sport
         )
 
+        export_data = GeoCSV(
+            Float64[],
+            Float64[],
+            DateTime[],
+            [Int64[]],
+            ["activity_id"]
+        )
+
         match_results = match_to_activities(segment, activities_data)
-        for (; activity_date, activity_id, segment_time, matched_at) in match_results
+        for match in match_results
             upsert_segment_effort!(
                 db_conn,
-                activity_id,
+                match.activity_id,
                 segment_id,
-                segment_time,
-                matched_at,
+                match.segment_time,
+                match.matched_at,
                 matcher_version
             )
+            if export_path !== nothing
+                accumulate_geocsv_data!(export_data, match)
+            end
+        end
+        if export_path !== nothing
+            write_geocsv!(export_path, export_data; write_sidecar = true)
         end
         return 0
     end

@@ -42,10 +42,12 @@ export compute_ecef_r,
 include("match.jl")
 export load_activities,
     match_to_activities,
-    matcher_version
+    matcher_version,
+    MatchResult
 
 include("export.jl")
-export write_geocsv!
+export write_geocsv!,
+    GeoCSV
 
 include("cli.jl")
 end

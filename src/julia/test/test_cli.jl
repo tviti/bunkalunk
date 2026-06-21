@@ -103,7 +103,7 @@ end
     end
 end
 
-function write_minimal_osm(path; name="segment")
+function write_minimal_osm(path; name = "segment")
     # minimal valid file: one way, N nodes, nd refs match, name tag present
     # changing the name kwarg is an easy way to change the file contents (and
     # hence change the fingerprint)
@@ -118,7 +118,7 @@ function write_minimal_osm(path; name="segment")
             </way>
         </osm> 
     """
-    write(path, xml)
+    return write(path, xml)
 end
 
 @testset "run_segment_register" begin
@@ -221,7 +221,7 @@ end
                 end
 
                 @testset "Path collision: same path, new name, new content" begin
-                    write_minimal_osm(segment_path, name="new-name")
+                    write_minimal_osm(segment_path, name = "new-name")
                     let args = Dict{String, Any}(
                             "force" => false,
                             "name" => "new-segment",
@@ -235,7 +235,7 @@ end
                 end
 
                 @testset "Name collision: same name, new path, new content" begin
-                    write_minimal_osm(other_path, name="other-name")
+                    write_minimal_osm(other_path, name = "other-name")
                     let args = Dict{String, Any}(
                             "force" => false,
                             "name" => "new-segment",
@@ -250,7 +250,7 @@ end
 
                 @testset "Fingerprint collision: same content, new name, new path" begin
                     let fp_path = abspath(dir * "/fp.osm")
-                        write_minimal_osm(fp_path, name="other-name")
+                        write_minimal_osm(fp_path, name = "other-name")
                         fp = open(fp_path, "r") do f
                             compute_fingerprint(f)
                         end
@@ -277,7 +277,7 @@ end
                 ctx = make_context(dir)
                 cd(dir) do
                     path = abspath(dir * "/seg.osm")
-                    write_minimal_osm(path, name="myseg")
+                    write_minimal_osm(path, name = "myseg")
                     args = Dict{String, Any}(
                         "force" => false,
                         "name" => "myseg",
@@ -326,8 +326,8 @@ end
                 cd(dir) do
                     path_a = abspath(dir * "/a.osm")
                     path_b = abspath(dir * "/b.osm")
-                    write_minimal_osm(path_a, name="segment-a")
-                    write_minimal_osm(path_b, name="segment-b")
+                    write_minimal_osm(path_a, name = "segment-a")
+                    write_minimal_osm(path_b, name = "segment-b")
 
                     let args = Dict{String, Any}(
                             "force" => false,
@@ -383,7 +383,7 @@ end
                 ctx = make_context(dir)
                 cd(dir) do
                     path = abspath(dir * "/seg.osm")
-                    write_minimal_osm(path, name="myseg")
+                    write_minimal_osm(path, name = "myseg")
                     args = Dict{String, Any}(
                         "force" => false,
                         "name" => "myseg",
@@ -404,7 +404,7 @@ end
                         )
                     end
 
-                    write_minimal_osm(path, name="new-content")
+                    write_minimal_osm(path, name = "new-content")
                     args["force"] = true
                     @test Lunk.run_segment_register(args, ctx) == 0
 
@@ -423,6 +423,21 @@ end
 end
 
 @testset "run_segment_match" begin
+    @testset "Returns error on non-csv export path extension" begin
+        mktempdir() do dir
+            ctx = make_context(dir)
+            cd(dir) do
+                args::Dict{String, Any} = Dict(
+                    "name" => "segment",
+                    "sport" => nothing,
+                    "export" => joinpath(dir, ".notcsv")
+                )
+                result = @test_logs (:error,) Lunk.run_segment_match(args, ctx)
+                @test result == 1
+            end
+        end
+    end
+
     @testset "Returns error on changed segment fingerprint" begin
         mktempdir() do dir
             ctx = make_context(dir)
@@ -448,7 +463,8 @@ end
                     write(segment_path, "test")
                     let args::Dict{String, Any} = Dict(
                             "name" => "segment",
-                            "sport" => nothing
+                            "sport" => nothing,
+                            "export" => nothing
                         )
                         result = @test_logs (:error,) Lunk.run_segment_match(args, ctx)
                         @test result == 1

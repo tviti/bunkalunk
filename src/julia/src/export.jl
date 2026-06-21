@@ -14,6 +14,26 @@ csvt_type(::Type{Dates.DateTime}) = "DateTime"
 
 csvt_type(T::Type) = throw(ArgumentError("No CSVT mapping for $T"))
 
+struct GeoCSV
+    x::Vector{<:Real}
+    y::Vector{<:Real}
+    time::Vector{DateTime}
+    fields::Union{Vector{<:AbstractVector}, Nothing}
+    field_names::Union{Vector{String}, Nothing}
+end
+
+function write_geocsv!(path::String, coords::GeoCSV; kwargs...)::Nothing
+    return write_geocsv!(
+        path,
+        coords.x,
+        coords.y,
+        coords.time;
+        fields = coords.fields,
+        field_names = coords.field_names,
+        kwargs...
+    )
+end
+
 """
     write_geocsv!(
         path::String,
