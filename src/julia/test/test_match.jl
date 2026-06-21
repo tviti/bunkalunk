@@ -43,6 +43,28 @@ function make_cache_no_overlap()::CacheData
     )
 end
 
+function make_cache_two_laps()::CacheData
+    return CacheData(
+        946598400.0,
+        [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0],
+        [-0.00005, 0.00005, 0.00015, 0.00025, -0.00005, 0.00005, 0.00015, 0.00025],
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        sport = "cycling",
+        heart_rate = nothing
+    )
+end
+
+function make_cache_retry_after_abort()::CacheData
+    return CacheData(
+        946598400.0,
+        [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0],
+        [-0.00005, 0.00005, 0.00015, 0.00015, -0.00005, 0.00005, 0.00015, 0.00025],
+        [0.0, 0.0, 0.0, 0.0003, 0.0, 0.0, 0.0, 0.0],
+        sport = "cycling",
+        heart_rate = nothing
+    )
+end
+
 @testset "match_to_activities" begin
     @testset "affirmative match" begin
         segment = make_synthetic_segment()
@@ -57,7 +79,7 @@ end
         result = results[1]
         @test result.activity_id == 7
         @test result.activity_date == unix2datetime(cache.start_time)
-        @test isapprox(result.segment_time, 20.0; atol = 1e-9)
+        @test isapprox(result.segment_time, 20.0; atol = 1.0e-9)
         @test lower <= result.matched_at <= upper
     end
 
@@ -101,7 +123,7 @@ end
         clean_result = only(filter(r -> r.activity_id == 13, results))
         nan_result = only(filter(r -> r.activity_id == 14, results))
         @test nan_result.activity_date == clean_result.activity_date
-        @test isapprox(nan_result.segment_time, clean_result.segment_time; atol = 1e-9)
+        @test isapprox(nan_result.segment_time, clean_result.segment_time; atol = 1.0e-9)
     end
 
     @testset "mixed activity set returns only affirmative match" begin
@@ -123,7 +145,32 @@ end
         result = results[1]
         @test result.activity_id == 10
         @test result.activity_date == unix2datetime(affirmative.start_time)
-        @test isapprox(result.segment_time, 20.0; atol = 1e-9)
+        @test isapprox(result.segment_time, 20.0; atol = 1.0e-9)
         @test lower <= result.matched_at <= upper
+    end
+
+    @testset "multiple laps produce multiple matches" begin
+        segment = make_synthetic_segment()
+        cache = make_cache_two_laps()
+        activities = Dict{Int, CacheData}(15 => cache)
+
+        results = match_to_activities(segment, activities)
+
+        @test_broken length(results) == 2
+        @test all(r -> r.activity_id == 15, results)
+        @test all(r -> isapprox(r.segment_time, 20.0; atol = 1.0e-9), results)
+    end
+
+    @testset "retry uses adjacent crossings" begin
+        segment = make_synthetic_segment()
+        cache = make_cache_retry_after_abort()
+        activities = Dict{Int, CacheData}(16 => cache)
+
+        results = match_to_activities(segment, activities)
+
+        @test length(results) == 1
+        result = only(results)
+        @test result.activity_id == 16
+        @test_broken isapprox(result.segment_time, 20.0; atol = 1.0e-9)
     end
 end
