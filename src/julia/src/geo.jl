@@ -89,7 +89,7 @@ function crosses_gate(
         den = (p_2 - p_1) ⋅ l
         t = num / den
         if 0 <= t && t <= 1
-            p = (1 - t) * p_1 + t * p_2
+            p = linterp(p_1, p_2, t)
             if norm(p - s_0) < tape_radius
                 return (t = t, p = p)
             end
