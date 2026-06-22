@@ -3,6 +3,7 @@ using SQLite
 using Lunk
 using Logging
 
+include("fixtures.jl")
 
 function make_context(dir::String; io::IO = IOBuffer())
     db_path = dir * "/db.sqlite3"
@@ -407,6 +408,108 @@ end
 end
 
 @testset "run_segment_match" begin
+    @testset "Happy path with no activities" begin
+        with_tempdir_context() do ctx, dir
+            segment_path = joinpath(dir, "segment.osm")
+            write_minimal_osm(segment_path)
+            fingerprint = open(segment_path, "r") do f
+                compute_fingerprint(f)
+            end
+            create_connection!(ctx.db_path) do conn
+                create_activities_table!(conn)
+                DBInterface.execute(
+                    conn,
+                    """
+                    INSERT INTO segments (
+                        name,
+                        definition_fingerprint,
+                        definition_path
+                    ) VALUES (?, ?, ?)
+                    """,
+                    ["segment", fingerprint, abspath(segment_path)]
+                )
+            end
+
+            args = Dict{String, Any}(
+                "name" => "segment",
+                "sport" => nothing,
+                "export" => nothing,
+            )
+
+            @test Lunk.run_segment_match(args, ctx) == 0
+        end
+    end
+
+    @testset "Writes export files with no activities" begin
+        with_tempdir_context() do ctx, dir
+            segment_path = joinpath(dir, "segment.osm")
+            export_path = joinpath(dir, "out.csv")
+            write_minimal_osm(segment_path)
+            fingerprint = open(segment_path, "r") do f
+                compute_fingerprint(f)
+            end
+            create_connection!(ctx.db_path) do conn
+                create_activities_table!(conn)
+                DBInterface.execute(
+                    conn,
+                    """
+                    INSERT INTO segments (
+                        name,
+                        definition_fingerprint,
+                        definition_path
+                    ) VALUES (?, ?, ?)
+                    """,
+                    ["segment", fingerprint, abspath(segment_path)]
+                )
+            end
+
+            args = Dict{String, Any}(
+                "name" => "segment",
+                "sport" => nothing,
+                "export" => export_path,
+            )
+
+            @test Lunk.run_segment_match(args, ctx) == 0
+            @test isfile(export_path)
+            @test isfile(joinpath(dir, "out.csvt"))
+        end
+    end
+
+    @testset "Returns error on export write failure after saving efforts" begin
+        with_tempdir_context() do ctx, dir
+            segment_path = joinpath(dir, "segment.osm")
+            export_path = joinpath(dir, "missing", "out.csv")
+            write_minimal_osm(segment_path)
+            fingerprint = open(segment_path, "r") do f
+                compute_fingerprint(f)
+            end
+            create_connection!(ctx.db_path) do conn
+                create_activities_table!(conn)
+                DBInterface.execute(
+                    conn,
+                    """
+                    INSERT INTO segments (
+                        name,
+                        definition_fingerprint,
+                        definition_path
+                    ) VALUES (?, ?, ?)
+                    """,
+                    ["segment", fingerprint, abspath(segment_path)]
+                )
+            end
+
+            args = Dict{String, Any}(
+                "name" => "segment",
+                "sport" => nothing,
+                "export" => export_path,
+            )
+
+            result = @test_logs (:error,) Lunk.run_segment_match(args, ctx)
+            @test result == 1
+            @test !isfile(export_path)
+        end
+    end
+
     @testset "Returns error on non-csv export path extension" begin
         with_tempdir_context() do ctx, dir
             args::Dict{String, Any} = Dict(

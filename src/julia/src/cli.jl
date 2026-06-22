@@ -347,7 +347,7 @@ function run_segment_match(args::ArgDict, ctx::Context)::Cint
     export_path::Union{String, Nothing} = args["export"]
 
     if export_path !== nothing
-        base_path, ext = splitext(export_path)
+        _, ext = splitext(export_path)
         if ext != ".csv"
             @error "Unrecognized file extension, got $ext"
             return 1
@@ -357,15 +357,16 @@ function run_segment_match(args::ArgDict, ctx::Context)::Cint
     return create_connection!(ctx.db_path) do db_conn
         segment_reg = fetch_segment_registration(db_conn, segment_name)
         segment_id::Int64 = segment_reg[:segment_id]
+        definition_path = segment_reg[:definition_path]
 
         if is_stale_segment(
-                segment_name, segment_reg[:definition_path], segment_reg[:definition_fingerprint]
+                segment_name, definition_path, segment_reg[:definition_fingerprint]
             )
             return 1
         end
 
         (segment, activities_data) = load_matcher_inputs(
-            db_conn, segment_reg[:definition_path], sport
+            db_conn, definition_path, sport
         )
 
         export_data = GeoCSV(
@@ -377,21 +378,29 @@ function run_segment_match(args::ArgDict, ctx::Context)::Cint
         )
 
         match_results = match_to_activities(segment, activities_data)
-        for match in match_results
-            upsert_segment_effort!(
-                db_conn,
-                match.activity_id,
-                segment_id,
-                match.segment_time,
-                match.matched_at,
-                matcher_version
-            )
-            if export_path !== nothing
-                accumulate_geocsv_data!(export_data, match)
+        DBInterface.transaction(db_conn) do
+            for match in match_results
+                upsert_segment_effort!(
+                    db_conn,
+                    match.activity_id,
+                    segment_id,
+                    match.segment_time,
+                    match.matched_at,
+                    matcher_version
+                )
+                if export_path !== nothing
+                    accumulate_geocsv_data!(export_data, match)
+                end
             end
         end
         if export_path !== nothing
-            write_geocsv!(export_path, export_data; write_sidecar = true)
+            try
+                write_geocsv!(export_path, export_data; write_sidecar = true)
+            catch e
+                showerror(ctx.io, e)
+                @error "Failed during export to $export_path"
+                return 1
+            end
         end
         return 0
     end
