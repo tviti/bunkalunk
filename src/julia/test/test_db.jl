@@ -3,6 +3,8 @@ using Lunk
 using SQLite
 using Dates
 
+include("fixtures.jl")
+
 function create_bunk_tables!(conn::SQLite.DB)::Nothing
     DBInterface.execute(
         conn, """
@@ -14,18 +16,7 @@ function create_bunk_tables!(conn::SQLite.DB)::Nothing
         )
         """
     )
-    DBInterface.execute(
-        conn, """
-        CREATE TABLE IF NOT EXISTS activities (
-            activity_id INTEGER PRIMARY KEY,
-            source_fingerprint TEXT UNIQUE NOT NULL,
-            start_time REAL,
-            cache_version INT,
-            ride_tag TEXT,
-            sport TEXT
-        )
-        """
-    )
+    create_activities_table!(conn)
     return
 end
 
