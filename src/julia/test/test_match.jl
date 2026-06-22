@@ -2,6 +2,8 @@ using Test
 using Dates
 using Lunk
 
+include("fixtures.jl")
+
 function make_synthetic_segment()::Segment
     return Segment(
         "synthetic segment",
@@ -165,7 +167,7 @@ end
 
         results = match_to_activities(segment, activities)
 
-        @test_broken length(results) == 2
+        @test length(results) == 2
         @test all(r -> r.activity_id == 15, results)
         @test all(r -> isapprox(r.segment_time, 20.0; atol = 1.0e-9), results)
     end
@@ -180,6 +182,19 @@ end
         @test length(results) == 1
         result = only(results)
         @test result.activity_id == 16
-        @test_broken isapprox(result.segment_time, 20.0; atol = 1.0e-9)
+        @test isapprox(result.segment_time, 20.0; atol = 1.0e-9)
+    end
+
+    @testset "aborted laps don't influence results" begin
+        segment = make_synthetic_segment()
+        cache = make_cache_lap_then_abort()
+        activities = Dict{Int, CacheData}(17 => cache)
+
+        results = match_to_activities(segment, activities)
+
+        @test length(results) == 2
+        @test all(r -> r.activity_id == 17, results)
+        @test isapprox(results[1].segment_time, 20.0; atol = 1.0e-9)
+        @test isapprox(results[2].segment_time, 40.0; atol = 1.0e-9)
     end
 end

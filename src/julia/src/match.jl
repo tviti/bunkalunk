@@ -180,6 +180,14 @@ function match_to_activities(
                         push!(match_times, t_cross)
                         match_found = true
                         on_segment = false
+
+                        segment_time = match_times[end] - match_times[1]
+                        push!(activity_dates, unix2datetime(cache.start_time))
+                        push!(activity_ids, activity_id)
+                        push!(segment_times, segment_time)
+                        push!(matched_at, round(Int, time()))
+                        push!(match_points_vec, match_points)
+                        push!(match_times_vec, match_times)
                     end
                 end
             end
@@ -189,16 +197,6 @@ function match_to_activities(
             continue
         end
 
-        # TODO: Iterate over pairs of start/end times; a single activity yield
-        # multiple matches if the user laps the segment
-        segment_time = end_times[1] - start_times[1]
-
-        push!(activity_dates, unix2datetime(cache.start_time))
-        push!(activity_ids, activity_id)
-        push!(segment_times, segment_time)
-        push!(matched_at, round(Int, time()))
-        push!(match_points_vec, match_points)
-        push!(match_times_vec, match_times)
     end
     return MatchResult.(
         activity_dates,
