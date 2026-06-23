@@ -1,4 +1,5 @@
-((julia-mode . ((inferior-julia-program . "julia-dev")
+((julia-mode . ((julia-repl-executable-records . ((default "julia-dev")
+						  ("julia")))
                 (eglot-ignored-server-capabilities . (:inlayHintProvider))
 		(eval . (progn
 			  (remove-hook 'before-save-hook #'eglot-format-buffer t)
