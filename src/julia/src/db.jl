@@ -23,8 +23,7 @@ function create_connection!(db_path::String)::SQLite.DB
             segment_id INTEGER NOT NULL,
             elapsed_time_s REAL NOT NULL,
             matched_at INTEGER NOT NULL,
-            matcher_version INTEGER NOT NULL,
-            UNIQUE(activity_id, segment_id)
+            matcher_version INTEGER NOT NULL
         );
         """
     )
@@ -144,7 +143,7 @@ function insert_segment!(
     return
 end
 
-function upsert_segment_effort!(
+function insert_segment_effort!(
         db::SQLite.DB,
         activity_id::Int,
         segment_id::Int,
@@ -167,10 +166,7 @@ function upsert_segment_effort!(
                 :elapsed_time_s,
                 :matched_at,
                 :matcher_version
-            ) ON CONFLICT(activity_id, segment_id) DO UPDATE SET
-                elapsed_time_s = excluded.elapsed_time_s,
-                matched_at = excluded.matched_at,
-                matcher_version = excluded.matcher_version
+            )
         """,
         Dict(
             :activity_id => activity_id,
@@ -286,6 +282,18 @@ function remove_segment_efforts!(db::SQLite.DB, segment_id::Integer)::Vector{Nam
         db,
         "DELETE FROM segment_efforts WHERE segment_id = ? RETURNING *",
         [segment_id]
+    )
+    # TODO: Replace list comprehensions with broadcast syntax
+    return [NamedTuple(r) for r in result]
+end
+
+function remove_segment_efforts!(
+        db::SQLite.DB, segment_id::Integer, activity_id::Integer
+    )::Vector{NamedTuple}
+    result = DBInterface.execute(
+        db,
+        "DELETE FROM segment_efforts WHERE segment_id = ? AND activity_id = ? RETURNING *",
+        [segment_id, activity_id]
     )
     # TODO: Replace list comprehensions with broadcast syntax
     return [NamedTuple(r) for r in result]

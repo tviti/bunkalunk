@@ -4,6 +4,7 @@
 #
 using SQLite
 using Lunk
+using Dates
 
 if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
     const BUNK_TEST_FIXTURES_INCLUDED = true
@@ -57,4 +58,63 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         )
         return
     end
+
+    function insert_activity!(conn::SQLite.DB, activity::Dict)::Nothing
+        DBInterface.execute(
+            conn,
+            """
+            INSERT INTO activities (
+                   start_time,
+                   source_fingerprint,
+                   ride_tag,
+                   sport,
+                   cache_version
+            ) VALUES (
+                   :start_time,
+                   :source_fingerprint,
+                   :ride_tag,
+                   :sport,
+                   :cache_version
+            )
+            """,
+            activity
+        )
+        return
+    end
+
+
+    function seed_segment_efforts_table!(db::SQLite.DB)::Nothing
+        DBInterface.execute(
+            db,
+            """
+                INSERT INTO segment_efforts (activity_id,
+                                             segment_id,
+                                             elapsed_time_s,
+                                             matched_at,
+                                             matcher_version)
+                VALUES
+                    (1, 3, 100.0, 1234, 20260607),
+                    (2, 2, 101.1, 1235, 20260607),
+                    (100, 2, 102.2, 1236, 20260607),
+                    (110, 1, 103.3, 1237, 20260607);
+            """
+        )
+        return
+    end
+
+    function seed_segments_table!(db::SQLite.DB)::Nothing
+        DBInterface.execute(
+            db,
+            """
+                INSERT INTO segments (name, definition_fingerprint, definition_path)
+                VALUES
+                    ("c", "fingerprint-c", "path/to/c"),
+                    ("b", "fingerprint-b", "path/to/b"),
+                    ("a", "fingerprint-a", "path/to/a");
+            """
+        )
+        return
+    end
+
+
 end

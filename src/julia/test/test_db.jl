@@ -61,31 +61,8 @@ function seed_source_files_table!(conn::SQLite.DB)::Nothing
     return
 end
 
-function insert_activity(conn::SQLite.DB, activity::Dict)::Nothing
-    DBInterface.execute(
-        conn,
-        """
-        INSERT INTO activities (
-               start_time,
-               source_fingerprint,
-               ride_tag,
-               sport,
-               cache_version
-        ) VALUES (
-               :start_time,
-               :source_fingerprint,
-               :ride_tag,
-               :sport,
-               :cache_version
-        )
-        """,
-        activity
-    )
-    return
-end
-
 function seed_activities_table!(conn::SQLite.DB)::Nothing
-    insert_activity(
+    insert_activity!(
         conn, Dict(
             :start_time => 1770267600.0, # 2026-02-05T05:00:00
             :source_fingerprint => "123",
@@ -94,7 +71,7 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :cache_version => 20260101
         )
     )
-    insert_activity(
+    insert_activity!(
         conn, Dict(
             :start_time => 1770354000.0, # 2026-02-06T05:00:00
             :source_fingerprint => "456",
@@ -103,7 +80,7 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :cache_version => 20260101
         )
     )
-    insert_activity(
+    insert_activity!(
         conn, Dict(
             :start_time => 1770390000.0, # 2026-02-06T15:00:00
             :source_fingerprint => "789",
@@ -112,7 +89,7 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :cache_version => 20260101
         )
     )
-    insert_activity(
+    insert_activity!(
         conn, Dict(
             :start_time => 1770508800.0, # 2026-02-08T00:00:00
             :source_fingerprint => "abc",
@@ -133,39 +110,6 @@ function with_activities_db(f::Function)
     finally
         close(conn)
     end
-end
-
-function seed_segments_table!(db::SQLite.DB)::Nothing
-    DBInterface.execute(
-        db,
-        """
-            INSERT INTO segments (name, definition_fingerprint, definition_path)
-            VALUES
-                ("c", "fingerprint-c", "path/to/c"),
-                ("b", "fingerprint-b", "path/to/b"),
-                ("a", "fingerprint-a", "path/to/a");
-        """
-    )
-    return
-end
-
-function seed_segment_efforts_table!(db::SQLite.DB)::Nothing
-    DBInterface.execute(
-        db,
-        """
-            INSERT INTO segment_efforts (activity_id,
-                                         segment_id,
-                                         elapsed_time_s,
-                                         matched_at,
-                                         matcher_version)
-            VALUES
-                (1, 3, 100.0, 1234, 20260607),
-                (2, 2, 101.1, 1235, 20260607),
-                (100, 2, 102.2, 1236, 20260607),
-                (110, 1, 103.3, 1237, 20260607);
-        """
-    )
-    return
 end
 
 @testset "get_content_fingerprint" begin
@@ -383,10 +327,10 @@ end
     end
 end
 
-@testset "upsert_segment_effort" begin
+@testset "insert_segment_effort" begin
     @testset "Happy path" begin
         create_connection!(":memory:") do db
-            upsert_segment_effort!(db, 1, 10, 123.456, 13, 123456)
+            insert_segment_effort!(db, 1, 10, 123.456, 13, 123456)
             result = DBInterface.execute(
                 db,
                 "SELECT * FROM segment_efforts WHERE segment_id = ?",
@@ -401,19 +345,23 @@ end
         end
     end
 
-    @testset "Repeating the same match should update the existing row, not add a duplicate" begin
+    @testset "Repeating the same match should add a duplicate" begin
         create_connection!(":memory:") do db
-            upsert_segment_effort!(db, 1, 10, 123.456, 13, 123456)
-            upsert_segment_effort!(db, 1, 10, 222.0, 14, 654321)
+            insert_segment_effort!(db, 1, 10, 123.456, 13, 123456)
+            insert_segment_effort!(db, 1, 10, 222.0, 14, 654321)
             result = DBInterface.execute(
                 db,
                 "SELECT * FROM segment_efforts WHERE activity_id = ? AND segment_id = ?",
                 [1, 10]
             )
-            segment_efforts_row = only(NamedTuple(r) for r in result)
-            @test segment_efforts_row[:elapsed_time_s] == 222.0
-            @test segment_efforts_row[:matched_at] == 14
-            @test segment_efforts_row[:matcher_version] == 654321
+            results = [NamedTuple(r) for r in result]
+            @test length(results) == 2
+            @test results[1][:elapsed_time_s] == 123.456
+            @test results[1][:matched_at] == 13
+            @test results[1][:matcher_version] == 123456
+            @test results[2][:elapsed_time_s] == 222.0
+            @test results[2][:matched_at] == 14
+            @test results[2][:matcher_version] == 654321
         end
     end
 end
@@ -535,6 +483,50 @@ end
         create_connection!(":memory:") do db
             seed_segment_efforts_table!(db)
             rows = remove_segment_efforts!(db, 99999)
+            @test rows == []
+            result = DBInterface.execute(
+                db, "SELECT COUNT(*) AS n FROM segment_efforts"
+            )
+            @test only(NamedTuple(r) for r in result).n == 4
+        end
+    end
+end
+
+@testset "remove_segment_efforts (segment_id, activity_id)" begin
+    @testset "Removes only efforts matching both segment_id and activity_id" begin
+        create_connection!(":memory:") do db
+            seed_segment_efforts_table!(db)
+            rows = remove_segment_efforts!(db, 2, 2)
+            @test length(rows) == 1
+            @test rows[1][:segment_id] == 2
+            @test rows[1][:activity_id] == 2
+            result = DBInterface.execute(
+                db, "SELECT * FROM segment_efforts ORDER BY effort_id"
+            )
+            rows = [NamedTuple(r) for r in result]
+            @test length(rows) == 3
+            @test rows[1][:activity_id] == 1
+            @test rows[2][:activity_id] == 100
+            @test rows[3][:activity_id] == 110
+        end
+    end
+
+    @testset "Does nothing for unknown activity_id" begin
+        create_connection!(":memory:") do db
+            seed_segment_efforts_table!(db)
+            rows = remove_segment_efforts!(db, 2, 99999)
+            @test rows == []
+            result = DBInterface.execute(
+                db, "SELECT COUNT(*) AS n FROM segment_efforts"
+            )
+            @test only(NamedTuple(r) for r in result).n == 4
+        end
+    end
+
+    @testset "Does nothing for unknown segment_id" begin
+        create_connection!(":memory:") do db
+            seed_segment_efforts_table!(db)
+            rows = remove_segment_efforts!(db, 99999, 1)
             @test rows == []
             result = DBInterface.execute(
                 db, "SELECT COUNT(*) AS n FROM segment_efforts"

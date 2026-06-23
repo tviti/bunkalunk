@@ -2,6 +2,7 @@ using Test
 using SQLite
 using Lunk
 using Logging
+using Dates
 
 include("fixtures.jl")
 
@@ -551,6 +552,281 @@ end
             )
             result = @test_logs (:error,) Lunk.run_segment_match(args, ctx)
             @test result == 1
+        end
+    end
+end
+
+function make_match_result(
+        activity_id::Int64,
+        segment_time::Real,
+        matched_at::Int64
+    )::MatchResult
+    return MatchResult(
+        DateTime(2026, 2, 6, 4, 30),
+        activity_id,
+        Float64(segment_time),
+        matched_at,
+        [[0.0, 0.0], [1.0, 1.0]],
+        [10.0, 20.0]
+    )
+end
+
+@testset "segment_match_transaction!" begin
+    @testset "Handles empty match_results with debug logging enabled" begin
+        logger = TestLogger(min_level = Logging.Debug, catch_exceptions = false)
+
+        create_connection!(":memory:") do conn
+            with_logger(logger) do
+                result = Lunk.segment_match_transaction!(
+                    conn,
+                    1,
+                    MatchResult[],
+                    nothing,
+                )
+                @test result === nothing
+            end
+        end
+    end
+
+    @testset "Records multiple efforts from multi-lap activity" begin
+        # Two matches for the same activity should persist two efforts
+        with_tempdir_context() do ctx, dir
+            create_connection!(ctx.db_path) do conn
+                seed_segments_table!(conn)
+                create_activities_table!(conn)
+                insert_activity!(
+                    conn,
+                    Dict(
+                        :activity_id => 1,
+                        :source_fingerprint => "fingerprint-1",
+                        :start_time => nothing,
+                        :ride_tag => nothing,
+                        :sport => nothing,
+                        :cache_version => nothing,
+                    )
+                )
+
+                match_results = [
+                    make_match_result(1, 20.0, 1000),
+                    make_match_result(1, 21.5, 1001),
+                ]
+
+                result = Lunk.segment_match_transaction!(conn, 1, match_results, nothing)
+                @test result === nothing
+
+                efforts = fetch_segment_efforts_by_name(conn, "c")
+                @test length(efforts) == 2
+                @test efforts[1][:activity_id] == 1
+                @test efforts[1][:elapsed_time_s] == 20.0
+                @test efforts[1][:matched_at] == 1000
+                @test efforts[2][:activity_id] == 1
+                @test efforts[2][:elapsed_time_s] == 21.5
+                @test efforts[2][:matched_at] == 1001
+            end
+        end
+    end
+    @testset "Removes pre-existing efforts" begin
+        with_tempdir_context() do ctx, dir
+            create_connection!(ctx.db_path) do conn
+                seed_segments_table!(conn)
+                create_activities_table!(conn)
+                insert_activity!(
+                    conn,
+                    Dict(
+                        :activity_id => 1,
+                        :source_fingerprint => "fingerprint-1",
+                        :start_time => nothing,
+                        :ride_tag => nothing,
+                        :sport => nothing,
+                        :cache_version => nothing,
+                    )
+                )
+                DBInterface.execute(
+                    conn,
+                    """
+                    INSERT INTO segment_efforts (
+                        activity_id,
+                        segment_id,
+                        elapsed_time_s,
+                        matched_at,
+                        matcher_version
+                    ) VALUES (1, 1, 99.9, 9999, 20260101)
+                    """
+                )
+
+                Lunk.segment_match_transaction!(
+                    conn,
+                    1,
+                    [make_match_result(1, 20.0, 1000)],
+                    nothing,
+                )
+
+                efforts = fetch_segment_efforts_by_name(conn, "c")
+                @test length(efforts) == 1
+                @test efforts[1][:activity_id] == 1
+                @test efforts[1][:elapsed_time_s] == 20.0
+                @test efforts[1][:matched_at] == 1000
+            end
+        end
+    end
+    @testset "Preserves efforts for activities not in match_results" begin
+        with_tempdir_context() do ctx, dir
+            create_connection!(ctx.db_path) do conn
+                seed_segments_table!(conn)
+                create_activities_table!(conn)
+                insert_activity!(
+                    conn,
+                    Dict(
+                        :activity_id => 1,
+                        :source_fingerprint => "fingerprint-1",
+                        :start_time => nothing,
+                        :ride_tag => nothing,
+                        :sport => nothing,
+                        :cache_version => nothing,
+                    )
+                )
+                insert_activity!(
+                    conn,
+                    Dict(
+                        :activity_id => 2,
+                        :source_fingerprint => "fingerprint-2",
+                        :start_time => nothing,
+                        :ride_tag => nothing,
+                        :sport => nothing,
+                        :cache_version => nothing,
+                    )
+                )
+                DBInterface.execute(
+                    conn,
+                    """
+                    INSERT INTO segment_efforts (
+                        activity_id, segment_id, elapsed_time_s,
+                        matched_at, matcher_version
+                    ) VALUES
+                        (1, 1, 99.9, 9999, 20260101),
+                        (2, 1, 88.8, 8888, 20260101)
+                    """
+                )
+
+                Lunk.segment_match_transaction!(
+                    conn,
+                    1,
+                    [make_match_result(1, 20.0, 1000)],
+                    nothing,
+                )
+
+                efforts = fetch_segment_efforts_by_name(conn, "c")
+                @test length(efforts) == 2
+                @test efforts[1][:activity_id] == 1
+                @test efforts[1][:elapsed_time_s] == 20.0
+                @test efforts[2][:activity_id] == 2
+                @test efforts[2][:elapsed_time_s] == 88.8
+            end
+        end
+    end
+    @testset "Preserves efforts for the same activity under a different segment" begin
+        with_tempdir_context() do ctx, dir
+            create_connection!(ctx.db_path) do conn
+                seed_segments_table!(conn)
+                create_activities_table!(conn)
+                insert_activity!(
+                    conn,
+                    Dict(
+                        :activity_id => 1,
+                        :source_fingerprint => "fingerprint-1",
+                        :start_time => nothing,
+                        :ride_tag => nothing,
+                        :sport => nothing,
+                        :cache_version => nothing,
+                    )
+                )
+                DBInterface.execute(
+                    conn,
+                    """
+                    INSERT INTO segment_efforts (
+                        activity_id, segment_id, elapsed_time_s,
+                        matched_at, matcher_version
+                    ) VALUES (1, 2, 99.9, 9999, 20260101)
+                    """
+                )
+
+                Lunk.segment_match_transaction!(
+                    conn,
+                    1,
+                    [make_match_result(1, 20.0, 1000)],
+                    nothing,
+                )
+
+                efforts_c = fetch_segment_efforts_by_name(conn, "c")
+                @test length(efforts_c) == 1
+                @test efforts_c[1][:activity_id] == 1
+                @test efforts_c[1][:elapsed_time_s] == 20.0
+
+                efforts_b = fetch_segment_efforts_by_name(conn, "b")
+                @test length(efforts_b) == 1
+                @test efforts_b[1][:activity_id] == 1
+                @test efforts_b[1][:elapsed_time_s] == 99.9
+            end
+        end
+    end
+    @testset "Handles multiple distinct activity_ids in one call" begin
+        with_tempdir_context() do ctx, dir
+            create_connection!(ctx.db_path) do conn
+                seed_segments_table!(conn)
+                create_activities_table!(conn)
+                insert_activity!(
+                    conn,
+                    Dict(
+                        :activity_id => 1,
+                        :source_fingerprint => "fingerprint-1",
+                        :start_time => nothing,
+                        :ride_tag => nothing,
+                        :sport => nothing,
+                        :cache_version => nothing,
+                    )
+                )
+                insert_activity!(
+                    conn,
+                    Dict(
+                        :activity_id => 2,
+                        :source_fingerprint => "fingerprint-2",
+                        :start_time => nothing,
+                        :ride_tag => nothing,
+                        :sport => nothing,
+                        :cache_version => nothing,
+                    )
+                )
+                DBInterface.execute(
+                    conn,
+                    """
+                    INSERT INTO segment_efforts (
+                        activity_id, segment_id, elapsed_time_s,
+                        matched_at, matcher_version
+                    ) VALUES
+                        (1, 1, 99.9, 9999, 20260101),
+                        (2, 1, 88.8, 8888, 20260101)
+                    """
+                )
+
+                Lunk.segment_match_transaction!(
+                    conn,
+                    1,
+                    [
+                        make_match_result(1, 20.0, 1000),
+                        make_match_result(2, 15.0, 1001),
+                    ],
+                    nothing,
+                )
+
+                efforts = fetch_segment_efforts_by_name(conn, "c")
+                @test length(efforts) == 2
+                @test efforts[1][:activity_id] == 2
+                @test efforts[1][:elapsed_time_s] == 15.0
+                @test efforts[1][:matched_at] == 1001
+                @test efforts[2][:activity_id] == 1
+                @test efforts[2][:elapsed_time_s] == 20.0
+                @test efforts[2][:matched_at] == 1000
+            end
         end
     end
 end

@@ -341,6 +341,50 @@ function accumulate_geocsv_data!(
     return
 end
 
+function segment_match_transaction!(
+        db_conn::SQLite.DB,
+        segment_id::Int64,
+        match_results::Vector{MatchResult},
+        export_path::Union{String, Nothing}
+    )::Union{GeoCSV, Nothing}
+
+    if export_path !== nothing
+        export_data = GeoCSV(
+            Float64[],
+            Float64[],
+            DateTime[],
+            [Int64[]],
+            ["activity_id"]
+        )
+    else
+        export_data = nothing
+    end
+
+    # Clean up existing efforts first
+    efforts = NamedTuple[]
+    for activity_id in unique(m.activity_id for m in match_results)
+        removed = remove_segment_efforts!(db_conn, segment_id, activity_id)
+        append!(efforts, removed)
+    end
+
+    @debug "Removed $(length(efforts)) segment efforts"
+    for match in match_results
+        insert_segment_effort!(
+            db_conn,
+            match.activity_id,
+            segment_id,
+            match.segment_time,
+            match.matched_at,
+            matcher_version
+        )
+        if export_path !== nothing
+            accumulate_geocsv_data!(export_data, match)
+        end
+    end
+    @debug "Persisted $(length(match_results)) segment efforts"
+    return export_data
+end
+
 function run_segment_match(args::ArgDict, ctx::Context)::Cint
     segment_name::String = args["name"]
     sport::Union{String, Nothing} = args["sport"]
@@ -369,29 +413,14 @@ function run_segment_match(args::ArgDict, ctx::Context)::Cint
             db_conn, definition_path, sport
         )
 
-        export_data = GeoCSV(
-            Float64[],
-            Float64[],
-            DateTime[],
-            [Int64[]],
-            ["activity_id"]
-        )
-
         match_results = match_to_activities(segment, activities_data)
-        DBInterface.transaction(db_conn) do
-            for match in match_results
-                upsert_segment_effort!(
-                    db_conn,
-                    match.activity_id,
-                    segment_id,
-                    match.segment_time,
-                    match.matched_at,
-                    matcher_version
-                )
-                if export_path !== nothing
-                    accumulate_geocsv_data!(export_data, match)
-                end
-            end
+        export_data = DBInterface.transaction(db_conn) do
+            segment_match_transaction!(
+                db_conn,
+                segment_id,
+                match_results,
+                export_path
+            )
         end
         if export_path !== nothing
             try
