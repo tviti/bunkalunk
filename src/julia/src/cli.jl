@@ -19,8 +19,8 @@ function Context(db_path::String, activity_store::String, verbose::Bool)
     return Context(db_path, activity_store, verbose, stdout)
 end
 
-function run_segment_command(
-        args::ArgDict, ctx::Context, command_map::CommandMap = SEGMENT_SUBCOMMANDS
+function run_subcommand(
+        args::ArgDict, ctx::Context, command_map::CommandMap
     )::Cint
     subcommand = args["%COMMAND%"]
     subcommand !== nothing || throw(ArgumentError("No sub-command given"))
@@ -31,14 +31,18 @@ function run_segment_command(
     return handler(args[subcommand], ctx)
 end
 
+function run_segment_subcommand(
+        args::ArgDict, ctx::Context, command_map::CommandMap = SEGMENT_SUBCOMMANDS
+    )::Cint
+    return run_subcommand(args, ctx, command_map)
+end
+
+
 const COMMANDS = CommandMap(
-    "segment" => run_segment_command
+    "segment" => run_segment_subcommand,
 )
 
-function parse_commandline()
-
-    settings = ArgParseSettings()
-
+function add_root_argtable!(settings::ArgParseSettings)::Nothing
     @add_arg_table! settings begin
         "--verbose", "-v"
         help = "Enable verbose output"
@@ -51,92 +55,111 @@ function parse_commandline()
         "segment"
         action = :command
     end
+    return
+end
 
-    let segment_settings = settings["segment"]
-        @add_arg_table! segment_settings begin
-            "register"
-            action = :command
-            help = """Add a new segment to the database. Supports OSM XML files
-            and GeoJSON. Only supports GeoJSON Feature file-types with
-            LineString geometry, all other rejected. Generate using ogr2ogr with
-            GeoJSONSeq formatted output."""
+function add_segment_argtable!(settings::ArgParseSettings)::Nothing
+    segment_settings = settings["segment"]
 
-            "remove"
-            action = :command
-            help = "Remove a segment and its efforts from the database."
+    @add_arg_table! segment_settings begin
+        "register"
+        action = :command
+        help = """Add a new segment to the database. Supports OSM XML files
+        and GeoJSON. Only supports GeoJSON Feature file-types with
+        LineString geometry, all other rejected. Generate using ogr2ogr with
+        GeoJSONSeq formatted output."""
 
-            "rename"
-            action = :command
-            help = "Rename a segment in the database."
+        "remove"
+        action = :command
+        help = "Remove a segment and its efforts from the database."
 
-            "list"
-            action = :command
-            help = "List all registered segments."
+        "rename"
+        action = :command
+        help = "Rename a segment in the database."
 
-            "match"
-            action = :command
-            help = "Run match and timing calculations."
+        "list"
+        action = :command
+        help = "List all registered segments."
 
-            "show"
-            action = :command
-            help = "Show segment efforts."
-        end
+        "match"
+        action = :command
+        help = "Run match and timing calculations."
 
-        @add_arg_table! segment_settings["register"] begin
-            "--force"
-            help = "Force overwrite of an existing segment"
-            action = :store_true
-
-            "name"
-            required = true
-            action = :store_arg
-            help = "Segment name."
-
-            "path"
-            required = true
-            action = :store_arg
-            help = "Path to segment file."
-        end
-
-        @add_arg_table! segment_settings["remove"] begin
-            "name"
-            required = true
-            action = :store_arg
-            help = "Segment name."
-        end
-
-        @add_arg_table! segment_settings["match"] begin
-            "name"
-            required = true
-            action = :store_arg
-            help = "Segment name."
-
-            "sport"
-            required = false
-            action = :store_arg
-            default = nothing
-            help = "Match only activities with this sport."
-
-            "--export"
-            required = false
-            action = :store_arg
-            arg_type = String
-            help = "Export match data to a GeoCSV + CSVT at the given path."
-        end
-
-        @add_arg_table! segment_settings["show"] begin
-            "name"
-            required = true
-            action = :store_arg
-            help = "Segment name."
-
-            "--top"
-            arg_type = Int
-            action = :store_arg
-            default = 10
-            help = "Number of efforts to show."
-        end
+        "show"
+        action = :command
+        help = "Show segment efforts."
     end
+
+    @add_arg_table! segment_settings["register"] begin
+        "--force"
+        help = "Force overwrite of an existing segment"
+        action = :store_true
+
+        "name"
+        required = true
+        action = :store_arg
+        help = "Segment name."
+
+        "path"
+        required = true
+        action = :store_arg
+        help = "Path to segment file."
+    end
+
+    @add_arg_table! segment_settings["remove"] begin
+        "name"
+        required = true
+        action = :store_arg
+        help = "Segment name."
+    end
+
+    @add_arg_table! segment_settings["match"] begin
+        "name"
+        required = true
+        action = :store_arg
+        help = "Segment name."
+
+        "sport"
+        required = false
+        action = :store_arg
+        default = nothing
+        help = "Match only activities with this sport."
+
+        "--export"
+        required = false
+        action = :store_arg
+        arg_type = String
+        help = "Export match data to a GeoCSV + CSVT at the given path."
+    end
+
+    @add_arg_table! segment_settings["show"] begin
+        "name"
+        required = true
+        action = :store_arg
+        help = "Segment name."
+
+        "--top"
+        arg_type = Int
+        action = :store_arg
+        default = 10
+        help = "Number of efforts to show."
+    end
+
+    return
+end
+
+function parse_commandline()
+
+    description = """Lunk: the bunkalunk leaderboard application.
+    """
+
+    settings = ArgParseSettings(
+        prog = "Lunk",
+        description = description
+    )
+
+    add_root_argtable!(settings)
+    add_segment_argtable!(settings)
 
     return parse_args(settings)
 end

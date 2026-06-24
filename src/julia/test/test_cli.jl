@@ -67,7 +67,7 @@ end
     end
 end
 
-@testset "run_segment_command dispatches subcommands" begin
+@testset "run_segment_subcommand dispatches subcommands" begin
     @testset "Dispatches subcommands" begin
         with_tempdir_context() do ctx, dir
             called = Ref("")
@@ -86,7 +86,7 @@ end
                 end,
             )
             args = Dict("%COMMAND%" => "list", "list" => Dict())
-            @test Lunk.run_segment_command(args, ctx, subcommand_map) == 0
+            @test Lunk.run_segment_subcommand(args, ctx, subcommand_map) == 0
             @test called[] == "list"
         end
     end
@@ -95,7 +95,7 @@ end
         with_tempdir_context() do ctx, dir
             args::Dict{String, Any} = Dict("%COMMAND%" => nothing)
             subcommand_map = Lunk.CommandMap()
-            @test_throws ArgumentError Lunk.run_segment_command(args, ctx, subcommand_map)
+            @test_throws ArgumentError Lunk.run_segment_subcommand(args, ctx, subcommand_map)
         end
     end
 
@@ -103,7 +103,7 @@ end
         with_tempdir_context() do ctx, dir
             args = Dict("%COMMAND%" => "bogus", "bogus" => Dict())
             subcommand_map = Lunk.CommandMap()
-            @test_throws ArgumentError Lunk.run_segment_command(args, ctx, subcommand_map)
+            @test_throws ArgumentError Lunk.run_segment_subcommand(args, ctx, subcommand_map)
         end
     end
 end
