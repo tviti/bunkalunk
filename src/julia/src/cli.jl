@@ -37,9 +37,15 @@ function run_segment_subcommand(
     return run_subcommand(args, ctx, command_map)
 end
 
+function run_activity_subcommand(
+        args::ArgDict, ctx::Context, command_map::CommandMap = ACTIVITY_SUBCOMMANDS
+    )::Cint
+    return run_subcommand(args, ctx, command_map)
+end
 
 const COMMANDS = CommandMap(
     "segment" => run_segment_subcommand,
+    "activity" => run_activity_subcommand
 )
 
 function add_root_argtable!(settings::ArgParseSettings)::Nothing
@@ -53,6 +59,11 @@ function add_root_argtable!(settings::ArgParseSettings)::Nothing
         action = :store_true
 
         "segment"
+        help = "Subcommands acting on a segment"
+        action = :command
+
+        "activity"
+        help = "Subcommands acting on activities"
         action = :command
     end
     return
@@ -148,6 +159,30 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
     return
 end
 
+function add_activities_argtable!(settings::ArgParseSettings)::Nothing
+    activity_settings = settings["activity"]
+    @add_arg_table! activity_settings begin
+        "export"
+        action = :command
+        help = "Export a list of activities to GeoCSV + CSVT sidecar."
+    end
+
+    @add_arg_table! activity_settings["export"] begin
+        "activity_ids"
+        nargs = '+'
+        required = true
+        action = :store_arg
+        arg_type = Int
+        help = "The activities to be included in the export."
+
+        "--output", "-o"
+        required = true
+        action = :store_arg
+        help = "Output path."
+    end
+    return
+end
+
 function parse_commandline()
 
     description = """Lunk: the bunkalunk leaderboard application.
@@ -160,6 +195,7 @@ function parse_commandline()
 
     add_root_argtable!(settings)
     add_segment_argtable!(settings)
+    add_activities_argtable!(settings)
 
     return parse_args(settings)
 end
