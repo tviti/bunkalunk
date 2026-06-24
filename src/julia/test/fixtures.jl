@@ -5,6 +5,8 @@
 using SQLite
 using Lunk
 using Dates
+using HDF5
+using DelimitedFiles
 
 if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
     const BUNK_TEST_FIXTURES_INCLUDED = true
@@ -82,7 +84,6 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         return
     end
 
-
     function seed_segment_efforts_table!(db::SQLite.DB)::Nothing
         DBInterface.execute(
             db,
@@ -116,5 +117,75 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         return
     end
 
+    function load_csv(path::AbstractString)
+        return open(path, "r") do source
+            data, header = readdlm(source, ',', header = true)
+            return data, strip.(header)
+        end
+    end
+
+    function make_cache_file(
+            dir
+            ;
+            filename = "cache",
+            start_time = 946598400.0,
+            sport = "basket-weaving"
+        )
+        time = [0.0, 0.1, 0.2]
+        latitude = [1.0, 1.1, 1.2]
+        longitude = [2.0, 2.1, 2.2]
+        heart_rate = [99.0, 99.0, 99.0]
+
+        path = joinpath(dir, filename * ".h5")
+        h5open(path, "w") do file
+            file["time"] = time
+            file["latitude"] = latitude
+            file["longitude"] = longitude
+            file["heart_rate"] = heart_rate
+            attributes(file)["start_time"] = start_time
+            attributes(file)["sport"] = sport
+        end
+        return path
+    end
+
+    function make_registered_cache_file!(conn, dir; fingerprint = "cache")
+        start_time = 946598400.0
+        sport = "cycling"
+        insert_activity!(
+            conn,
+            Dict(
+                :source_fingerprint => fingerprint,
+                :start_time => start_time,
+                :ride_tag => nothing,
+                :sport => sport,
+                :cache_version => 20260624,
+            )
+        )
+        cache_dir = joinpath(dir, fingerprint[1:2])
+        mkpath(cache_dir)
+        return make_cache_file(
+            cache_dir
+            ;
+            filename = fingerprint,
+            start_time = start_time,
+            sport = sport
+        )
+    end
+
+    function make_context(dir::String; io::IO = IOBuffer())
+        db_path = dir * "/db.sqlite3"
+        activity_store_path = dir
+        verbose = false
+        return Lunk.Context(db_path, activity_store_path, verbose, io)
+    end
+
+    function with_tempdir_context(f::Function; io::IO = IOBuffer())
+        return mktempdir() do dir
+            cd(dir) do
+                ctx = make_context(dir; io = io)
+                f(ctx, dir)
+            end
+        end
+    end
 
 end

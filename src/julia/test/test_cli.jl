@@ -6,22 +6,6 @@ using Dates
 
 include("fixtures.jl")
 
-function make_context(dir::String; io::IO = IOBuffer())
-    db_path = dir * "/db.sqlite3"
-    activity_store_path = dir
-    verbose = false
-    return Lunk.Context(db_path, activity_store_path, verbose, io)
-end
-
-function with_tempdir_context(f::Function; io::IO = IOBuffer())
-    return mktempdir() do dir
-        cd(dir) do
-            ctx = make_context(dir; io = io)
-            f(ctx, dir)
-        end
-    end
-end
-
 @testset "run_command" begin
     @testset "Happy path" begin
         with_tempdir_context() do ctx, dir
@@ -104,6 +88,38 @@ end
             args = Dict("%COMMAND%" => "bogus", "bogus" => Dict())
             subcommand_map = Lunk.CommandMap()
             @test_throws ArgumentError Lunk.run_segment_subcommand(args, ctx, subcommand_map)
+        end
+    end
+end
+
+@testset "run_activity_subcommand dispatches subcommands" begin
+    @testset "Dispatches subcommands" begin
+        with_tempdir_context() do ctx, dir
+            called = Ref("")
+            subcommand_map = Lunk.CommandMap(
+                "export" => (x, y) -> begin
+                    called[] = "export"; return 0
+                end,
+            )
+            args = Dict("%COMMAND%" => "export", "export" => Dict())
+            @test Lunk.run_activity_subcommand(args, ctx, subcommand_map) == 0
+            @test called[] == "export"
+        end
+    end
+
+    @testset "No command throws" begin
+        with_tempdir_context() do ctx, dir
+            args::Dict{String, Any} = Dict("%COMMAND%" => nothing)
+            subcommand_map = Lunk.CommandMap()
+            @test_throws ArgumentError Lunk.run_activity_subcommand(args, ctx, subcommand_map)
+        end
+    end
+
+    @testset "Unknown subcommand throws" begin
+        with_tempdir_context() do ctx, dir
+            args = Dict("%COMMAND%" => "bogus", "bogus" => Dict())
+            subcommand_map = Lunk.CommandMap()
+            @test_throws ArgumentError Lunk.run_activity_subcommand(args, ctx, subcommand_map)
         end
     end
 end
@@ -829,8 +845,4 @@ end
             end
         end
     end
-end
-
-@testset "run_command segment show" begin
-    @test_skip "stub: show segment leaderboard"
 end

@@ -3,6 +3,8 @@ using Dates
 using DelimitedFiles
 using Test
 
+include("fixtures.jl")
+
 function create_coordinates()
     return (
         [0.0, 0.1, 0.2],
@@ -27,13 +29,6 @@ end
 
 function create_field_names()::Vector{String}
     return ["ID", "HR", "words"]
-end
-
-function load_csv(path::AbstractString)
-    return open(path, "r") do source
-        data, header = readdlm(source, ',', header = true)
-        return data, strip.(header)
-    end
 end
 
 @testset "write_geocsv!" begin

@@ -483,7 +483,7 @@ function run_segment_match(args::ArgDict, ctx::Context)::Cint
         end
         if export_path !== nothing
             try
-                write_geocsv!(export_path, export_data; write_sidecar = true)
+                write_geocsv_atomic!(export_path, export_data)
             catch e
                 showerror(ctx.io, e)
                 @error "Failed during export to $export_path"
@@ -562,12 +562,107 @@ function run_segment_show(args::ArgDict, ctx::Context)::Cint
     return 0
 end
 
+function accumulate_geocsv_data!(
+        g::GeoCSV, activity_id::Int, cache::CacheData
+    )::Nothing
+    for (x, y, t) in zip(cache.longitude, cache.latitude, cache.time)
+        push!(g.x, x)
+        push!(g.y, y)
+        push!(g.time, unix2datetime(t))
+        push!(g.fields[1], activity_id)
+    end
+    return
+end
+
+"""
+Not truly "atomic" since it uses `mv` for the final copy-into-place, and because
+there's a brief window between the CSV and CSVT write where one might exist but
+not the other, but good enough for bunkalunk.
+"""
+function write_geocsv_atomic!(path::String, export_data::GeoCSV)::Nothing
+    mktempdir(dirname(path)) do dir
+        tmp_path = joinpath(dir, "tmp.csv")
+        write_geocsv!(tmp_path, export_data; write_sidecar = true)
+        mv(tmp_path * "t", path * "t", force = true)
+        mv(tmp_path, path, force = true)
+    end
+    return
+end
+
+function run_activity_export(args::ArgDict, ctx::Context)::Cint
+    activity_ids::Vector{Int64} = args["activity_ids"]
+    output::String = abspath(args["output"])
+
+    _, ext = splitext(output)
+    if ext != ".csv"
+        @error "Unrecognized file extension, got $ext"
+        return 1
+    end
+
+    errors = Int64[]
+    export_data = GeoCSV(
+        Float64[],
+        Float64[],
+        DateTime[],
+        [Int64[]],
+        ["activity_id"]
+    )
+    create_connection!(ctx.db_path) do db_conn
+        for id in activity_ids
+            let fingerprint,
+                    cache
+                try
+                    fingerprint = select_by_id(db_conn, id)
+                catch e
+                    if e isa ArgumentError
+                        showerror(ctx.io, e)
+                        @error "Could not select activity with id $id, row not found"
+                        push!(errors, id)
+                        break
+                    else
+                        rethrow(e)
+                    end
+                end
+                cache_path = resolve_cache_path(fingerprint, ctx.activity_store)
+                try
+                    cache = read_cache(cache_path)
+                catch e
+                    showerror(ctx.io, e)
+                    @error "Could not read cache at $cache_path"
+                    push!(errors, id)
+                    break
+                end
+                accumulate_geocsv_data!(export_data, id, cache)
+            end
+        end
+    end
+
+    if length(errors) != 0
+        return 1
+    end
+
+    try
+        write_geocsv_atomic!(output, export_data)
+    catch e
+        showerror(ctx.io, e)
+        @error "Failed during export to $output"
+        return 1
+    end
+
+    return 0
+end
+
+# TODO: Should these maps be moved into the subcommand dispatch methods?
 const SEGMENT_SUBCOMMANDS = Dict{String, Function}(
     "register" => run_segment_register,
     "remove" => run_segment_remove,
     "list" => run_segment_list,
     "match" => run_segment_match,
     "show" => run_segment_show,
+)
+
+const ACTIVITY_SUBCOMMANDS = Dict{String, Function}(
+    "export" => run_activity_export,
 )
 
 function main()
