@@ -227,6 +227,20 @@ end
     end
 end
 
+@testset "select_by_id" begin
+    @testset "input roundtrip" begin
+        with_activities_db() do conn
+            @test select_by_id(conn, 3) == "789"
+        end
+    end
+
+    @testset "raises on scalar input with no match" begin
+        with_activities_db() do conn
+            @test_throws ArgumentError select_by_id(conn, 99) === nothing
+        end
+    end
+end
+
 @testset "create_connection" begin
     @testset "verifies table schemas created by create_connection" begin
         create_connection!(":memory:") do db

@@ -99,6 +99,18 @@ function select_by_time_range(
     return [row[:source_fingerprint] for row in result]
 end
 
+function select_by_id(db::SQLite.DB, activity_id::Int)::String
+    result = DBInterface.execute(
+        db,
+        """
+            SELECT source_fingerprint FROM activities
+            WHERE activity_id = ?
+        """,
+        [activity_id]
+    )
+    return only(row[:source_fingerprint] for row in result)
+end
+
 function select_all(
         db::SQLite.DB; sport::Union{String, Nothing} = nothing
     )::Vector{Tuple{Int, String}}
