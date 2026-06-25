@@ -64,6 +64,16 @@ let
       "$PROJECT_ROOT/src/julia/test" \
       "$PROJECT_ROOT/src/julia/scripts"
   '';
+
+  bunk = pkgs.writeShellScriptBin "bunk" ''
+    exec python -m bunkalunk.bunk "$@"
+  '';
+
+  lunk = pkgs.writeShellScriptBin "lunk" ''
+    PROJECT_ROOT=$(git rev-parse --show-toplevel)
+    exec julia-test $PROJECT_ROOT/src/julia/src/cli.jl "$@"
+  '';
+  
 in
 pkgs.mkShell {
   buildInputs = [
@@ -73,13 +83,16 @@ pkgs.mkShell {
     lunkBuildSysimage
     lunkBuildTestSysimage
     lunkJuliaCtags
+
+    bunk
+    lunk
   ]
-                ++ (with pkgs;
-                  [
-                    universal-ctags
-                    ruff
-                    sqlite
-                  ]);
+  ++ (with pkgs;
+    [
+      universal-ctags
+      ruff
+      sqlite
+    ]);
 
   TMPDIR = "/tmp";  # Julia tries (and fails) to write tmpdata to nix-store without this
 
