@@ -354,12 +354,30 @@ function run_segment_remove(args::ArgDict, ctx::Context)::Cint
 end
 
 function run_segment_list(args::ArgDict, ctx::Context)::Cint
-    create_connection!(ctx.db_path) do conn
-        for reg in fetch_segment_registration(conn)
-            println(ctx.io, "$(reg[:name]): $(reg[:definition_path])")
+    row_fmt = Printf.Format("  %-4s  %-30s  %s\n")
+    Printf.format(ctx.io, row_fmt, "ID", "Name", "Path")
+    Printf.format(
+        ctx.io, row_fmt,
+        repeat("-", 4),
+        repeat("-", 30),
+        repeat("-", 11)
+    )
+    return create_connection!(ctx.db_path) do conn
+        regs = fetch_segment_registration(conn)
+        if isempty(regs)
+            println(ctx.io, "No segments registered.")
+            return 0
         end
+        for reg in fetch_segment_registration(conn)
+            Printf.format(
+                ctx.io, row_fmt,
+                reg[:segment_id],
+                reg[:name],
+                reg[:definition_path]
+            )
+        end
+        return 0
     end
-    return 0
 end
 
 function is_stale_segment(
@@ -534,13 +552,15 @@ function run_segment_show(args::ArgDict, ctx::Context)::Cint
         )
     end
 
+    row_format = Printf.Format("  %-4s  %-21s  %s\n")
     println(ctx.io, "")
-    println(ctx.io, repeat("-", 55))
+    println(ctx.io, repeat("-", 50))
     println(ctx.io, "  Segment name: $segment_name")
     println(ctx.io, "  $num_efforts efforts total")
+    println(ctx.io, repeat("-", 50))
     println(ctx.io, "")
-    @printf(ctx.io, "  %-4s  %-24s  %11s\n", "Rank", "Activity Date", "Segment Time")
-    println(repeat("-", 55))
+    Printf.format(ctx.io, row_format, "Rank", "Activity Date", "Segment Time")
+    Printf.format(ctx.io, row_format, repeat("-", 4), repeat("-", 21), repeat("-", 15))
 
     i = 1
     for (; effort_id, start_time, activity_id, elapsed_time_s) in efforts
@@ -552,7 +572,7 @@ function run_segment_show(args::ArgDict, ctx::Context)::Cint
                 @sprintf("%d:%0.4f", m, s)
             end
         end
-        @printf(ctx.io, "  %-4s  %-24s  %11s\n", i, start_time_iso, hms_string)
+        Printf.format(ctx.io, row_format, i, start_time_iso, hms_string)
         i = i + 1
         if i > top
             break
