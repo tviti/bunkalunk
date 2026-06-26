@@ -16,6 +16,9 @@ rate, cadence, power, temperature). Extension payloads live in an auxiliary lane
 outside the canonical schema."""
 
 
+BUNK_SCHEMA_VERSION = 2
+
+
 class DecodeState(StrEnum):
     PENDING = "pending"
     SUCCESS = "success"
@@ -37,6 +40,14 @@ class Activity:
     ride_tag: str | None = None
     activity_id: int | None = None
     sport: str | None = None
+
+
+def _set_user_version(conn: Connection, version: int):
+    if not isinstance(version, int):
+        raise TypeError(
+            f"user_version must be int, got {type(version).__name__} ({version})"
+        )
+    conn.execute(f"PRAGMA user_version = {version}")
 
 
 def _create_source_files_table(conn: Connection):
@@ -77,6 +88,7 @@ def _create_activities_table(conn: Connection):
 
 def create_connection(db_path: Path | str) -> Connection:
     conn = connect(db_path)
+    _set_user_version(conn, BUNK_SCHEMA_VERSION)
     _create_source_files_table(conn)
     _create_activities_table(conn)
     conn.row_factory = Row

@@ -3,7 +3,9 @@ from sqlite3 import Row
 import pytest
 from bunkalunk import cache
 from bunkalunk.cache import CacheData
+from bunkalunk import db
 from bunkalunk.db import (
+    create_connection,
     DecodeState,
     SourceFile,
     is_stale,
@@ -170,6 +172,12 @@ def dummy_source_files_table(db_conn):
     upsert_source_file(db_conn, source_file)
     db_conn.commit()
     return db_conn
+
+
+def test_create_connection_sets_user_version(monkeypatch):
+    monkeypatch.setattr(db, "BUNK_SCHEMA_VERSION", 9999)
+    with create_connection(":memory:") as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 9999
 
 
 def test_record_source_file_fingerprint_updates_fingerprint(
