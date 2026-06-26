@@ -321,19 +321,25 @@ def test_is_stale_no_match(db_conn):
     assert is_stale(db_conn, "missing-fingerprint")
 
 
-def test_is_stale_stale_match(source_file_with_cache_version_factory, db_conn, monkeypatch):
+def test_is_stale_stale_match(
+    source_file_with_cache_version_factory, db_conn, monkeypatch
+):
     monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
     source_file = source_file_with_cache_version_factory(19991230)
     assert is_stale(db_conn, source_file.content_fingerprint)
 
 
-def test_is_stale_equal_match(source_file_with_cache_version_factory, db_conn, monkeypatch):
+def test_is_stale_equal_match(
+    source_file_with_cache_version_factory, db_conn, monkeypatch
+):
     monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
     source_file = source_file_with_cache_version_factory(19991231)
     assert not is_stale(db_conn, source_file.content_fingerprint)
 
 
-def test_is_stale_newer_match(source_file_with_cache_version_factory, db_conn, monkeypatch):
+def test_is_stale_newer_match(
+    source_file_with_cache_version_factory, db_conn, monkeypatch
+):
     monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
     source_file = source_file_with_cache_version_factory(19991232)
     assert not is_stale(db_conn, source_file.content_fingerprint)

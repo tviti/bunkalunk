@@ -1,4 +1,5 @@
-((nil . ((fill-column . 80)))
+((nil . ((fill-column . 80)
+	 (eglot-code-action-indicator . "*")))
  (python-mode . ((compile-command . "pytest")
 		 (python-shell-interpreter . "ipython")
 		 (python-shell-interpreter-args . "--simple-prompt")
