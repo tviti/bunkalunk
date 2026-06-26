@@ -89,7 +89,8 @@ def patch_fit_reader(monkeypatch, reader):
     monkeypatch.setattr(fit, "FitReader", _get_fake_reader)
 
 
-def _make_activity_fit_fields():
+@pytest.fixture(scope="function")
+def activity_fit_fields():
     file_id_fields = [FakeField("type", "activity")]
     file_id_frame = FakeFrame(
         name="file_id", fields=file_id_fields, frame_type=fitdecode.FIT_FRAME_DATAMESG
@@ -122,9 +123,8 @@ def _make_activity_fit_fields():
 
 
 @pytest.fixture
-def fake_reader_activity_fit(monkeypatch):
-    fields = _make_activity_fit_fields()
-    reader = FakeReader(fields)
+def fake_reader_activity_fit(monkeypatch, activity_fit_fields):
+    reader = FakeReader(activity_fit_fields)
     patch_fit_reader(monkeypatch, reader)
 
     return reader
@@ -144,9 +144,7 @@ def fake_reader_wellness_fit(monkeypatch):
 
 
 @pytest.fixture
-def fake_reader_two_activity_fit(monkeypatch):
-    fields = _make_activity_fit_fields()
-
+def fake_reader_two_activity_fit(monkeypatch, activity_fit_fields):
     file_id_fields_2 = [FakeField("type", "activity")]
     file_id_frame_2 = FakeFrame(
         name="file_id", fields=file_id_fields_2, frame_type=fitdecode.FIT_FRAME_DATAMESG
@@ -162,7 +160,7 @@ def fake_reader_two_activity_fit(monkeypatch):
         name="record", fields=rec_fields_2, frame_type=fitdecode.FIT_FRAME_DATAMESG
     )
 
-    fields += [file_id_frame_2, rec_frame_2]
+    fields = activity_fit_fields + [file_id_frame_2, rec_frame_2]
     reader = FakeReader(fields)
     patch_fit_reader(monkeypatch, reader)
 

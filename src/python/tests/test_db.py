@@ -17,6 +17,11 @@ from bunkalunk.db import (
 )
 
 
+@pytest.fixture(scope="function")
+def patched_cache_version(monkeypatch):
+    monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
+
+
 def _fetch_source_file_by_path(conn, source_path) -> Row | None:
     """Helper to fetch a single source_files row by source_path."""
     curse = conn.cursor()
@@ -290,9 +295,8 @@ def source_file_with_cache_version_factory(db_conn):
 
 
 def test_list_source_files_stale_cache_stale(
-    source_file_with_cache_version_factory, db_conn, monkeypatch
+    db_conn, source_file_with_cache_version_factory, patched_cache_version
 ):
-    monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
     source_file = source_file_with_cache_version_factory(19991230)
     result = list_source_files_stale_cache(db_conn)
     assert len(result) == 1
@@ -300,18 +304,16 @@ def test_list_source_files_stale_cache_stale(
 
 
 def test_list_source_files_stale_cache_fresh(
-    source_file_with_cache_version_factory, db_conn, monkeypatch
+    db_conn, source_file_with_cache_version_factory, patched_cache_version
 ):
-    monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
     source_file_with_cache_version_factory(19991231)
     result = list_source_files_stale_cache(db_conn)
     assert result == []
 
 
 def test_list_source_files_stale_cache_newer(
-    source_file_with_cache_version_factory, db_conn, monkeypatch
+    db_conn, source_file_with_cache_version_factory, patched_cache_version
 ):
-    monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
     source_file_with_cache_version_factory(19991232)
     result = list_source_files_stale_cache(db_conn)
     assert result == []
@@ -322,24 +324,21 @@ def test_is_stale_no_match(db_conn):
 
 
 def test_is_stale_stale_match(
-    source_file_with_cache_version_factory, db_conn, monkeypatch
+    db_conn, source_file_with_cache_version_factory, patched_cache_version
 ):
-    monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
     source_file = source_file_with_cache_version_factory(19991230)
     assert is_stale(db_conn, source_file.content_fingerprint)
 
 
 def test_is_stale_equal_match(
-    source_file_with_cache_version_factory, db_conn, monkeypatch
+    db_conn, source_file_with_cache_version_factory, patched_cache_version
 ):
-    monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
     source_file = source_file_with_cache_version_factory(19991231)
     assert not is_stale(db_conn, source_file.content_fingerprint)
 
 
 def test_is_stale_newer_match(
-    source_file_with_cache_version_factory, db_conn, monkeypatch
+    db_conn, source_file_with_cache_version_factory, patched_cache_version
 ):
-    monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
     source_file = source_file_with_cache_version_factory(19991232)
     assert not is_stale(db_conn, source_file.content_fingerprint)

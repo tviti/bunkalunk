@@ -7,11 +7,18 @@ from bunkalunk import cache
 from bunkalunk.cache import CacheData, write_cache, _write_cache_file, CacheWriteFailure
 
 
-# TODO: Monkeypatch
-_CACHE_VERSION = 19991230
+@pytest.fixture(scope="function")
+def patched_cache_version(monkeypatch):
+    monkeypatch.setattr(cache, "CACHE_VERSION", 19991230)
 
 
-def make_unequal_length_cache_data():
+@pytest.fixture(scope="function")
+def cache_path(tmp_path):
+    return tmp_path / "test.hdf5"
+
+
+@pytest.fixture(scope="function")
+def unequal_length_cache_data():
     return CacheData(
         latitude=[1.0, 1.1, 1.2],
         longitude=[2.0, 2.1],
@@ -21,7 +28,8 @@ def make_unequal_length_cache_data():
     )
 
 
-def make_cache_data():
+@pytest.fixture(scope="function")
+def cache_data():
     return CacheData(
         latitude=[1.0, 1.1, 1.2],
         longitude=[2.0, 2.1, 2.2],
@@ -31,15 +39,9 @@ def make_cache_data():
     )
 
 
-def test_write_cache(tmp_path, monkeypatch):
-    file_path = tmp_path / "test.hdf5"
-    data = make_cache_data()
-
-    monkeypatch.setattr(cache, "CACHE_VERSION", _CACHE_VERSION)
-
-    write_cache(file_path, data)
-
-    with h5py.File(file_path, "r") as cache_file:
+def test_write_cache(monkeypatch, cache_path, cache_data, patched_cache_version):
+    write_cache(cache_path, cache_data)
+    with h5py.File(cache_path, "r") as cache_file:
         assert_equal(cache_file["latitude"][:], [1.0, 1.1, 1.2])
         assert_equal(cache_file["longitude"][:], [2.0, 2.1, 2.2])
         assert_equal(cache_file["time"][:], [0.0, 1.0, 2.0])
@@ -48,19 +50,14 @@ def test_write_cache(tmp_path, monkeypatch):
         assert cache_file.attrs["sport"] == "yoyo"
 
 
-def test_write_cache_unequal_length_arrays(tmp_path, monkeypatch):
-    file_path = tmp_path / "test.hdf5"
-    data = make_unequal_length_cache_data()
-
-    monkeypatch.setattr(cache, "CACHE_VERSION", _CACHE_VERSION)
-
+def test_write_cache_unequal_length_arrays(
+    tmp_path, monkeypatch, cache_path, unequal_length_cache_data, patched_cache_version
+):
     with pytest.raises(CacheWriteFailure, match="Cache write"):
-        write_cache(file_path, data)
+        write_cache(cache_path, unequal_length_cache_data)
 
 
-def test_write_cache_cleanup(tmp_path, monkeypatch):
-    file_path = tmp_path / "test.hdf5"
-    data = make_cache_data()
+def test_write_cache_cleanup(tmp_path, monkeypatch, cache_path, cache_data):
 
     def mock_write(file_path, data):
         _write_cache_file(file_path, data)
@@ -68,36 +65,29 @@ def test_write_cache_cleanup(tmp_path, monkeypatch):
 
     monkeypatch.setattr(cache, "_write_cache_file", mock_write)
 
-    ls_before = [f for f in file_path.parent.iterdir()]
+    ls_before = [f for f in cache_path.parent.iterdir()]
     with pytest.raises(CacheWriteFailure, match="Cache write"):
-        write_cache(file_path, data)
-    ls_after = [f for f in file_path.parent.iterdir()]
+        write_cache(cache_path, cache_data)
+    ls_after = [f for f in cache_path.parent.iterdir()]
     assert ls_before == ls_after
 
 
-def test_write_cache_attribute_types(tmp_path, monkeypatch):
-    file_path = tmp_path / "test.hdf5"
-    data = make_cache_data()
-
-    monkeypatch.setattr(cache, "CACHE_VERSION", _CACHE_VERSION)
-
-    write_cache(file_path, data)
-
-    with h5py.File(file_path, "r") as cache_file:
+def test_write_cache_attribute_types(
+    tmp_path, cache_path, cache_data, patched_cache_version
+):
+    write_cache(cache_path, cache_data)
+    with h5py.File(cache_path, "r") as cache_file:
         assert isinstance(cache_file.attrs["cache_version"], np.int64)
         assert isinstance(cache_file.attrs["start_time"], float)
         assert isinstance(cache_file.attrs["sport"], str)
 
 
-def test_write_cache_rejects_non_string_sport(tmp_path, monkeypatch):
-    file_path = tmp_path / "test.hdf5"
-    data = make_cache_data()
-
-    monkeypatch.setattr(cache, "CACHE_VERSION", _CACHE_VERSION)
-    data.sport = 42  # type: ignore[assignment]
-
+def test_write_cache_rejects_non_string_sport(
+    tmp_path, cache_path, cache_data, patched_cache_version
+):
+    cache_data.sport = 42  # type: ignore[assignment]
     with pytest.raises(CacheWriteFailure):
-        write_cache(file_path, data)
+        write_cache(cache_path, cache_data)
 
 
 def test_resolve_cache_path_creates_parents(tmp_path):
