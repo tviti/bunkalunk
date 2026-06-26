@@ -324,13 +324,33 @@ class DecodeCommand(Command):
             help="Optional selection of files to decode by source_path",
         )
 
-    def _get_decode_candidates(self, conn: Connection) -> list[SourceFile]:
+    def _has_cache(self, source_file: SourceFile, activity_store: Path) -> bool:
+        if not activity_store.exists():
+            # In practice this path can't get hit, so this guard is just
+            # insurance that this helper is side-effect free, since
+            # resolve_cache_path creates the activity_store if it doesn't
+            # already exist
+            raise ValueError("Activity store %s does not exist", activity_store)
+        cache_path = resolve_cache_path(source_file.content_fingerprint, activity_store)
+        return Path(cache_path).exists()
+
+    def _list_source_files_missing_cache(
+        self, conn: Connection, activity_store: Path
+    ) -> list[SourceFile]:
+        expected = list_source_files_by_decode_state(conn, DecodeState.SUCCESS)
+        return [sf for sf in expected if not self._has_cache(sf, activity_store)]
+
+    def _get_decode_candidates(
+        self, conn: Connection, activity_store: Path
+    ) -> list[SourceFile]:
         """Returns a list of paths that need to be decoded."""
         pending = list_source_files_by_decode_state(conn, DecodeState.PENDING)
         error = list_source_files_by_decode_state(conn, DecodeState.ERROR)
         stale = list_source_files_stale_cache(conn)
+        missing = self._list_source_files_missing_cache(conn, activity_store)
+
         candidates = []
-        for source_file in pending + error + stale:
+        for source_file in pending + error + stale + missing:
             if source_file not in candidates:
                 candidates.append(source_file)
 
@@ -343,7 +363,7 @@ class DecodeCommand(Command):
 
         with create_connection(ctx.db_path) as conn:
             if args.path == "":
-                source_file_list: list[SourceFile] = self._get_decode_candidates(conn)
+                source_file_list = self._get_decode_candidates(conn, ctx.activity_store)
                 if source_file_list == []:
                     logger.info("No decode candidates were found.")
                     return 1

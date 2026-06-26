@@ -70,6 +70,30 @@ def seed_source_files_with_decode_state(state, monkeypatch, tmp_path, fit_path):
 
 
 @pytest.fixture(scope="function")
+def registered_source_files_and_activities(monkeypatch, tmp_path, fit_path):
+    with open(fit_path, "rb") as f:
+        content_fingerprint = compute_fingerprint(f)
+
+    source_file = SourceFile(
+        source_path=str(fit_path),
+        content_fingerprint=content_fingerprint,
+        decode_state=DecodeState.SUCCESS,
+        decode_error=None,
+    )
+    activity = Activity(
+        start_time=1767263400.0,
+        source_fingerprint=content_fingerprint,
+        sport="basket-weaving",
+    )
+    db_path = tmp_path / ".bunk" / "db.sqlite3"
+    db_path.parent.mkdir()
+    with create_connection(db_path) as conn:
+        upsert_source_file(conn, source_file)
+        _upsert_activity(conn, activity)
+    return db_path
+
+
+@pytest.fixture(scope="function")
 def registered_source_files_and_activities_with_pinned_cache_version(
     monkeypatch, tmp_path, fit_path
 ):
@@ -388,6 +412,18 @@ class TestDecodeCommand:
         assert cache_path.exists()
         with h5py.File(cache_path, "r") as cache_file:
             assert cache_file.attrs["cache_version"] == 19991231
+
+    def test_decode_rebuilds_missing(
+        self, tmp_path, monkeypatch, registered_source_files_and_activities, fit_path
+    ):
+        patch_home(monkeypatch, tmp_path)
+        with open(fit_path, "rb") as f:
+            content_fingerprint = compute_fingerprint(f)
+        activity_store = resolve_activity_store(create=False)
+        cache_path = resolve_cache_path(content_fingerprint, activity_store)
+        assert not os.path.exists(cache_path)
+        assert main(["decode"]) == 0
+        assert os.path.exists(cache_path)
 
     def test_decode_specific_path(self, monkeypatch, tmp_path, fit_path):
         """bunk decode <path> should rebuild only the given file."""
