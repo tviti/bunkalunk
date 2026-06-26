@@ -1,6 +1,42 @@
 from pathlib import Path
+import pytest
 
-from bunkalunk.bunk_helpers import validate_path_registration
+from bunkalunk.bunk_helpers import validate_path_registration, compute_fingerprint
+from bunkalunk.db import SourceFile, DecodeState, upsert_source_file
+
+
+@pytest.fixture(scope="function")
+def registered_source_files_table(db_conn, tmp_path, fake_fit_path):
+    """Setup a source_files table with a valid registered row."""
+
+    with open(fake_fit_path, "rb") as f:
+        content_fingerprint = compute_fingerprint(f)
+
+    source_file = SourceFile(
+        source_path=str(fake_fit_path),
+        content_fingerprint=content_fingerprint,
+        decode_state=DecodeState.PENDING,
+        decode_error=None,
+    )
+    upsert_source_file(db_conn, source_file)
+    db_conn.commit()
+    return source_file
+
+
+@pytest.fixture(scope="function")
+def source_files_table_bad_fingerprint(db_conn, tmp_path, fake_fit_path):
+    """Setup a source_files table with a valid registered row."""
+    content_fingerprint = "not-a-real-fingerprint"
+
+    source_file = SourceFile(
+        source_path=str(fake_fit_path),
+        content_fingerprint=content_fingerprint,
+        decode_state=DecodeState.PENDING,
+        decode_error=None,
+    )
+    upsert_source_file(db_conn, source_file)
+    db_conn.commit()
+    return source_file
 
 
 def test_validate_path_registration_not_in_database(

@@ -1,11 +1,6 @@
 from bunkalunk.db import Connection
 
 
-def patch_home(monkeypatch, tmp_path):
-    monkeypatch.setenv("HOME", str(tmp_path.resolve()))
-    monkeypatch.setenv("BUNK_HOME", str(tmp_path.resolve() / ".bunk"))
-
-
 def has_source_file(conn: Connection, source_path: str) -> bool:
     cursor = conn.cursor()
     try:
