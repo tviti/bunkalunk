@@ -243,9 +243,9 @@ On `bunk add <path>...`:
 - `add <path>...` — decode each explicit file-path operand immediately; on
   success, register it in the source-file index. Return `0` if all operands
   succeed, `1` if any operand fails.
-- `decode [path]` — re-decode previously added files; use this to replace stale,
-  missing, or corrupt cache entries (e.g. after a schema bump, or a write
-  failure). Takes one or zero paths (zero paths rebuilds the entire store).
+- `decode [path...]` — re-decode stale or missing cache entries (e.g. after a
+  schema bump, or a write failure). Takes one or zero paths (zero paths checks
+  the entire store).
   
 `bunk decode` is idempotent and safe to run at any time.
 
@@ -259,7 +259,8 @@ On `bunk add <path>...`:
   activities not yet matched against this segment
 - `segment show <segment-name>` — display leaderboard from cached results
 - `segment rename <old-name> <new-name>` — rename a segment in the database
-- `ride show <activity-id|ride-tag>` — display activity summary
+- `activity show <activity-id|ride-tag>` — display activity summary
+- `activity export activity-ids...` — export activities to GeoCSV + CSVT sidecar
 
 ## Segment Definitions
 
@@ -331,6 +332,9 @@ The project directory contains no runtime state.
 
 ## Decisions Recorded
 
+- Cache auditing is out of scope for now, but may be added later via a `bunk
+  rebuild` command. Note that this would also require updating the schema
+  (e.g. with a cache fingerprint column on the activities table).
 - Python owns SQLite schema, migrations, and ingestion logic.
 - Julia reads SQLite directly for analysis; writes only to analysis-owned
   tables.
