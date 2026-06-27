@@ -14,3 +14,4 @@
 /.agent-shell/
 /opencode.json
 */**/TAGS
+/src/julia/test/Manifest.toml
