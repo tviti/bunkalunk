@@ -13,30 +13,8 @@ line, which will prepare the julia sysimage that the lunk wrapper links against.
 
 let
   project_root = builtins.toString ./.;
-
-  pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-    requests
-    fitdecode
-    h5py
-  ]);
-
-  pythonDevEnv = pkgs.python3.withPackages (ps: with ps; [
-    requests
-    fitdecode
-    h5py
-
-    ipython
-    pytest
-    
-    python-lsp-server
-    python-lsp-ruff   # linting + formatting (replaces pycodestyle, pyflakes, autopep8)
-    pylsp-rope        # rope provider for pylsp
-    pylsp-mypy        # type checking
-
-    # Plugin dependencies (explicit so nix-shell always has them on PATH)
-    rope
-    mypy
-  ]);
+  runtimePythonPackages = ps: with ps; [ requests fitdecode h5py ];
+  pythonEnv = pkgs.python3.withPackages runtimePythonPackages;
 
   bunk = pkgs.writeShellScriptBin "bunk" ''
     export PYTHONPATH=${project_root}/src/python:''${PYTHONPATH}
@@ -65,7 +43,7 @@ let
   '';
 in
 {
-  inherit pythonEnv lunkJuliaTest lunkBuildTestSysimage;
+  inherit runtimePythonPackages pythonEnv lunkJuliaTest lunkBuildTestSysimage;
 
   bunkAndLunk = pkgs.symlinkJoin {
     name = "bunkalunk-tools";

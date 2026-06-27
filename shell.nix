@@ -2,17 +2,27 @@
 let
   pkgs = import <nixpkgs> {};
   bunkalunk = import ./default.nix { inherit pkgs; };
+
+  pythonDevEnv = pkgs.python3.withPackages (ps: with ps;
+    bunkalunk.runtimePythonPackages ps ++ [
+      ipython
+      pytest
+
+      python-lsp-server
+      python-lsp-ruff   # linting + formatting (replaces pycodestyle, pyflakes, autopep8)
+      pylsp-rope        # rope provider for pylsp
+      pylsp-mypy        # type checking
+
+      # Plugin dependencies (explicit so nix-shell always has them on PATH)
+      rope
+      mypy
+    ]);
+
   # Install opencode outside of nix so it can autoupdate, but project-level
   # config can live here
   opencodeConfig = builtins.toJSON {
     instructions = [ "docs/spec.md" ];
   };
-
-  lunkJuliaDev = pkgs.writeShellScriptBin "julia-dev" ''
-    export JULIA_PROJECT="$PWD/src/julia"
-    export BUNK_DEV_SYSIMAGE="$PWD/src/julia/build/dev_sysimage.so"
-    exec julia --sysimage="$BUNK_DEV_SYSIMAGE" --project="$JULIA_PROJECT" "$@"
-  '';
 
   lunkJuliaCtags = pkgs.writeShellScriptBin "julia-ctags" ''
     exec ctags -R \
@@ -23,11 +33,29 @@ let
       "$PWD/src/julia/test" \
       "$PWD/src/julia/scripts"
   '';
+
+  project_root = builtins.toString ./.;
+  lunkJuliaDev = pkgs.writeShellScriptBin "julia-dev" ''
+    exec julia \
+      --sysimage=${project_root}/src/julia/build/dev_sysimage.so \
+      --project=${project_root}/src/julia \
+      "$@"
+  '';
+
+  lunkBuildDevSysimage = pkgs.writeShellScriptBin "build-dev-sysimage" ''
+    unset JULIA_PROJECT
+    mkdir -p ${project_root}/src/julia/build
+    exec julia --project=${project_root}/src/julia/scripts \
+      ${project_root}/src/julia/scripts/build_sysimage.jl \
+      ${project_root}/src/julia/build/dev_sysimage.so
+  '';
+
 in
 pkgs.mkShell {
   buildInputs = [
-    bunkalunk.pythonDevEnv
+    pythonDevEnv
     lunkJuliaDev
+    lunkBuildDevSysimage
     lunkJuliaCtags
     bunkalunk.lunkJuliaTest
     bunkalunk.lunkBuildTestSysimage
