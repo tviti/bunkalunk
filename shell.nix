@@ -1,6 +1,11 @@
 # Minimal empty shell.nix for this project
 let
   pkgs = import <nixpkgs> {};
+  bunkalunkRoot = builtins.toString ./.;
+  withProjectRoot = body: ''
+    PROJECT_ROOT=${bunkalunkRoot}
+    export JULIA_PROJECT="$PROJECT_ROOT/src/julia"
+  '' + body;
 
   myPython = pkgs.python3;
   pythonEnv = myPython.withPackages (ps: with ps; [
@@ -26,36 +31,31 @@ let
     instructions = [ "docs/spec.md" ];
   };
 
-  lunkJuliaDev = pkgs.writeShellScriptBin "julia-dev" ''
-    PROJECT_ROOT=$(git rev-parse --show-toplevel)
-    export JULIA_PROJECT="$PROJECT_ROOT/src/julia"
-    export BUNK_DEV_SYSIMAGE="$PROJECT_ROOT/src/julia/dev_sysimage.so"
+  lunkJuliaDev = pkgs.writeShellScriptBin "julia-dev" (withProjectRoot ''
+    export BUNK_DEV_SYSIMAGE="$PROJECT_ROOT/src/julia/build/dev_sysimage.so"
     exec julia --sysimage="$BUNK_DEV_SYSIMAGE" --project="$JULIA_PROJECT" "$@"
-  '';
+  '');
 
-  lunkJuliaTest = pkgs.writeShellScriptBin "julia-test" ''
-    PROJECT_ROOT=$(git rev-parse --show-toplevel)
-    export JULIA_PROJECT="$PROJECT_ROOT/src/julia"
-    export BUNK_TEST_SYSIMAGE="$PROJECT_ROOT/src/julia/test_sysimage.so"
+  lunkJuliaTest = pkgs.writeShellScriptBin "julia-test" (withProjectRoot ''
+    export BUNK_TEST_SYSIMAGE="$PROJECT_ROOT/src/julia/build/test_sysimage.so"
     exec julia --sysimage="$BUNK_TEST_SYSIMAGE" --project="$JULIA_PROJECT" "$@"
-  '';
+  '');
 
-  lunkBuildSysimage = pkgs.writeShellScriptBin "build-sysimage" ''
-    PROJECT_ROOT=$(git rev-parse --show-toplevel)
+  lunkBuildSysimage = pkgs.writeShellScriptBin "build-sysimage" (withProjectRoot ''
     unset JULIA_PROJECT JULIA_LOAD_PATH
     exec julia --project="$PROJECT_ROOT/src/julia/scripts" \
-      "$PROJECT_ROOT/src/julia/scripts/build_sysimage.jl"
-  '';
+      "$PROJECT_ROOT/src/julia/scripts/build_sysimage.jl" \
+      "$PROJECT_ROOT/src/julia/build/dev_sysimage.so"
+  '');
 
-  lunkBuildTestSysimage = pkgs.writeShellScriptBin "build-test-sysimage" ''
-    PROJECT_ROOT=$(git rev-parse --show-toplevel)
+  lunkBuildTestSysimage = pkgs.writeShellScriptBin "build-test-sysimage" (withProjectRoot ''
     unset JULIA_PROJECT JULIA_LOAD_PATH
     exec julia --project="$PROJECT_ROOT/src/julia/scripts" \
-      "$PROJECT_ROOT/src/julia/scripts/build_test_sysimage.jl"
-  '';
+      "$PROJECT_ROOT/src/julia/scripts/build_test_sysimage.jl" \
+      "$PROJECT_ROOT/src/julia/build/test_sysimage.so"
+  '');
 
-  lunkJuliaCtags = pkgs.writeShellScriptBin "julia-ctags" ''
-    PROJECT_ROOT=$(git rev-parse --show-toplevel)
+  lunkJuliaCtags = pkgs.writeShellScriptBin "julia-ctags" (withProjectRoot ''
     exec ctags -R \
       --languages=Julia \
       --output-format=etags \
@@ -63,16 +63,15 @@ let
       "$PROJECT_ROOT/src/julia/src" \
       "$PROJECT_ROOT/src/julia/test" \
       "$PROJECT_ROOT/src/julia/scripts"
-  '';
+  '');
 
   bunk = pkgs.writeShellScriptBin "bunk" ''
     exec python -m bunkalunk.bunk "$@"
   '';
 
-  lunk = pkgs.writeShellScriptBin "lunk" ''
-    PROJECT_ROOT=$(git rev-parse --show-toplevel)
+  lunk = pkgs.writeShellScriptBin "lunk" (withProjectRoot ''
     exec julia-test $PROJECT_ROOT/src/julia/src/cli.jl "$@"
-  '';
+  '');
   
 in
 pkgs.mkShell {
@@ -106,7 +105,7 @@ pkgs.mkShell {
     export PATH=/home/taylor/.julia/bin:''${PATH}
     export OPENCODE_CONFIG_CONTENT='${opencodeConfig}'
 
-    export BUNK_DEV_SYSIMAGE=''${PWD}/src/julia/dev_sysimage.so
-    export BUNK_TEST_SYSIMAGE=''${PWD}/src/julia/test_sysimage.so
+    export BUNK_DEV_SYSIMAGE=''${PWD}/src/julia/build/dev_sysimage.so
+    export BUNK_TEST_SYSIMAGE=''${PWD}/src/julia/build/test_sysimage.so
   '';
 }

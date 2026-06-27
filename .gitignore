@@ -8,8 +8,7 @@
 /.direnv/
 /src/python/bunkalunk.egg-info/
 /src/julia/scratch/
-/src/julia/dev_sysimage.so
-/src/julia/test_sysimage.so
+/src/julia/build/
 /src/julia/scripts/test_sysimage/Manifest.toml
 /.agent-shell/
 /opencode.json
