@@ -6,8 +6,8 @@ export CacheData,
     drop_invalid_gps_points
 
 include("paths.jl")
-export BUNK_HOME,
-    ACTIVITY_STORE,
+export resolve_bunk_home,
+    resolve_activity_store,
     resolve_cache_path
 
 include("db.jl")

@@ -3,9 +3,15 @@
 
 Globals for the bunk data directories.
 """
-const BUNK_HOME = get(ENV, "BUNK_HOME", joinpath(homedir(), ".bunk"))
-const ACTIVITY_STORE = joinpath(BUNK_HOME, "activity_store")
 const _CACHE_SUFFIX = ".h5"
+
+function resolve_bunk_home()::String
+    return get(ENV, "BUNK_HOME", joinpath(homedir(), ".bunk"))
+end
+
+function resolve_activity_store()::String
+    return joinpath(resolve_bunk_home(), "activity_store")
+end
 
 function resolve_cache_path(content_fingerprint::String, activity_store::String)::String
     shard = content_fingerprint[1:2]
@@ -14,5 +20,5 @@ function resolve_cache_path(content_fingerprint::String, activity_store::String)
 end
 
 function resolve_cache_path(content_fingerprint::String)::String
-    return resolve_cache_path(content_fingerprint, ACTIVITY_STORE)
+    return resolve_cache_path(content_fingerprint, resolve_activity_store())
 end

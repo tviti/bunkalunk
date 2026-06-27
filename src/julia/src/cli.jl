@@ -692,13 +692,13 @@ function main()
         global_logger(ConsoleLogger(stderr, Logging.Debug))
     end
 
-    isdir(BUNK_HOME) || throw(ArgumentError("BUNK_HOME does not exist: $BUNK_HOME"))
+    isdir(resolve_bunk_home()) || throw(ArgumentError("BUNK_HOME does not exist: $resolve_bunk_home"))
 
-    isdir(ACTIVITY_STORE) || throw(ArgumentError("ACTIVITY_STORE does not exist: $ACTIVITY_STORE"))
+    isdir(resolve_activity_store()) || throw(ArgumentError("ACTIVITY_STORE does not exist: $resolve_activity_store"))
 
     ctx = Context(
-        BUNK_HOME * "/db.sqlite3",
-        ACTIVITY_STORE,
+        resolve_bunk_home() * "/db.sqlite3",
+        resolve_activity_store(),
         args["verbose"]
     )
 
