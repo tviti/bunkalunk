@@ -1,90 +1,37 @@
 # Minimal empty shell.nix for this project
 let
   pkgs = import <nixpkgs> {};
-  bunkalunkRoot = builtins.toString ./.;
-  withProjectRoot = body: ''
-    PROJECT_ROOT=${bunkalunkRoot}
-    export JULIA_PROJECT="$PROJECT_ROOT/src/julia"
-  '' + body;
-
-  myPython = pkgs.python3;
-  pythonEnv = myPython.withPackages (ps: with ps; [
-    requests
-    fitdecode
-    h5py
-
-    ipython
-    pytest
-    
-    python-lsp-server
-    python-lsp-ruff   # linting + formatting (replaces pycodestyle, pyflakes, autopep8)
-    pylsp-rope        # rope provider for pylsp
-    pylsp-mypy        # type checking
-
-    # Plugin dependencies (explicit so nix-shell always has them on PATH)
-    rope
-    mypy
-  ]);
+  bunkalunk = import ./default.nix { inherit pkgs; };
   # Install opencode outside of nix so it can autoupdate, but project-level
   # config can live here
   opencodeConfig = builtins.toJSON {
     instructions = [ "docs/spec.md" ];
   };
 
-  lunkJuliaDev = pkgs.writeShellScriptBin "julia-dev" (withProjectRoot ''
-    export BUNK_DEV_SYSIMAGE="$PROJECT_ROOT/src/julia/build/dev_sysimage.so"
+  lunkJuliaDev = pkgs.writeShellScriptBin "julia-dev" ''
+    export JULIA_PROJECT="$PWD/src/julia"
+    export BUNK_DEV_SYSIMAGE="$PWD/src/julia/build/dev_sysimage.so"
     exec julia --sysimage="$BUNK_DEV_SYSIMAGE" --project="$JULIA_PROJECT" "$@"
-  '');
+  '';
 
-  lunkJuliaTest = pkgs.writeShellScriptBin "julia-test" (withProjectRoot ''
-    export BUNK_TEST_SYSIMAGE="$PROJECT_ROOT/src/julia/build/test_sysimage.so"
-    exec julia --sysimage="$BUNK_TEST_SYSIMAGE" --project="$JULIA_PROJECT" "$@"
-  '');
-
-  lunkBuildSysimage = pkgs.writeShellScriptBin "build-sysimage" (withProjectRoot ''
-    unset JULIA_PROJECT JULIA_LOAD_PATH
-    exec julia --project="$PROJECT_ROOT/src/julia/scripts" \
-      "$PROJECT_ROOT/src/julia/scripts/build_sysimage.jl" \
-      "$PROJECT_ROOT/src/julia/build/dev_sysimage.so"
-  '');
-
-  lunkBuildTestSysimage = pkgs.writeShellScriptBin "build-test-sysimage" (withProjectRoot ''
-    unset JULIA_PROJECT JULIA_LOAD_PATH
-    exec julia --project="$PROJECT_ROOT/src/julia/scripts" \
-      "$PROJECT_ROOT/src/julia/scripts/build_test_sysimage.jl" \
-      "$PROJECT_ROOT/src/julia/build/test_sysimage.so"
-  '');
-
-  lunkJuliaCtags = pkgs.writeShellScriptBin "julia-ctags" (withProjectRoot ''
+  lunkJuliaCtags = pkgs.writeShellScriptBin "julia-ctags" ''
     exec ctags -R \
       --languages=Julia \
       --output-format=etags \
-      -f "$PROJECT_ROOT/src/julia/TAGS" \
-      "$PROJECT_ROOT/src/julia/src" \
-      "$PROJECT_ROOT/src/julia/test" \
-      "$PROJECT_ROOT/src/julia/scripts"
-  '');
-
-  bunk = pkgs.writeShellScriptBin "bunk" ''
-    exec python -m bunkalunk.bunk "$@"
+      -f "$PWD/src/julia/TAGS" \
+      "$PWD/src/julia/src" \
+      "$PWD/src/julia/test" \
+      "$PWD/src/julia/scripts"
   '';
-
-  lunk = pkgs.writeShellScriptBin "lunk" (withProjectRoot ''
-    exec julia-test $PROJECT_ROOT/src/julia/src/cli.jl "$@"
-  '');
-  
 in
 pkgs.mkShell {
   buildInputs = [
-    pythonEnv
+    bunkalunk.pythonDevEnv
     lunkJuliaDev
-    lunkJuliaTest
-    lunkBuildSysimage
-    lunkBuildTestSysimage
     lunkJuliaCtags
-
-    bunk
-    lunk
+    bunkalunk.lunkJuliaTest
+    bunkalunk.lunkBuildTestSysimage
+    bunkalunk.bunkAndLunk
   ]
   ++ (with pkgs;
     [
@@ -97,7 +44,7 @@ pkgs.mkShell {
 
   # Setup pythonpath and db root in a shell hook
   shellHook = ''
-    export PYTHON=${pythonEnv}/bin/python  # Allows Julia to see shell's python
+    export PYTHON=${bunkalunk.pythonEnv}/bin/python  # Allows Julia to see shell's python
     export PYTHONPATH=''${PYTHONPATH}:''${PWD}/src/python
     export MYPYPATH=''${PYTHONPATH}/typings
     export JULIA_PROJECT=''${PWD}/src/julia
