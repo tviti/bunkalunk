@@ -49,7 +49,9 @@ from bunkalunk.db import (
     SourceFile,
     create_connection,
     drop_source_file,
+    drop_activity,
     get_source_file,
+    list_source_files_by_content_fingerprint,
     list_source_files_by_decode_state,
     list_source_files_stale_cache,
     record_cache_creation,
@@ -222,8 +224,8 @@ class AddCommand(Command):
     def _record_decode_write_success(
         self, conn, source_file, cache_data, content_fingerprint
     ):
-        upsert_source_file(conn, source_file)
         record_cache_creation(conn, cache_data, content_fingerprint)
+        upsert_source_file(conn, source_file)
         record_decode_outcome(conn, source_file.source_path, state=DecodeState.SUCCESS)
 
     def _add_file(self, conn, source_path, logger, ctx):
@@ -391,13 +393,6 @@ class DecodeCommand(Command):
                         fingerprint = compute_fingerprint(f)
                         fit_data = read_fit(f, logger=logger)
 
-                    if fingerprint != source_file.content_fingerprint:
-                        logger.warning(
-                            "Source file fingerprint has drifted; updating fingerprint"
-                        )
-                        record_source_file_fingerprint(conn, source_path, fingerprint)
-                        conn.commit()
-
                     cache_data = fit_to_cache(fit_data)
                     cache_path = resolve_cache_path(
                         fingerprint,
@@ -409,6 +404,20 @@ class DecodeCommand(Command):
                         cache_data,
                         fingerprint,
                     )
+
+                    if fingerprint != source_file.content_fingerprint:
+                        logger.warning(
+                            "Source file fingerprint has drifted; updating fingerprint"
+                        )
+                        record_source_file_fingerprint(conn, source_path, fingerprint)
+                        # Check for other source_files rows pointing at this
+                        # activity, we can't safely drop it if it's still referenced
+                        other_refs = list_source_files_by_content_fingerprint(
+                            conn, source_file.content_fingerprint
+                        )
+                        if len(other_refs) == 0:
+                            drop_activity(conn, source_file.content_fingerprint)
+
                     conn.commit()
                 except UnsupportedFITFileType:
                     logger.exception(f"File '{source_path}' has an unsupported type.")
@@ -488,7 +497,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             exit_code = handler.execute_command(args.command, args, ctx)
             return exit_code
-        except KeyError as e:
+        except (KeyError, RuntimeError) as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
     else:

@@ -1,4 +1,4 @@
-from sqlite3 import Row
+from sqlite3 import Row, connect
 
 import pytest
 from bunkalunk import cache
@@ -17,6 +17,7 @@ from bunkalunk.db import (
     record_source_file_fingerprint,
     upsert_source_file,
 )
+from helpers import upsert_dummy_activity
 
 
 @pytest.fixture(scope="function")
@@ -74,6 +75,7 @@ def test_upsert_source_file_roundtrip(db_conn):
         decode_error="last-decode-error",
     )
 
+    upsert_dummy_activity(db_conn, source_file.content_fingerprint)
     upsert_source_file(db_conn, source_file)
     db_conn.commit()
 
@@ -93,6 +95,7 @@ def test_upsert_source_file_idempotent(db_conn):
         decode_error="last-decode-error",
     )
 
+    upsert_dummy_activity(db_conn, source_file.content_fingerprint)
     upsert_source_file(db_conn, source_file)
     upsert_source_file(db_conn, source_file)
     db_conn.commit()
@@ -115,11 +118,13 @@ def test_upsert_source_file_update(db_conn):
         decode_error="last-decode-error",
     )
 
+    upsert_dummy_activity(db_conn, source_file.content_fingerprint)
     upsert_source_file(db_conn, source_file)
     source_file.content_fingerprint = "new-fingerprint"
     source_file.decode_state = "error"
     source_file.content_fingerprint = "new-fingerprint"
     source_file.decode_error = "new-error"
+    upsert_dummy_activity(db_conn, source_file.content_fingerprint)
     upsert_source_file(db_conn, source_file)
     db_conn.commit()
 
@@ -151,6 +156,7 @@ def test_record_decode_outcome(db_conn):
         decode_error="last-decode-error",
     )
 
+    upsert_dummy_activity(db_conn, source_file.content_fingerprint)
     upsert_source_file(db_conn, source_file)
     record_decode_outcome(db_conn, "ride.fit", state=state)
     db_conn.commit()
@@ -169,6 +175,7 @@ def dummy_source_files_table(db_conn):
         decode_state=DecodeState.SUCCESS,
         decode_error="an-error-code",
     )
+    upsert_dummy_activity(db_conn, "fingerprint123")
     upsert_source_file(db_conn, source_file)
     db_conn.commit()
     return db_conn
@@ -180,12 +187,24 @@ def test_create_connection_sets_user_version(monkeypatch):
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 9999
 
 
+def test_create_connection_raises_on_user_version_mismatch(monkeypatch, tmp_path):
+    from bunkalunk.db import BUNK_SCHEMA_VERSION
+
+    db_path = tmp_path / "db.sqlite3"
+    conn = connect(db_path)
+    conn.execute(f"PRAGMA user_version = {BUNK_SCHEMA_VERSION + 1}")
+    conn.close()
+    with pytest.raises(RuntimeError, match="mismatch"):
+        create_connection(db_path)
+
+
 def test_record_source_file_fingerprint_updates_fingerprint(
     db_conn, dummy_source_files_table
 ):
     source_path = "a/fit/file.fit"
     source_file = get_source_file(db_conn, source_path)
     assert "fingerprint123" == source_file.content_fingerprint
+    upsert_dummy_activity(db_conn, "new-fingerprint")
     record_source_file_fingerprint(db_conn, source_path, "new-fingerprint")
     source_file = get_source_file(db_conn, source_path)
     assert "new-fingerprint" == source_file.content_fingerprint
@@ -272,6 +291,7 @@ def source_file_with_cache_version_factory(db_conn):
             decode_state=DecodeState.SUCCESS,
             decode_error=None,
         )
+        upsert_dummy_activity(db_conn, source_file.content_fingerprint)
         upsert_source_file(db_conn, source_file)
 
         cursor = db_conn.cursor()

@@ -16,7 +16,7 @@ rate, cadence, power, temperature). Extension payloads live in an auxiliary lane
 outside the canonical schema."""
 
 
-BUNK_SCHEMA_VERSION = 2
+BUNK_SCHEMA_VERSION = 3
 
 
 class DecodeState(StrEnum):
@@ -58,7 +58,8 @@ def _create_source_files_table(conn: Connection):
                 source_path TEXT PRIMARY KEY,
                 content_fingerprint TEXT NOT NULL,
                 decode_state TEXT,
-                decode_error TEXT
+                decode_error TEXT,
+                FOREIGN KEY(content_fingerprint) REFERENCES activities(source_fingerprint)
             )
         """)
     finally:
@@ -88,9 +89,19 @@ def _create_activities_table(conn: Connection):
 
 def create_connection(db_path: Path | str) -> Connection:
     conn = connect(db_path)
-    _set_user_version(conn, BUNK_SCHEMA_VERSION)
-    _create_source_files_table(conn)
+
+    user_version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if user_version == 0:
+        _set_user_version(conn, BUNK_SCHEMA_VERSION)
+    elif user_version != BUNK_SCHEMA_VERSION:
+        raise RuntimeError(
+            "Database user_version mismatch: expected "
+            f"{BUNK_SCHEMA_VERSION}, got {user_version}; rebuild the db and cache"
+        )
+
+    conn.execute("PRAGMA foreign_keys = ON")
     _create_activities_table(conn)
+    _create_source_files_table(conn)
     conn.row_factory = Row
     return conn
 
@@ -206,6 +217,22 @@ def get_source_file(conn: Connection, source_path: str) -> SourceFile | None:
     )
 
 
+def list_source_files_by_content_fingerprint(
+    conn: Connection, content_fingerprint: str
+) -> list[SourceFile]:
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT * FROM source_files WHERE content_fingerprint = ?",
+            (content_fingerprint,),
+        )
+        rows: list[Row] = cursor.fetchall()
+    finally:
+        cursor.close()
+
+    return [SourceFile(**row) for row in rows]
+
+
 def list_source_files_by_decode_state(
     conn: Connection, state: DecodeState
 ) -> list[SourceFile]:
@@ -289,6 +316,16 @@ def _upsert_activity(conn: Connection, activity: Activity) -> None:
                 cache_version=excluded.cache_version
         """,
             row,
+        )
+    finally:
+        cursor.close()
+
+
+def drop_activity(conn: Connection, source_fingerprint: str) -> None:
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "DELETE FROM activities WHERE source_fingerprint = ?", (source_fingerprint,)
         )
     finally:
         cursor.close()

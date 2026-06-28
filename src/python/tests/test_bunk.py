@@ -4,6 +4,7 @@ tests instead of unit tests of the Command class implementations.
 """
 
 import os
+import shutil
 from sqlite3 import connect, Row
 
 import h5py
@@ -23,8 +24,23 @@ from bunkalunk.db import (
     upsert_source_file,
 )
 from bunkalunk.formats.fit import UnsupportedFITFileType
-from helpers import has_source_file
+from helpers import has_source_file, upsert_dummy_activity
 from test_db import _fetch_activities_by_fingerprint
+
+
+def change_fingerprint_inplace(file_path):
+    """Duplicate file data in-place to simulate fingerprint drift.
+
+    Note that if this is used on FIT files, the current FIT decoder
+    implementation will return an identical FitData object for the file, since
+    it stops processing at the first encountered file boundary.
+
+    """
+    file_bytes = file_path.read_bytes()
+    file_path.write_bytes(file_bytes + file_bytes)
+    with open(file_path, "rb") as f:
+        new_fingerprint = compute_fingerprint(f)
+    return new_fingerprint
 
 
 @pytest.fixture(scope="function")
@@ -35,7 +51,7 @@ def tmp_db_path(tmp_path):
     return db_path
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(autouse=True)
 def patched_home(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path.resolve()))
     monkeypatch.setenv("BUNK_HOME", str(tmp_path.resolve() / ".bunk"))
@@ -80,6 +96,7 @@ def seed_source_files_with_decode_state(db_path, fit_path, state):
         decode_error=None,
     )
     with create_connection(db_path) as conn:
+        upsert_dummy_activity(conn, source_file.content_fingerprint)
         upsert_source_file(conn, source_file)
     return db_path
 
@@ -100,8 +117,8 @@ def registered_source_files_and_activities(
         sport="basket-weaving",
     )
     with create_connection(tmp_db_path) as conn:
-        upsert_source_file(conn, source_file)
         _upsert_activity(conn, activity)
+        upsert_source_file(conn, source_file)
     return tmp_db_path
 
 
@@ -126,8 +143,8 @@ def registered_source_files_and_activities_with_pinned_cache_version(
         sport="basket-weaving",
     )
     with create_connection(tmp_db_path) as conn:
-        upsert_source_file(conn, source_file)
         _upsert_activity(conn, activity)
+        upsert_source_file(conn, source_file)
     return tmp_db_path
 
 
@@ -147,6 +164,7 @@ def registered_source_files_with_activity_table(
     )
 
     with create_connection(tmp_db_path) as conn:
+        upsert_dummy_activity(conn, content_fingerprint)
         upsert_source_file(conn, source_file)
         activity = Activity(
             start_time=1767263400.0,
@@ -428,6 +446,7 @@ class TestDecodeCommand:
             decode_error=None,
         )
         with create_connection(tmp_db_path) as conn:
+            upsert_dummy_activity(conn, content_fingerprint)
             upsert_source_file(conn, fake_source_file)
         main(["add", str(fit_path)])
         assert 0 == main(["decode", str(fit_path)])
@@ -439,14 +458,72 @@ class TestDecodeCommand:
         """bunk decode <path> should return non-zero for unregistered path."""
         assert 1 == main(["decode", "not/in/source_files"])
 
-    @pytest.mark.skip(
-        "P1: cover decode failure after fingerprint drift updates source_files."
-    )
-    def test_decode_fingerprint_drift_failure_keeps_activities_consistent(
-        self, monkeypatch, tmp_path, fit_path
+    def test_decode_fingerprint_drift_drops_old_row(
+        self, tmp_db_path, fit_path, fit_path_fingerprint
     ):
         """bunk decode should not strand activities rows after fingerprint drift."""
-        pass
+        assert main(["add", str(fit_path)]) == 0
+        # Concatenate the file with itself to spoof a fingerprint change
+        new_fingerprint = change_fingerprint_inplace(fit_path)
+        assert main(["decode", str(fit_path)]) == 0
+        with create_connection(tmp_db_path) as conn:
+            assert _fetch_activities_by_fingerprint(conn, fit_path_fingerprint) == []
+            activities = _fetch_activities_by_fingerprint(conn, new_fingerprint)
+            assert len(activities) == 1
+            assert activities[0]["source_fingerprint"] == new_fingerprint
+            result = conn.execute(
+                "SELECT * FROM source_files WHERE content_fingerprint = ?",
+                (new_fingerprint,),
+            )
+            rows = result.fetchall()
+            assert len(rows) == 1
+            assert rows[0]["content_fingerprint"] == new_fingerprint
+
+    def test_decode_fingerprint_drift_leaves_old_row_when_still_referenced(
+        self, tmp_path, tmp_db_path, fit_path, fit_path_fingerprint
+    ):
+        assert main(["add", str(fit_path)]) == 0
+        alias_path = tmp_path / "alias.fit"
+        shutil.copy(fit_path, alias_path)
+        assert main(["add", str(alias_path)]) == 0
+        # Verify only one cache entry was made
+        with create_connection(tmp_db_path) as conn:
+            results = conn.execute("SELECT * FROM activities")
+            activities = results.fetchall()
+            assert len(activities) == 1
+            assert activities[0]["source_fingerprint"] == fit_path_fingerprint
+        # Concatenate the file with itself to spoof a fingerprint change
+        new_fingerprint = change_fingerprint_inplace(fit_path)
+        assert main(["decode", str(fit_path)]) == 0
+        with create_connection(tmp_db_path) as conn:
+            results = conn.execute("SELECT * FROM activities")
+            activities = results.fetchall()
+            assert len(activities) == 2
+            fingerprints = [a["source_fingerprint"] for a in activities]
+            assert fit_path_fingerprint in fingerprints
+            assert new_fingerprint in fingerprints
+
+    def test_decode_fingerprint_drift_read_failure_leaves_old_activities_row(
+        self, tmp_db_path, monkeypatch, tmp_path, fit_path, fit_path_fingerprint
+    ):
+        assert main(["add", str(fit_path)]) == 0
+        # Concatenate the file with itself to spoof a fingerprint change
+        new_fingerprint = change_fingerprint_inplace(fit_path)
+        patch_read_fit_failure(monkeypatch, fit_path)
+        assert main(["decode", str(fit_path)]) == 1
+        with create_connection(tmp_db_path) as conn:
+            activities = _fetch_activities_by_fingerprint(conn, fit_path_fingerprint)
+            assert len(activities) == 1
+            assert activities[0]["source_fingerprint"] == fit_path_fingerprint
+            result = conn.execute("SELECT * FROM source_files")
+            rows = result.fetchall()
+            assert len(rows) == 1
+            source_file = SourceFile(**rows[0])
+            assert source_file.content_fingerprint == fit_path_fingerprint
+            assert source_file.decode_state == DecodeState.ERROR
+            assert source_file.decode_error == "mock_read_fit threw an error!"
+            # New fingerprint doesn't exist
+            assert _fetch_activities_by_fingerprint(conn, new_fingerprint) == []
 
     def test_decode_failure_records_error(
         self, patched_home, monkeypatch, fit_path, tmp_db_conn

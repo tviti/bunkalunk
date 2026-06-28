@@ -1,4 +1,16 @@
-from bunkalunk.db import Connection
+from bunkalunk.db import Connection, Activity, _upsert_activity
+
+
+def upsert_dummy_activity(db_conn, fingerprint):
+    """Add row with dummy start_time and no on-disk counterpart.
+
+    Use in tests that exercise the FK constraint but don't utilise a cache
+    entry.
+
+    """
+    activity = Activity(99.999, fingerprint)
+    _upsert_activity(db_conn, activity)
+    return activity
 
 
 def has_source_file(conn: Connection, source_path: str) -> bool:

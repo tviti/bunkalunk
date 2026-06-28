@@ -1,6 +1,8 @@
 from pathlib import Path
 import pytest
 
+from helpers import upsert_dummy_activity
+
 from bunkalunk.bunk_helpers import validate_path_registration, compute_fingerprint
 from bunkalunk.db import SourceFile, DecodeState, upsert_source_file
 
@@ -18,6 +20,8 @@ def registered_source_files_table(db_conn, tmp_path, fake_fit_path):
         decode_state=DecodeState.PENDING,
         decode_error=None,
     )
+
+    upsert_dummy_activity(db_conn, source_file.content_fingerprint)
     upsert_source_file(db_conn, source_file)
     db_conn.commit()
     return source_file
@@ -34,6 +38,7 @@ def source_files_table_bad_fingerprint(db_conn, tmp_path, fake_fit_path):
         decode_state=DecodeState.PENDING,
         decode_error=None,
     )
+    upsert_dummy_activity(db_conn, source_file.content_fingerprint)
     upsert_source_file(db_conn, source_file)
     db_conn.commit()
     return source_file

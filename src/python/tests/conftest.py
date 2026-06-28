@@ -1,9 +1,9 @@
 from pathlib import Path
 
 import pytest
+import shutil
 from bunkalunk.bunk_helpers import compute_fingerprint
-from bunkalunk.db import DecodeState, SourceFile, create_connection, upsert_source_file
-from sqlite3 import connect, Row
+from bunkalunk.db import create_connection
 
 
 _FIT_DIR = Path(__file__).parent / "fits"
@@ -17,8 +17,11 @@ def fake_fit_path(tmp_path):
 
 
 @pytest.fixture
-def fit_path():
-    return _FIT_DIR / "12759714943_ACTIVITY.fit"
+def fit_path(tmp_path):
+    filename = "12759714943_ACTIVITY.fit"
+    fit_path = tmp_path / filename
+    shutil.copy(_FIT_DIR / filename, fit_path)
+    return fit_path
 
 
 @pytest.fixture
