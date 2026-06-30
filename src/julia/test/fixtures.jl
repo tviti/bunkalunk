@@ -44,6 +44,34 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         )
     end
 
+    function create_bunk_tables!(
+            conn::SQLite.DB; user_version = Lunk.bunk_schema_version()
+        )::Nothing
+        DBInterface.execute(conn, "PRAGMA user_version = $user_version")
+        DBInterface.execute(
+            conn, """
+            CREATE TABLE IF NOT EXISTS source_files (
+                source_path TEXT PRIMARY KEY,
+                content_fingerprint TEXT NOT NULL,
+                decode_state TEXT,
+                decode_error TEXT
+            )
+            """
+        )
+        create_activities_table!(conn)
+        return
+    end
+
+    function with_tmp_bunk_db!(f::Function)
+        return mktempdir() do dir
+            db_path = joinpath(dir, "tmp.sqlite3")
+            conn = SQLite.DB(db_path)
+            create_bunk_tables!(conn)
+            close(conn)
+            f(dir, db_path)
+        end
+    end
+
     function create_activities_table!(conn::SQLite.DB)::Nothing
         DBInterface.execute(
             conn,
@@ -172,10 +200,21 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         )
     end
 
+    """
+    Create a testing `Context` object that points to a DB that has been seeded
+    with `bunk` tables and the right schema version.
+    """
     function make_context(dir::String; io::IO = IOBuffer())
         db_path = dir * "/db.sqlite3"
         activity_store_path = dir
         verbose = false
+
+        user_version = Lunk.bunk_schema_version()
+        conn = SQLite.DB(db_path)
+        create_bunk_tables!(conn)
+        DBInterface.execute(conn, "PRAGMA user_version = $user_version")
+        close(conn)
+
         return Lunk.Context(db_path, activity_store_path, verbose, io)
     end
 

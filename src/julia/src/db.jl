@@ -1,8 +1,43 @@
 using SQLite
 using Dates
 
-function create_connection!(db_path::String)::SQLite.DB
-    db = SQLite.DB(db_path)
+function bunk_schema_version()::Int
+    return 3
+end
+
+function fetch_user_version(conn::SQLite.DB)::Int
+    result = DBInterface.execute(conn, "PRAGMA user_version;")
+    data = only(NamedTuple(r) for r in result)
+    return data[:user_version]
+end
+
+struct UninitializedDatabaseError <: Exception
+    message::String
+end
+
+struct SchemaVersionMismatchError <: Exception
+    message::String
+end
+
+function assert_schema_valid(db::SQLite.DB)::Nothing
+    user_version = fetch_user_version(db)
+    user_version == 0 && throw(
+        UninitializedDatabaseError(
+            "Got user_version = 0, have you run `bunk` yet?"
+        )
+    )
+
+    expected_user_version = bunk_schema_version()
+    user_version != bunk_schema_version() && throw(
+        SchemaVersionMismatchError(
+            "Encountered unexpected user_version, got $user_version, " *
+                "expected $expected_user_version"
+        )
+    )
+    return
+end
+
+function create_lunk_tables!(db::SQLite.DB)::Nothing
     DBInterface.execute(
         db,
         """
@@ -27,6 +62,13 @@ function create_connection!(db_path::String)::SQLite.DB
         );
         """
     )
+    return
+end
+
+function create_connection!(db_path::String)::SQLite.DB
+    db = SQLite.DB(db_path)
+    assert_schema_valid(db)
+    create_lunk_tables!(db)
     return db
 end
 

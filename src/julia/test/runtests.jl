@@ -1,4 +1,5 @@
 include("fixtures.jl")
+include("test_integration.jl")
 include("test_cache.jl")
 include("test_geo.jl")
 include("test_db.jl")

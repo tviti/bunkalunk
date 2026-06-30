@@ -591,15 +591,17 @@ end
     @testset "Handles empty match_results with debug logging enabled" begin
         logger = TestLogger(min_level = Logging.Debug, catch_exceptions = false)
 
-        create_connection!(":memory:") do conn
-            with_logger(logger) do
-                result = Lunk.segment_match_transaction!(
-                    conn,
-                    1,
-                    MatchResult[],
-                    nothing,
-                )
-                @test result === nothing
+        with_tmp_bunk_db!() do dir, db_path
+            create_connection!(db_path) do conn
+                with_logger(logger) do
+                    result = Lunk.segment_match_transaction!(
+                        conn,
+                        1,
+                        MatchResult[],
+                        nothing,
+                    )
+                    @test result === nothing
+                end
             end
         end
     end
