@@ -38,6 +38,15 @@ function reset_precompile_state!()::Nothing
     isfile(db_path) && rm(db_path; force = true)
     isdir(PRECOMPILE_ACTIVITY_STORE) && rm(PRECOMPILE_ACTIVITY_STORE; recursive = true, force = true)
     mkpath(PRECOMPILE_ACTIVITY_STORE)
+
+    cmd = `python -c "from bunkalunk import db; conn = db.create_connection('$db_path'); conn.close()"`
+    process = run(cmd)
+    process.exitcode == 0 || throw(
+        Error(
+            "Got exit code $process.exitcode while trying to initialize bunk db"
+        )
+    )
+
     return nothing
 end
 
