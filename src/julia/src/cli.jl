@@ -183,7 +183,7 @@ function add_activities_argtable!(settings::ArgParseSettings)::Nothing
     return
 end
 
-function parse_commandline()
+function parse_commandline(argv::Vector{String})
 
     description = """Lunk: the bunkalunk leaderboard application.
     """
@@ -197,7 +197,7 @@ function parse_commandline()
     add_segment_argtable!(settings)
     add_activities_argtable!(settings)
 
-    return parse_args(settings)
+    return parse_args(argv, settings)
 end
 
 function run_command(
@@ -685,8 +685,8 @@ const ACTIVITY_SUBCOMMANDS = Dict{String, Function}(
     "export" => run_activity_export,
 )
 
-function main()
-    args = parse_commandline()
+function main(argv::Vector{String} = ARGS)
+    args = parse_commandline(argv)
 
     if get(args, "debug", false)
         global_logger(ConsoleLogger(stderr, Logging.Debug))

@@ -39,7 +39,7 @@ let
     export PYTHONPATH=${project_root}/src/python:''${PYTHONPATH}
     mkdir -p ${project_root}/src/julia/build
     exec julia --project=${project_root}/src/julia/scripts \
-      ${project_root}/src/julia/scripts/build_test_sysimage.jl \
+      ${project_root}/src/julia/scripts/test_sysimage/build_test_sysimage.jl \
       ${project_root}/src/julia/build/test_sysimage.so
   '';
 in

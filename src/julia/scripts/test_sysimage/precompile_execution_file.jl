@@ -8,27 +8,12 @@ Base.exit(::Integer) = nothing
 Base.exit() = nothing
 
 using Lunk
-include(joinpath(@__DIR__, "..", "test", "fixtures.jl"))
+include(joinpath(@__DIR__, "..", "..", "test", "fixtures.jl"))
 
-const PRECOMPILE_CTX = Lunk.Context(
-    joinpath(PRECOMPILE_BUNK_HOME, "db.sqlite3"),
-    PRECOMPILE_ACTIVITY_STORE,
-    false
-)
-
-function fire_lunk(args::Vector{String}, ctx::Lunk.Context)::Nothing
-    original_args = copy(ARGS)
+function fire_lunk(args::Vector{String})::Nothing
     try
-        empty!(ARGS)
-        append!(ARGS, args)
-        try
-            parsed = Lunk.parse_commandline()
-            Lunk.run_command(parsed, ctx)
-        catch
-        end
-    finally
-        empty!(ARGS)
-        append!(ARGS, original_args)
+        Lunk.main(args)
+    catch
     end
     return nothing
 end
@@ -65,6 +50,23 @@ function write_minimal_osm(path::String; name::String = "segment")::Nothing
         </osm>
     """
     write(path, xml)
+    return nothing
+end
+
+function write_minimal_geojson(path::String; name::String = "segment-json")::Nothing
+    json = """
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [[0.0, 0.0], [0.0, 0.0001], [0.0, 0.0002]]
+            },
+            "properties": {
+                "name": "$name"
+            }
+        }
+    """
+    write(path, json)
     return nothing
 end
 
@@ -105,11 +107,11 @@ end
 
 # Empty-state branches.
 reset_precompile_state!()
-fire_lunk(["segment", "list"], PRECOMPILE_CTX)
-fire_lunk(["segment", "show", "missing-segment"], PRECOMPILE_CTX)
-fire_lunk(["segment", "remove", "missing-segment"], PRECOMPILE_CTX)
-fire_lunk(["segment", "match", "missing-segment"], PRECOMPILE_CTX)
-fire_lunk(["activity", "export", "--output", joinpath(PRECOMPILE_BUNK_HOME, "missing.csv"), "99"], PRECOMPILE_CTX)
+fire_lunk(["segment", "list"])
+fire_lunk(["segment", "show", "missing-segment"])
+fire_lunk(["segment", "remove", "missing-segment"])
+fire_lunk(["segment", "match", "missing-segment"])
+fire_lunk(["activity", "export", "--output", joinpath(PRECOMPILE_BUNK_HOME, "missing.csv"), "99"])
 
 # Segment registration, collision handling, and the populated list branch.
 reset_precompile_state!()
@@ -122,11 +124,11 @@ write(
     "<osm><way id=\"1\" visible=\"true\"><nd ref=\"1\" /><tag k=\"name\" v=\"segment\" /></way></osm>"
 )
 write_minimal_osm(collision_segment_path; name = "segment-alt")
-fire_lunk(["segment", "register", "segment", segment_path], PRECOMPILE_CTX)
-fire_lunk(["segment", "list"], PRECOMPILE_CTX)
-fire_lunk(["segment", "register", "segment", bad_segment_path], PRECOMPILE_CTX)
-fire_lunk(["segment", "register", "segment", collision_segment_path], PRECOMPILE_CTX)
-fire_lunk(["segment", "register", "--force", "segment", collision_segment_path], PRECOMPILE_CTX)
+fire_lunk(["segment", "register", "segment", segment_path])
+fire_lunk(["segment", "list"])
+fire_lunk(["segment", "register", "segment", bad_segment_path])
+fire_lunk(["segment", "register", "segment", collision_segment_path])
+fire_lunk(["segment", "register", "--force", "segment", collision_segment_path])
 
 # Matching, export, show, and removal against a real activity/cache pair.
 create_connection!(joinpath(PRECOMPILE_BUNK_HOME, "db.sqlite3")) do conn
@@ -137,9 +139,26 @@ match_export_path = joinpath(PRECOMPILE_BUNK_HOME, "segment-match.csv")
 bad_match_export_path = joinpath(PRECOMPILE_BUNK_HOME, "segment-match.txt")
 activity_export_path = joinpath(PRECOMPILE_BUNK_HOME, "activity.csv")
 
-fire_lunk(["segment", "match", "segment"], PRECOMPILE_CTX)
-fire_lunk(["segment", "match", "segment", "--export", bad_match_export_path], PRECOMPILE_CTX)
-fire_lunk(["segment", "match", "segment", "--export", match_export_path], PRECOMPILE_CTX)
-fire_lunk(["segment", "show", "segment", "--top", "1"], PRECOMPILE_CTX)
-fire_lunk(["activity", "export", "--output", activity_export_path, "1"], PRECOMPILE_CTX)
-fire_lunk(["segment", "remove", "segment"], PRECOMPILE_CTX)
+fire_lunk(["segment", "match", "segment"])
+fire_lunk(["segment", "match", "segment", "--export", bad_match_export_path])
+fire_lunk(["segment", "match", "segment", "--export", match_export_path])
+fire_lunk(["segment", "show", "segment", "--top", "1"])
+fire_lunk(["activity", "export", "--output", activity_export_path, "1"])
+fire_lunk(["segment", "remove", "segment"])
+
+# JSON segment-file registration and matching.
+reset_precompile_state!()
+geojson_segment_path = joinpath(PRECOMPILE_BUNK_HOME, "segment.geojson")
+write_minimal_geojson(geojson_segment_path)
+fire_lunk(["segment", "register", "segment-json", geojson_segment_path])
+create_connection!(joinpath(PRECOMPILE_BUNK_HOME, "db.sqlite3")) do conn
+    make_matching_cache_file!(conn, PRECOMPILE_ACTIVITY_STORE)
+end
+fire_lunk(["segment", "match", "segment-json"])
+
+reset_precompile_state!()
+fire_lunk(["--help"])
+fire_lunk(["segment", "--help"])
+fire_lunk(["segment", "match", "--help"])
+fire_lunk(["activity", "--help"])
+fire_lunk(["activity", "export", "--help"])

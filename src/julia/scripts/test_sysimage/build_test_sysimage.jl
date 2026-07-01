@@ -3,10 +3,9 @@ using Pkg
 using SHA
 using TOML
 
-const SCRIPT_DIR = abspath(@__DIR__)
-const TEST_PROJECT = joinpath(SCRIPT_DIR, "test_sysimage")
+const TEST_PROJECT = abspath(@__DIR__)
 const SYSIMAGE_PATH = isempty(ARGS) ? error("usage: build_test_sysimage.jl <output-path>") : abspath(ARGS[1])
-const PRECOMPILE_FILE = joinpath(SCRIPT_DIR, "precompile_execution_file.jl")
+const PRECOMPILE_FILE = joinpath(TEST_PROJECT, "precompile_execution_file.jl")
 const TEST_PROJECT_TOML = joinpath(TEST_PROJECT, "Project.toml")
 const TEST_MANIFEST_TOML = joinpath(TEST_PROJECT, "Manifest.toml")
 const HASH_PATH = SYSIMAGE_PATH * ".sha256"
@@ -16,9 +15,13 @@ const SKIP = Set(["PackageCompiler", "TOML"])
 
 mkpath(dirname(SYSIMAGE_PATH))
 
-let current_hash = bytes2hex(sha256(vcat(
-    read(TEST_PROJECT_TOML), read(TEST_MANIFEST_TOML), read(PRECOMPILE_FILE),
-)))
+let current_hash = bytes2hex(
+        sha256(
+            vcat(
+                read(TEST_PROJECT_TOML), read(TEST_MANIFEST_TOML), read(PRECOMPILE_FILE),
+            )
+        )
+    )
     if isfile(HASH_PATH)
         stored_hash = strip(read(HASH_PATH, String))
         if stored_hash == current_hash
