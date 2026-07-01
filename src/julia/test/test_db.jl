@@ -346,15 +346,17 @@ end
     @testset "Happy path" begin
         with_tmp_bunk_db!() do dir, db_path
             create_connection!(db_path) do db
-                insert_segment_effort!(db, 1, 10, 123.456, 13, 123456)
+                insert_dummy_activity!(db, "fingerprint")
+                seed_segments_table!(db)
+                insert_segment_effort!(db, 1, 3, 123.456, 13, 123456)
                 result = DBInterface.execute(
                     db,
                     "SELECT * FROM segment_efforts WHERE segment_id = ?",
-                    [10]
+                    [3]
                 )
                 segment_efforts_row = only(NamedTuple(r) for r in result)
                 @test segment_efforts_row[:activity_id] == 1
-                @test segment_efforts_row[:segment_id] == 10
+                @test segment_efforts_row[:segment_id] == 3
                 @test segment_efforts_row[:elapsed_time_s] == 123.456
                 @test segment_efforts_row[:matched_at] == 13
                 @test segment_efforts_row[:matcher_version] == 123456
@@ -365,15 +367,17 @@ end
     @testset "Repeating the same match should add a duplicate" begin
         with_tmp_bunk_db!() do dir, db_path
             create_connection!(db_path) do db
-                insert_segment_effort!(db, 1, 10, 123.456, 13, 123456)
-                insert_segment_effort!(db, 1, 10, 222.0, 14, 654321)
+                insert_dummy_activity!(db, "fingerprint")
+                seed_segments_table!(db)
+                insert_segment_effort!(db, 1, 3, 123.456, 13, 123456)
+                insert_segment_effort!(db, 1, 3, 222.0, 14, 654321)
                 result = DBInterface.execute(
                     db,
                     """
                         SELECT * FROM segment_efforts
                         WHERE activity_id = ? AND segment_id = ?
                     """,
-                    [1, 10]
+                    [1, 3]
                 )
                 results = [NamedTuple(r) for r in result]
                 @test length(results) == 2
@@ -543,8 +547,8 @@ end
                 rows = [NamedTuple(r) for r in result]
                 @test length(rows) == 3
                 @test rows[1][:activity_id] == 1
-                @test rows[2][:activity_id] == 100
-                @test rows[3][:activity_id] == 110
+                @test rows[2][:activity_id] == 3
+                @test rows[3][:activity_id] == 4
             end
         end
     end

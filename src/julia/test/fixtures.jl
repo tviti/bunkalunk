@@ -112,7 +112,25 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         return
     end
 
+    function insert_dummy_activity!(conn::SQLite.DB, fingerprint::String)::Nothing
+        insert_activity!(
+            conn, Dict(
+                :start_time => 99.999,
+                :source_fingerprint => fingerprint,
+                :ride_tag => nothing,
+                :sport => "cycling",
+                :cache_version => 123456
+            )
+        )
+        return
+    end
+
     function seed_segment_efforts_table!(db::SQLite.DB)::Nothing
+        insert_dummy_activity!(db, "fingerprint-1")
+        insert_dummy_activity!(db, "fingerprint-2")
+        insert_dummy_activity!(db, "fingerprint-3")
+        insert_dummy_activity!(db, "fingerprint-4")
+        seed_segments_table!(db)
         DBInterface.execute(
             db,
             """
@@ -124,8 +142,8 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
                 VALUES
                     (1, 3, 100.0, 1234, 20260607),
                     (2, 2, 101.1, 1235, 20260607),
-                    (100, 2, 102.2, 1236, 20260607),
-                    (110, 1, 103.3, 1237, 20260607);
+                    (3, 2, 102.2, 1236, 20260607),
+                    (4, 1, 103.3, 1237, 20260607);
             """
         )
         return

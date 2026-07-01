@@ -299,9 +299,18 @@ end
                     row[:segment_id]
                 end
                 create_connection!(ctx.db_path) do conn
+                    insert_dummy_activity!(conn, "fingerprint")
                     DBInterface.execute(
                         conn,
-                        "INSERT INTO segment_efforts (activity_id, segment_id, elapsed_time_s, matched_at, matcher_version) VALUES (1, ?, 100.0, 1234, 20260607)",
+                        """
+                        INSERT INTO segment_efforts (
+                            activity_id,
+                            segment_id,
+                            elapsed_time_s,
+                            matched_at, 
+                            matcher_version
+                        ) VALUES (1, ?, 100.0, 1234, 20260607)
+                        """,
                         [old_sid]
                     )
                 end
@@ -400,9 +409,18 @@ end
                 end
 
                 create_connection!(ctx.db_path) do conn
+                    insert_dummy_activity!(conn, "fingerprint")
                     DBInterface.execute(
                         conn,
-                        "INSERT INTO segment_efforts (activity_id, segment_id, elapsed_time_s, matched_at, matcher_version) VALUES (1, ?, 100.0, 1234, 20260607)",
+                        """
+                        INSERT INTO segment_efforts (
+                            activity_id,
+                            segment_id, 
+                            elapsed_time_s,
+                            matched_at,
+                            matcher_version
+                            ) VALUES (1, ?, 100.0, 1234, 20260607)
+                        """,
                         [old_sid]
                     )
                 end

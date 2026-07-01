@@ -2,7 +2,7 @@ using SQLite
 using Dates
 
 function bunk_schema_version()::Int
-    return 3
+    return 20260630
 end
 
 function fetch_user_version(conn::SQLite.DB)::Int
@@ -58,7 +58,9 @@ function create_lunk_tables!(db::SQLite.DB)::Nothing
             segment_id INTEGER NOT NULL,
             elapsed_time_s REAL NOT NULL,
             matched_at INTEGER NOT NULL,
-            matcher_version INTEGER NOT NULL
+            matcher_version INTEGER NOT NULL,
+            FOREIGN KEY(activity_id) REFERENCES activities(activity_id),
+            FOREIGN KEY(segment_id) REFERENCES segments(segment_id)
         );
         """
     )
@@ -68,6 +70,7 @@ end
 function create_connection!(db_path::String)::SQLite.DB
     db = SQLite.DB(db_path)
     assert_schema_valid(db)
+    DBInterface.execute(db, "PRAGMA foreign_keys = ON;")
     create_lunk_tables!(db)
     return db
 end

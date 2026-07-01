@@ -286,9 +286,9 @@ function segment_register_transaction(
             return 1
         end
 
+        remove_segment_efforts!(conn, segment_id)
         removed = remove_segment!(conn, segment_id)
         removed === nothing && error("Expected segment_id=$segment_id to exist")
-        remove_segment_efforts!(conn, segment_id)
         insert_segment!(conn, name, path, fingerprint)
         return 0
     end
