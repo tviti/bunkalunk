@@ -7,10 +7,43 @@ struct CacheData
     longitude::Vector{Float64}
     sport::Union{String, Nothing}
     heart_rate::Union{Vector{Float64}, Nothing}
+    elevation::Union{Vector{Float64}, Nothing}
+    distance::Union{Vector{Float64}, Nothing}
+    speed::Union{Vector{Float64}, Nothing}
 end
 
-CacheData(start_time, time, latitude, longitude; sport = nothing, heart_rate = nothing) =
-    CacheData(start_time, time, latitude, longitude, sport, heart_rate)
+const _CACHE_FIELDS_OPTIONAL = [
+    fname for (fname, ftype) in zip(fieldnames(CacheData), fieldtypes(CacheData))
+        if Nothing <: ftype
+]
+
+const _CACHE_FIELDS_OPTIONAL_SCALAR = [:sport]
+const _CACHE_FIELDS_OPTIONAL_VECTOR = setdiff(
+    _CACHE_FIELDS_OPTIONAL, _CACHE_FIELDS_OPTIONAL_SCALAR
+)
+
+CacheData(
+    start_time,
+    time,
+    latitude,
+    longitude
+    ;
+    sport = nothing,
+    heart_rate = nothing,
+    elevation = nothing,
+    distance = nothing,
+    speed = nothing
+) = CacheData(
+    start_time,
+    time,
+    latitude,
+    longitude,
+    sport,
+    heart_rate,
+    elevation,
+    distance,
+    speed
+)
 
 function _read_or_nothing(f::HDF5.File, name::String)
     return haskey(f, name) ? read(f, name) : nothing
@@ -27,9 +60,13 @@ function read_cache(file_path::String)::CacheData
             file_attrs["start_time"],
             read(file, "time"),
             read(file, "latitude"),
-            read(file, "longitude"),
+            read(file, "longitude")
+            ;
             sport = _read_or_nothing(file_attrs, "sport"),
-            heart_rate = _read_or_nothing(file, "heart_rate")
+            heart_rate = _read_or_nothing(file, "heart_rate"),
+            elevation = _read_or_nothing(file, "elevation"),
+            speed = _read_or_nothing(file, "speed"),
+            distance = _read_or_nothing(file, "distance")
         )
     end
 end
@@ -50,18 +87,21 @@ Only rows with both `latitude` and `longitude` present and non-`NaN` are kept.
 function drop_invalid_gps_points(cache::CacheData)::CacheData
     valid = @. !isnan(cache.latitude) & !isnan(cache.longitude)
 
-    if cache.heart_rate !== nothing
-        heart_rate = cache.heart_rate[valid]
-    else
-        heart_rate = nothing
+    vector_kwargs = Dict()
+    for field_name in _CACHE_FIELDS_OPTIONAL_VECTOR
+        field_value = getfield(cache, field_name)
+        if field_value !== nothing
+            vector_kwargs[field_name] = field_value[valid]
+        end
     end
 
     return CacheData(
         cache.start_time,
         cache.time[valid],
         cache.latitude[valid],
-        cache.longitude[valid],
+        cache.longitude[valid]
+        ;
         sport = cache.sport,
-        heart_rate = heart_rate
+        vector_kwargs...
     )
 end

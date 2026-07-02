@@ -66,17 +66,19 @@ cache_fields(c::CacheData) =
                 1.0,
                 [0.0, 0.1, 0.2],
                 [1.0, 1.1, 1.2],
-                [2.0, 2.1, 2.2],
-                "cycling",
-                [3.0, 3.1, 3.2]
+                [2.0, 2.1, 2.2]
+                ;
+                sport = "cycling",
+                heart_rate = [3.0, 3.1, 3.2]
             ),
                 expected = CacheData(
                 1.0,
                 [0.0, 0.1, 0.2],
                 [1.0, 1.1, 1.2],
-                [2.0, 2.1, 2.2],
-                "cycling",
-                [3.0, 3.1, 3.2]
+                [2.0, 2.1, 2.2]
+                ;
+                sport = "cycling",
+                heart_rate = [3.0, 3.1, 3.2]
             )
             @test cache_fields(drop_invalid_gps_points(cache)) == cache_fields(expected)
         end
@@ -87,17 +89,19 @@ cache_fields(c::CacheData) =
                 1.0,
                 [0.0, 0.1, 0.2],
                 [1.0, 1.1, 1.2],
-                [2.0, 2.1, 2.2],
-                "cycling",
-                nothing
+                [2.0, 2.1, 2.2]
+                ;
+                sport = "cycling",
+                heart_rate = nothing
             ),
                 expected = CacheData(
                 1.0,
                 [0.0, 0.1, 0.2],
                 [1.0, 1.1, 1.2],
-                [2.0, 2.1, 2.2],
-                "cycling",
-                nothing
+                [2.0, 2.1, 2.2]
+                ;
+                sport = "cycling",
+                heart_rate = nothing
             )
             @test cache_fields(drop_invalid_gps_points(cache)) == cache_fields(expected)
         end
@@ -109,16 +113,18 @@ cache_fields(c::CacheData) =
                 [0.0, 0.1, 0.2, 0.3, 0.4],
                 [1.0, NaN, 1.2, 1.3, NaN],
                 [2.0, 2.1, NaN, 2.3, 2.4],
-                "cycling",
-                [3.0, 3.1, 3.2, 3.3, 3.4]
+                ;
+                sport = "cycling",
+                heart_rate = [3.0, 3.1, 3.2, 3.3, 3.4]
             ),
                 expected = CacheData(
                 1.0,
                 [0.0, 0.3],
                 [1.0, 1.3],
-                [2.0, 2.3],
-                "cycling",
-                [3.0, 3.3]
+                [2.0, 2.3]
+                ;
+                sport = "cycling",
+                heart_rate = [3.0, 3.3]
             )
             @test cache_fields(drop_invalid_gps_points(cache)) == cache_fields(expected)
         end
