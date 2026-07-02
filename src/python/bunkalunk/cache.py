@@ -1,14 +1,14 @@
 """HDF5 Decode Artifact IO Module."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, MISSING
 from pathlib import Path
 from tempfile import mkstemp
 
 import h5py
 
 
-CACHE_VERSION = 20260606
+CACHE_VERSION = 20260701
 _SUFFIX = ".h5"
 
 
@@ -26,6 +26,18 @@ class CacheData:
     start_time: float
     sport: str | None = None
     heart_rate: list[float | None] | None = None
+    elevation: list[float | None] | None = None
+    distance: list[float | None] | None = None
+    speed: list[float | None] | None = None
+
+
+_CACHE_FIELDS_OPTIONAL_SCALAR = {"sport"}
+# Optional row-aligned fields
+_CACHE_FIELDS_OPTIONAL_VECTOR = {
+    f.name
+    for f in fields(CacheData)
+    if f.default is not MISSING or f.default_factory is not MISSING
+} - _CACHE_FIELDS_OPTIONAL_SCALAR
 
 
 def _write_cache_file(file_path: Path, data: CacheData) -> None:
@@ -58,13 +70,13 @@ def _write_cache_file(file_path: Path, data: CacheData) -> None:
         latitude[:] = data.latitude[:]
         longitude[:] = data.longitude[:]
 
-        # Optional fields
-        if data.heart_rate:
-            # TODO: Validate heart_rate length
-            heart_rate: h5py.Dataset = cache.create_dataset(
-                "heart_rate", shape=(n,), dtype="float64"
-            )
-            heart_rate[:] = data.heart_rate[:]
+        for field_name in _CACHE_FIELDS_OPTIONAL_VECTOR:
+            val = getattr(data, field_name, None)
+            if val is not None:
+                cache_var: h5py.Dataset = cache.create_dataset(
+                    field_name, shape=(n,), dtype="float64"
+                )
+                cache_var[:] = val[:]
 
 
 class CacheWriteFailure(Exception):

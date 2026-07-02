@@ -8,7 +8,7 @@ To narrow the project scope to something tractable, this module is targeted at A
 """
 
 import logging
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, MISSING
 from datetime import datetime
 from typing import BinaryIO
 
@@ -35,10 +35,17 @@ class FitData:
     position_long: list[float | None] = field(default_factory=list)
     position_lat: list[float | None] = field(default_factory=list)
     heart_rate: list[float | None] = field(default_factory=list)
+    enhanced_altitude: list[float | None] = field(default_factory=list)
+    enhanced_speed: list[float | None] = field(default_factory=list)
+    distance: list[float | None] = field(default_factory=list)
 
+
+_RECORD_FIELDS_ALL = {
+    f.name for f in fields(FitData) if f.default_factory is not MISSING
+}
 
 _RECORD_FIELDS_REQUIRED = {"timestamp"}
-_RECORD_FIELDS_OPTIONAL = {"position_long", "position_lat", "heart_rate"}
+_RECORD_FIELDS_OPTIONAL = _RECORD_FIELDS_ALL - _RECORD_FIELDS_REQUIRED
 
 
 class UnsupportedFITFileType(Exception):
@@ -106,19 +113,16 @@ def read_fit(fit_path: BinaryIO, *, logger: logging.Logger | None = None) -> Fit
 
             if _is_data(frame) and frame.name == "sport":
                 fit_data.sport = frame.get_value("sport", fallback=None)
-
-            if _is_data(frame) and frame.name == "session":
+            elif _is_data(frame) and frame.name == "session":
                 # A Session message is a Summary message type. Start Time, Total
                 # Elapsed Time, Total Timer Time, and Timestamp are required
                 # fields for all summary messages.
                 fit_data.start_time = frame.get_value("start_time")
                 if fit_data.sport is None:
                     fit_data.sport = frame.get_value("sport", fallback=None)
-
-            if _is_data(frame) and frame.name == "record":
+            elif _is_data(frame) and frame.name == "record":
                 _append_record(frame, fit_data)
-
-            if _is_data(frame) and frame.name == "file_id":
+            elif _is_data(frame) and frame.name == "file_id":
                 logger.warning("Encountered another FIT in the stream. Breaking.")
                 break
 
@@ -141,4 +145,7 @@ def fit_to_cache(fit_data: FitData) -> CacheData:
         time=time,
         start_time=fit_data.start_time.timestamp(),
         sport=sport,
+        elevation=fit_data.enhanced_altitude,
+        speed=fit_data.enhanced_speed,
+        distance=fit_data.distance,
     )

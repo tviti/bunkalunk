@@ -4,8 +4,8 @@ from bunkalunk.formats.fit import (
     read_fit,
     fit_to_cache,
     UnsupportedFITFileType,
+    _RECORD_FIELDS_ALL,
 )
-from pathlib import Path
 from datetime import datetime
 import pytest
 import logging
@@ -59,6 +59,36 @@ def test_read_fit(fit_path):
     assert fit_data.heart_rate is not None and len(fit_data.heart_rate) > 0
 
 
+def test_fit_to_cache_roundtrips_all_fields():
+    fit_data_params = {
+        "start_time": datetime.fromisoformat("2026-05-01T00:00:00+00:00"),
+        "timestamp": [datetime.fromisoformat("2026-05-02T00:00:00+00:00")],
+        "position_long": [1.0],
+        "position_lat": [2.0],
+        "heart_rate": [3.0],
+        "enhanced_altitude": [4.0],
+        "enhanced_speed": [5.0],
+        "distance": [6.0],
+    }
+
+    # Make sure the test is complete, and exercises all fields.
+    defined_keys = fit_data_params.keys()
+    for field_name in _RECORD_FIELDS_ALL:
+        assert field_name in defined_keys
+
+    fit_data = FitData(**fit_data_params)
+    cache_data = fit_to_cache(fit_data)
+
+    assert cache_data.start_time == 1777593600.0
+    assert cache_data.time == [1777680000.0]
+    assert cache_data.latitude == [2.0]
+    assert cache_data.longitude == [1.0]
+    assert cache_data.heart_rate == [3.0]
+    assert cache_data.elevation == [4.0]
+    assert cache_data.speed == [5.0]
+    assert cache_data.distance == [6.0]
+
+
 def test_fit_to_cache_raises_on_no_start_time():
     fit_data = FitData(start_time=None)
 
@@ -101,6 +131,9 @@ def activity_fit_fields():
         FakeField("position_lat", 0.0),
         FakeField("position_long", 0.0),
         FakeField("timestamp", datetime.fromisoformat("2026-05-02T00:00:00+00:00")),
+        FakeField("enhanced_altitude", 99.99),
+        FakeField("enhanced_speed", 33.33),
+        FakeField("distance", 123.456),
     ]
     rec_frame = FakeFrame(
         name="record", fields=rec_fields, frame_type=fitdecode.FIT_FRAME_DATAMESG
@@ -155,6 +188,9 @@ def fake_reader_two_activity_fit(monkeypatch, activity_fit_fields):
         FakeField("position_lat", 1.0),
         FakeField("position_long", 1.0),
         FakeField("timestamp", datetime.fromisoformat("2026-05-03T00:00:00+00:00")),
+        FakeField("enhanced_altitude", 11.11),
+        FakeField("enhanced_speed", 22.22),
+        FakeField("distance", 789.987),
     ]
     rec_frame_2 = FakeFrame(
         name="record", fields=rec_fields_2, frame_type=fitdecode.FIT_FRAME_DATAMESG
@@ -174,6 +210,9 @@ def test_read_fit_collects_record_fields(fake_reader_activity_fit):
     assert fit_data.position_lat == [0.0]
     assert fit_data.position_long == [0.0]
     assert fit_data.heart_rate == [99]
+    assert fit_data.enhanced_altitude == [99.99]
+    assert fit_data.enhanced_speed == [33.33]
+    assert fit_data.distance == [123.456]
 
 
 def test_read_fit_reads_session_start_time(fake_reader_activity_fit):
@@ -204,3 +243,6 @@ def test_read_fit_stops_at_second_file_id(fake_reader_two_activity_fit, caplog):
     assert fit_data.position_lat == [0.0]
     assert fit_data.position_long == [0.0]
     assert fit_data.heart_rate == [99]
+    assert fit_data.enhanced_altitude == [99.99]
+    assert fit_data.enhanced_speed == [33.33]
+    assert fit_data.distance == [123.456]

@@ -34,6 +34,9 @@ def cache_data():
         latitude=[1.0, 1.1, 1.2],
         longitude=[2.0, 2.1, 2.2],
         time=[0.0, 1.0, 2.0],
+        speed=[0.1, 0.2, 0.3],
+        elevation=[0.01, 0.02, 0.03],
+        distance=[3.0, 4.0, 5.0],
         start_time=1767225600.0,
         sport="yoyo",
     )
@@ -45,6 +48,9 @@ def test_write_cache(monkeypatch, cache_path, cache_data, patched_cache_version)
         assert_equal(cache_file["latitude"][:], [1.0, 1.1, 1.2])
         assert_equal(cache_file["longitude"][:], [2.0, 2.1, 2.2])
         assert_equal(cache_file["time"][:], [0.0, 1.0, 2.0])
+        assert_equal(cache_file["speed"][:], [0.1, 0.2, 0.3])
+        assert_equal(cache_file["distance"][:], [3.0, 4.0, 5.0])
+        assert_equal(cache_file["elevation"][:], [0.01, 0.02, 0.03])
         assert_equal(cache_file.attrs["start_time"], 1767225600.0)
         assert cache_file.attrs["cache_version"] == 19991230
         assert cache_file.attrs["sport"] == "yoyo"
