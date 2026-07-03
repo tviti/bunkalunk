@@ -14,7 +14,26 @@ include("fixtures.jl")
 
     function assert_output_data(output_path)
         data, header = load_csv(output_path)
-        expected_header = ["Longitude", "Latitude", "timestamp", "activity_id"]
+        expected_header = [
+            "Longitude",
+            "Latitude",
+            "timestamp",
+            "activity_id",
+            "heart_rate",
+            "elevation",
+            "speed",
+            "distance",
+        ]
+        expected_types = [
+            Float64,
+            Float64,
+            Dates.DateTime,
+            Int64,
+            Float64,
+            Float64,
+            Float64,
+            Float64,
+        ]
         @test length(header) == length(expected_header)
         for (h, e) in zip(header, expected_header)
             @test h == e
@@ -27,9 +46,14 @@ include("fixtures.jl")
             "1970-01-01T00:00:00.200Z"
         ]
         @test data[:, 4] == Int64[1, 1, 1]
+        @test all(isa.(data[:, 4], Int64))
+        @test data[:, 5] == Float64[99.0, 99.0, 99.0]
+        @test data[:, 6] == Float64[10.0, 11.0, 12.0]
+        @test data[:, 7] == Float64[3.0, 3.1, 3.2]
+        @test data[:, 8] == Float64[0.0, 1.0, 2.0]
 
         expected_sidecar = let io = IOBuffer()
-            Lunk.write_csvt!(io, [Float64, Float64, Dates.DateTime, Int64])
+            Lunk.write_csvt!(io, expected_types)
             seekstart(io)
             read(io, String)
         end

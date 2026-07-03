@@ -408,6 +408,8 @@ end
 function accumulate_geocsv_data!(
         g::GeoCSV, match::MatchResult
     )::Nothing
+    num_fields = length(g.field_names)
+    num_matches = length(match.match_points)
     activity_id = match.activity_id
     for (p, t) in zip(match.match_points, match.match_times)
         push!(g.x, p[1])
@@ -585,11 +587,24 @@ end
 function accumulate_geocsv_data!(
         g::GeoCSV, activity_id::Int, cache::CacheData
     )::Nothing
-    for (x, y, t) in zip(cache.longitude, cache.latitude, cache.time)
-        push!(g.x, x)
-        push!(g.y, y)
-        push!(g.time, unix2datetime(t))
-        push!(g.fields[1], activity_id)
+    num_fields = length(g.field_names)
+    num_cache = length(cache.longitude)
+    field_values = Union{Vector{Float64}, Vector{Int64}}[
+        name == "activity_id" ? repeat(Int64[activity_id], num_cache) : getfield(cache, Symbol(name))
+            for name in g.field_names
+    ]
+    for i in 1:num_cache
+        push!(g.x, cache.longitude[i])
+        push!(g.y, cache.latitude[i])
+        push!(g.time, unix2datetime(cache.time[i]))
+        for j in 1:num_fields
+            values = field_values[j]
+            if values === nothing
+                push!(g.fields[j], NaN)
+            else
+                push!(g.fields[j], values[i])
+            end
+        end
     end
     return
 end
@@ -613,6 +628,8 @@ function run_activity_export(args::ArgDict, ctx::Context)::Cint
     activity_ids::Vector{Int64} = args["activity_ids"]
     output::String = abspath(args["output"])
 
+    activity_store = ctx.activity_store
+
     _, ext = splitext(output)
     if ext != ".csv"
         @error "Unrecognized file extension, got $ext"
@@ -620,12 +637,15 @@ function run_activity_export(args::ArgDict, ctx::Context)::Cint
     end
 
     errors = Int64[]
+
+    export_fields = Union{Vector{Float64}, Vector{Int64}}[Int64[], Float64[], Float64[], Float64[], Float64[]]
+    export_field_names = ["activity_id", "heart_rate", "elevation", "speed", "distance"]
     export_data = GeoCSV(
         Float64[],
         Float64[],
         DateTime[],
-        [Int64[]],
-        ["activity_id"]
+        export_fields,
+        export_field_names
     )
     create_connection!(ctx.db_path) do db_conn
         for id in activity_ids
@@ -643,7 +663,7 @@ function run_activity_export(args::ArgDict, ctx::Context)::Cint
                         rethrow(e)
                     end
                 end
-                cache_path = resolve_cache_path(fingerprint, ctx.activity_store)
+                cache_path = resolve_cache_path(fingerprint, activity_store)
                 try
                     cache = read_cache(cache_path)
                 catch e
@@ -653,6 +673,7 @@ function run_activity_export(args::ArgDict, ctx::Context)::Cint
                     break
                 end
                 accumulate_geocsv_data!(export_data, id, cache)
+
             end
         end
     end

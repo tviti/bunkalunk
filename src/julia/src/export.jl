@@ -135,7 +135,7 @@ function write_geocsv!(
     types = eltype.([x, y, time])
 
     if fields !== nothing
-        data_out = [data_out stack(fields)]
+        data_out = hcat(data_out, fields...)
         header = vcat(header, field_names)
         types = [types; eltype.(f for f in fields)]
     end

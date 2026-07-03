@@ -177,10 +177,13 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
             start_time = 946598400.0,
             sport = "basket-weaving"
         )
-        time = [0.0, 0.1, 0.2]
-        latitude = [1.0, 1.1, 1.2]
-        longitude = [2.0, 2.1, 2.2]
-        heart_rate = [99.0, 99.0, 99.0]
+        time = Float64[0.0, 0.1, 0.2]
+        latitude = Float64[1.0, 1.1, 1.2]
+        longitude = Float64[2.0, 2.1, 2.2]
+        heart_rate = Float64[99.0, 99.0, 99.0]
+        elevation = Float64[10.0, 11.0, 12.0]
+        distance = Float64[0.0, 1.0, 2.0]
+        speed = Float64[3.0, 3.1, 3.2]
 
         path = joinpath(dir, filename * ".h5")
         h5open(path, "w") do file
@@ -188,6 +191,9 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
             file["latitude"] = latitude
             file["longitude"] = longitude
             file["heart_rate"] = heart_rate
+            file["elevation"] = elevation
+            file["distance"] = distance
+            file["speed"] = speed
             attributes(file)["start_time"] = start_time
             attributes(file)["sport"] = sport
         end

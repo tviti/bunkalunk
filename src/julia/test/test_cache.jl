@@ -38,6 +38,9 @@ end
         @test cache_data.latitude == [1.0, 1.1, 1.2]
         @test cache_data.longitude == [2.0, 2.1, 2.2]
         @test cache_data.heart_rate == [99.0, 99.0, 99.0]
+        @test cache_data.elevation == [10.0, 11.0, 12.0]
+        @test cache_data.distance == [0.0, 1.0, 2.0]
+        @test cache_data.speed == [3.0, 3.1, 3.2]
     end
 end
 
