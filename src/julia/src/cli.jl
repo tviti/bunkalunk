@@ -21,7 +21,7 @@ end
 
 function run_subcommand(
         args::ArgDict, ctx::Context, command_map::CommandMap
-    )::Cint
+    )
     subcommand = args["%COMMAND%"]
     subcommand !== nothing || throw(ArgumentError("No sub-command given"))
 
@@ -33,13 +33,13 @@ end
 
 function run_segment_subcommand(
         args::ArgDict, ctx::Context, command_map::CommandMap = SEGMENT_SUBCOMMANDS
-    )::Cint
+    )
     return run_subcommand(args, ctx, command_map)
 end
 
 function run_activity_subcommand(
         args::ArgDict, ctx::Context, command_map::CommandMap = ACTIVITY_SUBCOMMANDS
-    )::Cint
+    )
     return run_subcommand(args, ctx, command_map)
 end
 
@@ -202,7 +202,7 @@ end
 
 function run_command(
         args::ArgDict, ctx::Context, command_map::CommandMap = COMMANDS
-    )::Cint
+    )
     command = args["%COMMAND%"]
 
     command !== nothing || throw(
@@ -219,7 +219,7 @@ end
 
 function find_column_matches(
         conn::SQLite.DB, name::String, path::String, fingerprint::String
-    )::Vector{Tuple{String, Any}}
+    )
     by_name = fetch_segment_registration_by_name(conn, name)
     by_path = fetch_segment_registration_by_path(conn, path)
     by_fingerprint = fetch_segment_registration_by_fingerprint(conn, fingerprint)
@@ -311,7 +311,7 @@ function segment_register_transaction(
 
 end
 
-function run_segment_register(args::ArgDict, ctx::Context)::Cint
+function run_segment_register(args::ArgDict, ctx::Context)
     force::Bool = args["force"]
     name::String = args["name"]
     path::String = abspath(args["path"])
@@ -337,7 +337,7 @@ function run_segment_register(args::ArgDict, ctx::Context)::Cint
     end
 end
 
-function run_segment_remove(args::ArgDict, ctx::Context)::Cint
+function run_segment_remove(args::ArgDict, ctx::Context)
     name::String = args["name"]
     create_connection!(ctx.db_path) do conn
         DBInterface.transaction(conn) do
@@ -353,7 +353,7 @@ function run_segment_remove(args::ArgDict, ctx::Context)::Cint
     return 0
 end
 
-function run_segment_list(args::ArgDict, ctx::Context)::Cint
+function run_segment_list(args::ArgDict, ctx::Context)
     row_fmt = Printf.Format("  %-4s  %-30s  %s\n")
     Printf.format(ctx.io, row_fmt, "ID", "Name", "Path")
     Printf.format(
@@ -382,7 +382,7 @@ end
 
 function is_stale_segment(
         segment_name::String, definition_path::String, definition_fingerprint::String
-    )::Bool
+    )
     fingerprint = open(definition_path, "r") do f
         return compute_fingerprint(f)
     end
@@ -398,7 +398,7 @@ end
 
 function load_matcher_inputs(
         db_conn::SQLite.DB, definition_path::String, sport::Union{String, Nothing}
-    )::Tuple{Segment, Dict{Int, CacheData}}
+    )
     segment = read_segment(definition_path)
     activities = select_all(db_conn, sport = sport)
     activities_data = load_activities(activities)
@@ -425,8 +425,7 @@ function segment_match_transaction!(
         segment_id::Int64,
         match_results::Vector{MatchResult},
         export_path::Union{String, Nothing}
-    )::Union{GeoCSV, Nothing}
-
+    )
     if export_path !== nothing
         export_data = GeoCSV(
             Float64[],
@@ -464,7 +463,7 @@ function segment_match_transaction!(
     return export_data
 end
 
-function run_segment_match(args::ArgDict, ctx::Context)::Cint
+function run_segment_match(args::ArgDict, ctx::Context)
     segment_name::String = args["name"]
     sport::Union{String, Nothing} = args["sport"]
     export_path::Union{String, Nothing} = args["export"]
@@ -514,15 +513,15 @@ function run_segment_match(args::ArgDict, ctx::Context)::Cint
     end
 end
 
-function seconds2hms(t::Real)::Tuple{Int, Int, Real}
-    t_h = divrem(t, 60)
-    hours = floor(t / 3600.0)
-    minutes = Int(t_h[1])
+function seconds2hms(t::Float64)
+    t_h = Int64.(divrem(t, 60))
+    hours = floor(Int64, t / 3600.0)
+    minutes = Int64(t_h[1])
     seconds = t_h[2]
     return (hours, minutes, seconds)
 end
 
-function run_segment_show(args::ArgDict, ctx::Context)::Cint
+function run_segment_show(args::ArgDict, ctx::Context)
     segment_name::String = args["name"]
     top::Int = args["top"]
 
@@ -624,7 +623,7 @@ function write_geocsv_atomic!(path::String, export_data::GeoCSV)::Nothing
     return
 end
 
-function run_activity_export(args::ArgDict, ctx::Context)::Cint
+function run_activity_export(args::ArgDict, ctx::Context)
     activity_ids::Vector{Int64} = args["activity_ids"]
     output::String = abspath(args["output"])
 
