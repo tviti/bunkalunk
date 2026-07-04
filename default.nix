@@ -22,10 +22,8 @@ let
   '';
 
   lunk = pkgs.writeShellScriptBin "lunk" ''
-    exec julia \
-      --sysimage=${project_root}/src/julia/build/test_sysimage.so \
-      --project=${project_root}/src/julia \
-      ${project_root}/src/julia/src/cli.jl "$@"
+    exec ${lunkJuliaTest}/bin/julia-test \
+      -e 'using Lunk; Lunk.main()' -- "$@"
   '';
 
   lunkJuliaTest = pkgs.writeShellScriptBin "julia-test" ''
