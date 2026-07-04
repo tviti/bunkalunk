@@ -217,6 +217,17 @@ function run_command(
     return handler(args[command], ctx)
 end
 
+function run_command(argv::Vector{String})
+    args = parse_commandline(argv)
+    ctx = Context(
+        resolve_bunk_home() * "/db.sqlite3",
+        resolve_activity_store(),
+        false
+    )
+    return run_command(args, ctx)
+end
+
+
 function find_column_matches(
         conn::SQLite.DB, name::String, path::String, fingerprint::String
     )

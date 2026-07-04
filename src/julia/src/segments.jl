@@ -30,7 +30,7 @@ end
 Read a segment file at `path`, dispatching on file extension. Returns the
 generated `Segment`. Throws `ArgumentError` on unsupported extensions.
 """
-function read_segment(path::String)::Segment
+function read_segment(path::String)
     ext = splitext(path)[2]
     return read_segment(Val(Symbol(ext)), path)
 end
@@ -43,7 +43,7 @@ with one Feature with `geometry.type = "LineString"`. Raises `ArgumentError`
 otherwise. Warns and defaults `name` to `""` when the feature has no
 `properties.name`.
 """
-function read_segment(::Val{Symbol(".geojson")}, path::String)::Segment
+function read_segment(::Val{Symbol(".geojson")}, path::String)
     raw_json = open(path, "r") do f
         read(f, String)
     end
@@ -114,7 +114,7 @@ Read an OpenStreetMaps XML formatted segment file at `path`. Supports only OSM
 files with with one `way` (raises `ArgumentError` for files with more than one
 `way`).
 """
-function read_segment(::Val{Symbol(".osm")}, path::String)::Segment
+function read_segment(::Val{Symbol(".osm")}, path::String)
     doc = XML.read(path, Node)
     root = doc[end]
     tag(root) == "osm" || throw(
@@ -182,11 +182,11 @@ function read_segment(::Val{Symbol(".osm")}, path::String)::Segment
     return Segment(name, latitude, longitude)
 end
 
-function read_segment(::Val{ext}, path::String)::Segment where {ext}
+function read_segment(::Val{ext}, path::String) where {ext}
     throw(ArgumentError("unsupported file extension: $(repr(string(ext)))"))
 end
 
-function compute_fingerprint(f::IO)::String
+function compute_fingerprint(f::IO)
     pos = position(f)
     try
         seek(f, 0)

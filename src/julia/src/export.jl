@@ -15,8 +15,8 @@ csvt_type(::Type{Dates.DateTime}) = "DateTime"
 csvt_type(T::Type) = throw(ArgumentError("No CSVT mapping for $T"))
 
 struct GeoCSV
-    x::Vector{<:Real}
-    y::Vector{<:Real}
+    x::Vector{Float64}
+    y::Vector{Float64}
     time::Vector{DateTime}
     fields::Union{Vector{<:AbstractVector}, Nothing}
     field_names::Union{Vector{String}, Nothing}

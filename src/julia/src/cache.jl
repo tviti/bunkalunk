@@ -53,7 +53,7 @@ function _read_or_nothing(f::HDF5.AttributeDict, name::String)
     return haskey(f, name) ? f[name] : nothing
 end
 
-function read_cache(file_path::String)::CacheData
+function read_cache(file_path::String)
     return h5open(file_path, "r") do file
         file_attrs = attrs(file)
         CacheData(
@@ -84,7 +84,7 @@ those records from the decoded data.
 
 Only rows with both `latitude` and `longitude` present and non-`NaN` are kept.
 """
-function drop_invalid_gps_points(cache::CacheData)::CacheData
+function drop_invalid_gps_points(cache::CacheData)
     valid = @. !isnan(cache.latitude) & !isnan(cache.longitude)
 
     vector_kwargs = Dict()
