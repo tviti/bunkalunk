@@ -514,7 +514,7 @@ function run_segment_match(args::ArgDict, ctx::Context)
 end
 
 function seconds2hms(t::Float64)
-    t_h = Int64.(divrem(t, 60))
+    t_h = divrem(t, 60)
     hours = floor(Int64, t / 3600.0)
     minutes = Int64(t_h[1])
     seconds = t_h[2]
