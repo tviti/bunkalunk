@@ -1,14 +1,14 @@
 using SQLite
 using Dates
 
-function bunk_schema_version()::Int
+function bunk_schema_version()
     return 20260630
 end
 
-function fetch_user_version(conn::SQLite.DB)::Int
+function fetch_user_version(conn::SQLite.DB)
     result = DBInterface.execute(conn, "PRAGMA user_version;")
-    data = only(NamedTuple(r) for r in result)
-    return data[:user_version]
+    user_version = Int64[r[:user_version] for r in result]
+    return only(user_version)
 end
 
 struct UninitializedDatabaseError <: Exception
@@ -67,7 +67,7 @@ function create_lunk_tables!(db::SQLite.DB)::Nothing
     return
 end
 
-function create_connection!(db_path::String)::SQLite.DB
+function create_connection!(db_path::String)
     db = SQLite.DB(db_path)
     assert_schema_valid(db)
     DBInterface.execute(db, "PRAGMA foreign_keys = ON;")
@@ -84,13 +84,14 @@ function create_connection!(f::Function, db_path::String)
     end
 end
 
-function get_content_fingerprint(db::SQLite.DB, source_path::String)::String
+function get_content_fingerprint(db::SQLite.DB, source_path::String)
     result = DBInterface.execute(
         db,
         "SELECT content_fingerprint from source_files WHERE source_path = ?",
         [source_path]
     )
-    return only(row[:content_fingerprint] for row in result)
+    fingerprints = String[row[:content_fingerprint] for row in result]
+    return only(fingerprints)
 end
 
 function add_sport_to_query(query::String, sport::Union{String, Nothing} = nothing)
@@ -104,7 +105,7 @@ function select_by_start_date(
         db::SQLite.DB,
         start_date::String;
         sport::Union{String, Nothing} = nothing,
-    )::Vector{String}
+    )
     t0 = DateTime(start_date, dateformat"yyyy-mm-dd")
     t0_epoch = datetime2unix(t0)
     t1_epoch = datetime2unix(t0 + Day(1))
@@ -119,7 +120,7 @@ function select_by_start_date(
         query,
         Dict(:t0_epoch => t0_epoch, :t1_epoch => t1_epoch, :sport => sport)
     )
-    return [row[:source_fingerprint] for row in result]
+    return String[row[:source_fingerprint] for row in result]
 end
 
 function select_by_time_range(
@@ -127,7 +128,7 @@ function select_by_time_range(
         t0::DateTime,
         t1::DateTime;
         sport::Union{String, Nothing} = nothing,
-    )::Vector{String}
+    )
     t0_epoch = datetime2unix(t0)
     t1_epoch = datetime2unix(t1)
     query = """
@@ -141,10 +142,10 @@ function select_by_time_range(
         query,
         Dict(:t0_epoch => t0_epoch, :t1_epoch => t1_epoch, :sport => sport)
     )
-    return [row[:source_fingerprint] for row in result]
+    return String[row[:source_fingerprint] for row in result]
 end
 
-function select_by_id(db::SQLite.DB, activity_id::Int)::String
+function select_by_id(db::SQLite.DB, activity_id::Int)
     result = DBInterface.execute(
         db,
         """
@@ -153,12 +154,13 @@ function select_by_id(db::SQLite.DB, activity_id::Int)::String
         """,
         [activity_id]
     )
-    return only(row[:source_fingerprint] for row in result)
+    fingerprints = String[row[:source_fingerprint] for row in result]
+    return only(fingerprints)
 end
 
 function select_all(
         db::SQLite.DB; sport::Union{String, Nothing} = nothing
-    )::Vector{Tuple{Int, String}}
+    )
     query = "SELECT activity_id, source_fingerprint FROM activities"
     if sport !== nothing
         query *= " WHERE sport = :sport"
@@ -169,7 +171,9 @@ function select_all(
         query,
         Dict(:sport => sport)
     )
-    return [(row[:activity_id], row[:source_fingerprint]) for row in result]
+    return Tuple{Int, String}[
+        (row[:activity_id], row[:source_fingerprint]) for row in result
+    ]
 end
 
 function insert_segment!(
@@ -236,143 +240,172 @@ function insert_segment_effort!(
     return
 end
 
-function fetch_segment_registration(db::SQLite.DB, name::String)::NamedTuple
+const SegmentRegistration = @NamedTuple{
+    segment_id::Int64,
+    name::String,
+    definition_fingerprint::String,
+    definition_path::String,
+}
+
+const SegmentEffort = @NamedTuple{
+    effort_id::Int64,
+    activity_id::Int64,
+    segment_id::Int64,
+    elapsed_time_s::Float64,
+    matched_at::Int64,
+    matcher_version::Int64,
+    start_time::Union{Float64, Missing},
+    name::Union{String, Nothing},
+}
+
+SegmentEffort(r::SQLite.Row) = SegmentEffort(
+    (
+        start_time = get(r, :start_time, missing),
+        name = get(r, :name, nothing),
+        effort_id = r[:effort_id],
+        activity_id = r[:activity_id],
+        segment_id = r[:segment_id],
+        elapsed_time_s = r[:elapsed_time_s],
+        matched_at = r[:matched_at],
+        matcher_version = r[:matcher_version],
+    )
+)
+
+function fetch_segment_registration(db::SQLite.DB, name::String)
     result = DBInterface.execute(
         db,
         "SELECT * FROM segments WHERE name = ?",
         [name]
     )
-    segment_row = only(NamedTuple(r) for r in result)
-    return segment_row
+    registrations = [SegmentRegistration(r) for r in result]
+    return only(registrations)
 end
 
-function fetch_segment_registration(db::SQLite.DB)::Vector{NamedTuple}
+function fetch_segment_registration(db::SQLite.DB)
     result = DBInterface.execute(
         db,
         "SELECT * FROM segments ORDER BY name"
     )
-    return [NamedTuple(r) for r in result]
+    return [SegmentRegistration(r) for r in result]
 end
 
-function fetch_segment_names(db::SQLite.DB)::Vector{String}
+function fetch_segment_names(db::SQLite.DB)
     result = DBInterface.execute(db, "SELECT name FROM segments ORDER BY name")
-    return [r[:name] for r in result]
+    return String[r[:name] for r in result]
 end
 
-function remove_segment!(db::SQLite.DB, name::String)::Union{NamedTuple, Nothing}
+function remove_segment!(db::SQLite.DB, name::String)
     result = DBInterface.execute(
         db,
         "DELETE FROM segments WHERE name = ? RETURNING *",
         [name]
     )
-    rows = [NamedTuple(r) for r in result]
+    registrations = [SegmentRegistration(r) for r in result]
 
-    if length(rows) == 0
+    if length(registrations) == 0
         return nothing
     end
 
-    return only(rows)
+    return only(registrations)
 end
 
-function remove_segment!(db::SQLite.DB, segment_id::Integer)::Union{NamedTuple, Nothing}
+function remove_segment!(db::SQLite.DB, segment_id::Integer)
     result = DBInterface.execute(
         db,
         "DELETE FROM segments WHERE segment_id = ? RETURNING *",
         [segment_id]
     )
-    rows = [NamedTuple(r) for r in result]
+    registrations = [SegmentRegistration(r) for r in result]
 
-    if length(rows) == 0
+    if length(registrations) == 0
         return nothing
     end
 
-    return only(rows)
+    return only(registrations)
 end
 
 function fetch_segment_registration_by_name(
         db::SQLite.DB, name::String
-    )::Union{NamedTuple, Nothing}
+    )
     result = DBInterface.execute(
         db,
         "SELECT * FROM segments WHERE name = ?",
         [name]
     )
-    rows = [NamedTuple(r) for r in result]
-    if isempty(rows)
+    registrations = [SegmentRegistration(r) for r in result]
+    if isempty(registrations)
         return nothing
     end
-    return only(rows)
+    return only(registrations)
 end
 
 function fetch_segment_registration_by_fingerprint(
         db::SQLite.DB, fingerprint::String
-    )::Union{NamedTuple, Nothing}
+    )
     result = DBInterface.execute(
         db,
         "SELECT * FROM segments WHERE definition_fingerprint = ?",
         [fingerprint]
     )
-    rows = [NamedTuple(r) for r in result]
-    if isempty(rows)
+    registrations = [SegmentRegistration(r) for r in result]
+    if isempty(registrations)
         return nothing
     end
-    return only(rows)
+    return only(registrations)
 end
 
 function fetch_segment_registration_by_path(
         db::SQLite.DB, path::String
-    )::Union{NamedTuple, Nothing}
+    )
     result = DBInterface.execute(
         db,
         "SELECT * FROM segments WHERE definition_path = ?",
         [path]
     )
-    rows = [NamedTuple(r) for r in result]
-    if isempty(rows)
+    registrations = [SegmentRegistration(r) for r in result]
+    if isempty(registrations)
         return nothing
     end
-    return only(rows)
+    return only(registrations)
 end
 
-function remove_segment_efforts!(db::SQLite.DB, segment_id::Integer)::Vector{NamedTuple}
+function remove_segment_efforts!(db::SQLite.DB, segment_id::Integer)
     result = DBInterface.execute(
         db,
         "DELETE FROM segment_efforts WHERE segment_id = ? RETURNING *",
         [segment_id]
     )
-    # TODO: Replace list comprehensions with broadcast syntax
-    return [NamedTuple(r) for r in result]
+    return [SegmentEffort(r) for r in result]
 end
 
 function remove_segment_efforts!(
         db::SQLite.DB, segment_id::Integer, activity_id::Integer
-    )::Vector{NamedTuple}
+    )
     result = DBInterface.execute(
         db,
         "DELETE FROM segment_efforts WHERE segment_id = ? AND activity_id = ? RETURNING *",
         [segment_id, activity_id]
     )
-    # TODO: Replace list comprehensions with broadcast syntax
-    return [NamedTuple(r) for r in result]
+    return [SegmentEffort(r) for r in result]
 end
 
-function fetch_segment_efforts_by_name(db::SQLite.DB, name::String)::Vector{NamedTuple}
+function fetch_segment_efforts_by_name(db::SQLite.DB, name::String)
     query = """
-    SELECT
-        se.effort_id,
-        se.activity_id,
-        CAST(a.start_time AS REAL) AS start_time,
-        se.segment_id,
-    	s.name,
-        se.elapsed_time_s,
-        se.matched_at,
-        se.matcher_version
-    FROM segment_efforts se
-    JOIN activities a ON a.activity_id = se.activity_id
-    JOIN segments s ON s.segment_id = se.segment_id
-    WHERE s.name = ?
-    ORDER BY elapsed_time_s;
-    """
-    results = DBInterface.execute(db, query, [name])
-    return [NamedTuple(r) for r in results]
+        SELECT
+            se.effort_id,
+            se.activity_id,
+            se.segment_id,
+            se.elapsed_time_s,
+            se.matched_at,
+            se.matcher_version,
+            CAST(a.start_time AS REAL) AS start_time,
+    	    s.name AS name
+        FROM segment_efforts se
+        JOIN activities a ON a.activity_id = se.activity_id
+        JOIN segments s ON s.segment_id = se.segment_id
+        WHERE s.name = ?
+        ORDER BY elapsed_time_s;
+        """
+    result = DBInterface.execute(db, query, [name])
+    return [SegmentEffort(r) for r in result]
 end
