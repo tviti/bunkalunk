@@ -54,14 +54,15 @@ crossing edge.
 
 A match is considered valid only when all sampled track points between the
 start/finish gate crossings are within the segment polyline cooridoor defined by
-`tape_radius`. Gate crossings must also occur within `tape_radius` of the
-first/last segment points in order to be registered.
+`tape_radius` (in meters). Gate crossings must also occur within `tape_radius`
+of the first/last segment points in order to be registered.
 """
 function match_to_activities(
         segment::Segment,
         activities::Dict{Int, CacheData}
+        ;
+        tape_radius = 15.0
     )::Vector{MatchResult}
-    tape_radius = 15.0  # cooridor of allowed deviation off segment
     fixed_height = 0.0  # height above ellipsoid [m]
 
     activity_dates = Vector{DateTime}()
