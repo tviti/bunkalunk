@@ -8,7 +8,8 @@ export CacheData,
 include("paths.jl")
 export resolve_bunk_home,
     resolve_activity_store,
-    resolve_cache_path
+    resolve_cache_path,
+    BUNKALUNK_DB
 
 include("db.jl")
 export create_connection!,

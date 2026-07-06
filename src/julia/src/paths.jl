@@ -3,6 +3,7 @@
 
 Globals for the bunk data directories.
 """
+const BUNKALUNK_DB = "db.sqlite3"
 const _CACHE_SUFFIX = ".h5"
 
 function resolve_bunk_home()
