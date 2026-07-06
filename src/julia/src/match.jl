@@ -65,15 +65,6 @@ function match_to_activities(
     )::Vector{MatchResult}
     fixed_height = 0.0  # height above ellipsoid [m]
 
-    activity_dates = Vector{DateTime}()
-    activity_ids = Vector{Int64}()
-    segment_times = Vector{Float64}()
-    matched_at = Vector{Float64}()
-
-    # TODO: Better names for these containers
-    match_points_vec = Vector{Vector{Vector{Float64}}}()
-    match_times_vec = Vector{Vector{Float64}}()
-
     segment_ecef = compute_ecef_r.(segment.latitude, segment.longitude, fixed_height)
     # TODO: This conversion happens at each compute_ecef_r callsite. Consider
     # changing the return type
@@ -91,12 +82,12 @@ function match_to_activities(
     s_end = seg[:, end]
     l_end = s_end - seg[:, end - 1]  # Gate-normal vector
 
+    matches = MatchResult[]
+
     for (activity_id, cache) in activities
         @debug "Working on activity $activity_id"
         @debug "Loaded $(length(cache.latitude)) track points"
 
-        start_times = Vector{Float64}()
-        end_times = Vector{Float64}()
         match_points = Vector{Vector{Float64}}()
         match_times = Vector{Float64}
 
@@ -120,7 +111,6 @@ function match_to_activities(
         )
 
         on_segment = false
-        match_found = false
         for i in 1:(num_track - 1)
             p_1 = track[:, i]
             p_2 = track[:, i + 1]
@@ -139,7 +129,6 @@ function match_to_activities(
                         [filtered_cache.longitude[i + 1], filtered_cache.latitude[i + 1]],
                         start_crossing.t
                     )
-                    push!(start_times, t_cross)
                     match_points = [p_cross]
                     match_times = [t_cross]
                     continue
@@ -153,7 +142,6 @@ function match_to_activities(
                 if !on_polyline(p_1, seg, tape_radius)
                     @debug "User went off segment at i = $i"
                     on_segment = false
-                    match_found = false
                     continue
                 end
 
@@ -176,35 +164,27 @@ function match_to_activities(
                             [filtered_cache.longitude[i + 1], filtered_cache.latitude[i + 1]],
                             end_crossing.t
                         )
-                        push!(end_times, t_cross)
                         push!(match_points, p_cross)
                         push!(match_times, t_cross)
-                        match_found = true
                         on_segment = false
 
                         segment_time = match_times[end] - match_times[1]
-                        push!(activity_dates, unix2datetime(cache.start_time))
-                        push!(activity_ids, activity_id)
-                        push!(segment_times, segment_time)
-                        push!(matched_at, round(Int, time()))
-                        push!(match_points_vec, match_points)
-                        push!(match_times_vec, match_times)
+
+                        push!(
+                            matches,
+                            MatchResult(
+                                unix2datetime(cache.start_time),
+                                activity_id,
+                                segment_time,
+                                round(Int, time()),
+                                match_points,
+                                match_times
+                            )
+                        )
                     end
                 end
             end
         end
-
-        if !match_found
-            continue
-        end
-
     end
-    return MatchResult.(
-        activity_dates,
-        activity_ids,
-        segment_times,
-        matched_at,
-        match_points_vec,
-        match_times_vec
-    )
+    return matches
 end
