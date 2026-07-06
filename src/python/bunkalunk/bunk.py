@@ -253,8 +253,10 @@ class AddCommand(Command):
 
                 try:
                     fit_data = read_fit(f, logger=logger)
-                except UnsupportedFITFileType:
-                    logger.exception(f"File '{source_path}' has an unsupported type.")
+                except UnsupportedFITFileType as e:
+                    logger.error(
+                        f"Error: {e}\nFile '{source_path}' has an unsupported type."
+                    )
                     return 1
                 except Exception:
                     logger.exception(f"Decode on '{source_path}' failed")
@@ -419,8 +421,10 @@ class DecodeCommand(Command):
                             drop_activity(conn, source_file.content_fingerprint)
 
                     conn.commit()
-                except UnsupportedFITFileType:
-                    logger.exception(f"File '{source_path}' has an unsupported type.")
+                except UnsupportedFITFileType as e:
+                    logger.error(
+                        f"Error: {e}\nFile '{source_path}' has an unsupported type."
+                    )
                     drop_source_file(conn, source_path)
                     conn.commit()
                     # TODO: Decide if garbage collection should be deferred, or
