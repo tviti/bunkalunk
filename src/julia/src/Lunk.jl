@@ -3,7 +3,8 @@ module Lunk
 include("cache.jl")
 export CacheData,
     read_cache,
-    drop_invalid_gps_points
+    find_valid_points,
+    drop_cache_points
 
 include("paths.jl")
 export resolve_bunk_home,

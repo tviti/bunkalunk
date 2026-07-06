@@ -240,7 +240,7 @@ end
                 names = [row[:name] for row in cols]
                 @test names == [
                     "effort_id", "activity_id", "segment_id", "elapsed_time_s", "matched_at",
-                    "matcher_version",
+                    "matcher_version", "idx_start", "idx_end",
                 ]
             end
         end
@@ -348,7 +348,7 @@ end
             create_connection!(db_path) do db
                 insert_dummy_activity!(db, "fingerprint")
                 seed_segments_table!(db)
-                insert_segment_effort!(db, 1, 3, 123.456, 13, 123456)
+                insert_segment_effort!(db, 1, 3, 123.456, 13, 123456, 1, 2)
                 result = DBInterface.execute(
                     db,
                     "SELECT * FROM segment_efforts WHERE segment_id = ?",
@@ -369,8 +369,8 @@ end
             create_connection!(db_path) do db
                 insert_dummy_activity!(db, "fingerprint")
                 seed_segments_table!(db)
-                insert_segment_effort!(db, 1, 3, 123.456, 13, 123456)
-                insert_segment_effort!(db, 1, 3, 222.0, 14, 654321)
+                insert_segment_effort!(db, 1, 3, 123.456, 13, 123456, 1, 2)
+                insert_segment_effort!(db, 1, 3, 222.0, 14, 654321, 3, 4)
                 result = DBInterface.execute(
                     db,
                     """

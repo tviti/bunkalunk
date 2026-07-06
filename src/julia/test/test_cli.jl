@@ -308,8 +308,10 @@ end
                             segment_id,
                             elapsed_time_s,
                             matched_at, 
-                            matcher_version
-                        ) VALUES (1, ?, 100.0, 1234, 20260607)
+                            matcher_version,
+                            idx_start,
+                            idx_end
+                        ) VALUES (1, ?, 100.0, 1234, 20260607, 1, 2)
                         """,
                         [old_sid]
                     )
@@ -418,8 +420,10 @@ end
                             segment_id, 
                             elapsed_time_s,
                             matched_at,
-                            matcher_version
-                            ) VALUES (1, ?, 100.0, 1234, 20260607)
+                            matcher_version,
+                            idx_start,
+                            idx_end
+                            ) VALUES (1, ?, 100.0, 1234, 20260607, 1, 2)
                         """,
                         [old_sid]
                     )
@@ -601,7 +605,9 @@ function make_match_result(
         Float64(segment_time),
         matched_at,
         [[0.0, 0.0], [1.0, 1.0]],
-        [10.0, 20.0]
+        [10.0, 20.0],
+        1,
+        2
     )
 end
 
@@ -685,8 +691,10 @@ end
                         segment_id,
                         elapsed_time_s,
                         matched_at,
-                        matcher_version
-                    ) VALUES (1, 1, 99.9, 9999, 20260101)
+                        matcher_version,
+                        idx_start,
+                        idx_end
+                    ) VALUES (1, 1, 99.9, 9999, 20260101, 1, 2)
                     """
                 )
 
@@ -737,10 +745,11 @@ end
                     """
                     INSERT INTO segment_efforts (
                         activity_id, segment_id, elapsed_time_s,
-                        matched_at, matcher_version
+                        matched_at, matcher_version,
+                        idx_start, idx_end
                     ) VALUES
-                        (1, 1, 99.9, 9999, 20260101),
-                        (2, 1, 88.8, 8888, 20260101)
+                        (1, 1, 99.9, 9999, 20260101, 1, 2),
+                        (2, 1, 88.8, 8888, 20260101, 3, 4)
                     """
                 )
 
@@ -781,8 +790,9 @@ end
                     """
                     INSERT INTO segment_efforts (
                         activity_id, segment_id, elapsed_time_s,
-                        matched_at, matcher_version
-                    ) VALUES (1, 2, 99.9, 9999, 20260101)
+                        matched_at, matcher_version,
+                        idx_start, idx_end
+                    ) VALUES (1, 2, 99.9, 9999, 20260101, 1, 2)
                     """
                 )
 
@@ -837,10 +847,11 @@ end
                     """
                     INSERT INTO segment_efforts (
                         activity_id, segment_id, elapsed_time_s,
-                        matched_at, matcher_version
+                        matched_at, matcher_version,
+                        idx_start, idx_end
                     ) VALUES
-                        (1, 1, 99.9, 9999, 20260101),
-                        (2, 1, 88.8, 8888, 20260101)
+                        (1, 1, 99.9, 9999, 20260101, 1, 2),
+                        (2, 1, 88.8, 8888, 20260101, 3, 4)
                     """
                 )
 

@@ -63,7 +63,7 @@ end
 cache_fields(c::CacheData) =
     (c.start_time, c.time, c.latitude, c.longitude, c.sport, c.heart_rate)
 
-@testset "drop_invalid_gps_points" begin
+@testset "drop_cache_points" begin
     @testset "No NaNs round trip w/ heart_rate" begin
         let cache = CacheData(
                 1.0,
@@ -83,7 +83,9 @@ cache_fields(c::CacheData) =
                 sport = "cycling",
                 heart_rate = [3.0, 3.1, 3.2]
             )
-            @test cache_fields(drop_invalid_gps_points(cache)) == cache_fields(expected)
+            valid = find_valid_points(cache)
+            @test valid == [true, true, true]
+            @test cache_fields(drop_cache_points(cache, valid)) == cache_fields(expected)
         end
     end
 
@@ -106,7 +108,9 @@ cache_fields(c::CacheData) =
                 sport = "cycling",
                 heart_rate = nothing
             )
-            @test cache_fields(drop_invalid_gps_points(cache)) == cache_fields(expected)
+            valid = find_valid_points(cache)
+            @test valid == [true, true, true]
+            @test cache_fields(drop_cache_points(cache, valid)) == cache_fields(expected)
         end
     end
 
@@ -129,7 +133,9 @@ cache_fields(c::CacheData) =
                 sport = "cycling",
                 heart_rate = [3.0, 3.3]
             )
-            @test cache_fields(drop_invalid_gps_points(cache)) == cache_fields(expected)
+            valid = find_valid_points(cache)
+            @test valid == [true, false, false, true, false]
+            @test cache_fields(drop_cache_points(cache, valid)) == cache_fields(expected)
         end
     end
 end

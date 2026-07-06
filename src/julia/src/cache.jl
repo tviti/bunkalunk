@@ -71,35 +71,22 @@ function read_cache(file_path::String)
     end
 end
 
+find_valid_points(cache::CacheData) = @. !isnan(cache.latitude) & !isnan(cache.longitude)
 
-"""
-    drop_invalid_gps_points(cache::CacheData)::CacheData
-
-Drop rows with invalid GPS coordinates from a `CacheData` object while
-preserving row alignment across fields.
-
-Garmin FIT files may contain track records with `NaN` latitude and longitude
-values if recording began before GPS lock was acquired. This function removes
-those records from the decoded data.
-
-Only rows with both `latitude` and `longitude` present and non-`NaN` are kept.
-"""
-function drop_invalid_gps_points(cache::CacheData)
-    valid = @. !isnan(cache.latitude) & !isnan(cache.longitude)
-
-    vector_kwargs = Dict()
+function drop_cache_points(cache::CacheData, keep::BitVector)
+    vector_kwargs = Dict{Symbol, Vector{<:Real}}()
     for field_name in _CACHE_FIELDS_OPTIONAL_VECTOR
         field_value = getfield(cache, field_name)
         if field_value !== nothing
-            vector_kwargs[field_name] = field_value[valid]
+            vector_kwargs[field_name] = field_value[keep]
         end
     end
 
     return CacheData(
         cache.start_time,
-        cache.time[valid],
-        cache.latitude[valid],
-        cache.longitude[valid]
+        cache.time[keep],
+        cache.latitude[keep],
+        cache.longitude[keep]
         ;
         sport = cache.sport,
         vector_kwargs...

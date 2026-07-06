@@ -16,7 +16,7 @@ rate, cadence, power, temperature). Extension payloads live in an auxiliary lane
 outside the canonical schema."""
 
 
-BUNK_SCHEMA_VERSION = 20260630
+BUNK_SCHEMA_VERSION = 20260705
 
 
 class DecodeState(StrEnum):

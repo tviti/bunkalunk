@@ -464,7 +464,9 @@ function segment_match_transaction!(
             segment_id,
             match.segment_time,
             match.matched_at,
-            matcher_version
+            matcher_version,
+            match.idx_start,
+            match.idx_end
         )
         if export_path !== nothing
             accumulate_geocsv_data!(export_data, match)

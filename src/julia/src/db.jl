@@ -2,7 +2,7 @@ using SQLite
 using Dates
 
 function bunk_schema_version()
-    return 20260630
+    return 20260705
 end
 
 function fetch_user_version(conn::SQLite.DB)
@@ -59,6 +59,8 @@ function create_lunk_tables!(db::SQLite.DB)::Nothing
             elapsed_time_s REAL NOT NULL,
             matched_at INTEGER NOT NULL,
             matcher_version INTEGER NOT NULL,
+            idx_start INTEGER NOT NULL,
+            idx_end INTEGER NOT NULL,
             FOREIGN KEY(activity_id) REFERENCES activities(activity_id),
             FOREIGN KEY(segment_id) REFERENCES segments(segment_id)
         );
@@ -210,7 +212,9 @@ function insert_segment_effort!(
         segment_id::Int,
         elapsed_time_s::Real,
         matched_at::Int,
-        matcher_version::Int
+        matcher_version::Int,
+        idx_start::Int,
+        idx_end::Int
     )::Nothing
     DBInterface.execute(
         db,
@@ -220,13 +224,17 @@ function insert_segment_effort!(
                 segment_id,
                 elapsed_time_s,
                 matched_at,
-                matcher_version
+                matcher_version,
+                idx_start,
+                idx_end
             ) VALUES (
                 :activity_id,
                 :segment_id,
                 :elapsed_time_s,
                 :matched_at,
-                :matcher_version
+                :matcher_version,
+                :idx_start,
+                :idx_end
             )
         """,
         Dict(
@@ -234,7 +242,9 @@ function insert_segment_effort!(
             :segment_id => segment_id,
             :elapsed_time_s => elapsed_time_s,
             :matched_at => matched_at,
-            :matcher_version => matcher_version
+            :matcher_version => matcher_version,
+            :idx_start => idx_start,
+            :idx_end => idx_end
         )
     )
     return
@@ -254,6 +264,8 @@ const SegmentEffort = @NamedTuple{
     elapsed_time_s::Float64,
     matched_at::Int64,
     matcher_version::Int64,
+    idx_start::Int64,
+    idx_end::Int64,
     start_time::Union{Float64, Missing},
     name::Union{String, Nothing},
 }
@@ -268,6 +280,8 @@ SegmentEffort(r::SQLite.Row) = SegmentEffort(
         elapsed_time_s = r[:elapsed_time_s],
         matched_at = r[:matched_at],
         matcher_version = r[:matcher_version],
+        idx_start = r[:idx_start],
+        idx_end = r[:idx_end],
     )
 )
 
@@ -398,8 +412,10 @@ function fetch_segment_efforts_by_name(db::SQLite.DB, name::String)
             se.elapsed_time_s,
             se.matched_at,
             se.matcher_version,
+            se.idx_start,
+            se.idx_end,
             CAST(a.start_time AS REAL) AS start_time,
-    	    s.name AS name
+	    s.name AS name
         FROM segment_efforts se
         JOIN activities a ON a.activity_id = se.activity_id
         JOIN segments s ON s.segment_id = se.segment_id

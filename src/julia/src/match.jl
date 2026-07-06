@@ -26,6 +26,8 @@ struct MatchResult
     matched_at::Int64
     match_points::Vector{Vector{Float64}}
     match_times::Vector{Float64}
+    idx_start::Int64
+    idx_end::Int64
 end
 
 """
@@ -88,12 +90,14 @@ function match_to_activities(
         @debug "Working on activity $activity_id"
         @debug "Loaded $(length(cache.latitude)) track points"
 
-        match_points = Vector{Vector{Float64}}()
-        match_times = Vector{Float64}
+        match_points = [Float64[]]
+        match_times = Float64[]
 
         # Tracks can start with NaN, likely because the device hadn't acquired GPS
         # lock when the activity was started. Remove them
-        filtered_cache = drop_invalid_gps_points(cache)
+        valid = find_valid_points(cache)
+        filtered_cache = drop_cache_points(cache, valid)
+        cache_filter_map = findall(valid)
 
         track_ecef = compute_ecef_r.(
             filtered_cache.latitude, filtered_cache.longitude, fixed_height
@@ -111,6 +115,7 @@ function match_to_activities(
         )
 
         on_segment = false
+        idx_start::Int64 = 0
         for i in 1:(num_track - 1)
             p_1 = track[:, i]
             p_2 = track[:, i + 1]
@@ -129,6 +134,7 @@ function match_to_activities(
                         [filtered_cache.longitude[i + 1], filtered_cache.latitude[i + 1]],
                         start_crossing.t
                     )
+                    idx_start = cache_filter_map[i]
                     match_points = [p_cross]
                     match_times = [t_cross]
                     continue
@@ -178,7 +184,9 @@ function match_to_activities(
                                 segment_time,
                                 round(Int, time()),
                                 match_points,
-                                match_times
+                                match_times,
+                                idx_start,
+                                cache_filter_map[i + 1]
                             )
                         )
                     end
