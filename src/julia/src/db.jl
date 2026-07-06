@@ -298,7 +298,7 @@ end
 function fetch_segment_registration(db::SQLite.DB)
     result = DBInterface.execute(
         db,
-        "SELECT * FROM segments ORDER BY name"
+        "SELECT * FROM segments ORDER BY segment_id"
     )
     return [SegmentRegistration(r) for r in result]
 end

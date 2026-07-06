@@ -448,15 +448,15 @@ end
                     """
                 )
                 regs = fetch_segment_registration(db)
-                @test regs[1][:name] == "a"
+                @test regs[1][:name] == "c"
                 @test regs[2][:name] == "b"
-                @test regs[3][:name] == "c"
-                @test regs[1][:definition_path] == "path/to/a"
+                @test regs[3][:name] == "a"
+                @test regs[1][:definition_path] == "path/to/c"
                 @test regs[2][:definition_path] == "path/to/b"
-                @test regs[3][:definition_path] == "path/to/c"
-                @test regs[1][:definition_fingerprint] == "fingerprint-a"
+                @test regs[3][:definition_path] == "path/to/a"
+                @test regs[1][:definition_fingerprint] == "fingerprint-c"
                 @test regs[2][:definition_fingerprint] == "fingerprint-b"
-                @test regs[3][:definition_fingerprint] == "fingerprint-c"
+                @test regs[3][:definition_fingerprint] == "fingerprint-a"
             end
         end
     end
