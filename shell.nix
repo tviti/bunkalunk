@@ -28,10 +28,10 @@ let
     exec ctags -R \
       --languages=Julia \
       --output-format=etags \
-      -f "$PWD/src/julia/TAGS" \
-      "$PWD/src/julia/src" \
-      "$PWD/src/julia/test" \
-      "$PWD/src/julia/scripts"
+      -f "${project_root}/src/julia/TAGS" \
+      "${project_root}/src/julia/src" \
+      "${project_root}/src/julia/test" \
+      "${project_root}/src/julia/scripts"
   '';
 
   project_root = builtins.toString ./.;
