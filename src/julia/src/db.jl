@@ -266,14 +266,16 @@ const SegmentEffort = @NamedTuple{
     matcher_version::Int64,
     idx_start::Int64,
     idx_end::Int64,
-    start_time::Union{Float64, Missing},
+    start_time::Union{Float64, Nothing, Missing},
     name::Union{String, Nothing},
+    sport::Union{String, Nothing, Missing},
 }
 
 SegmentEffort(r::SQLite.Row) = SegmentEffort(
     (
-        start_time = get(r, :start_time, missing),
+        start_time = get(r, :start_time, nothing),
         name = get(r, :name, nothing),
+        sport = get(r, :sport, nothing),
         effort_id = r[:effort_id],
         activity_id = r[:activity_id],
         segment_id = r[:segment_id],
@@ -403,7 +405,9 @@ function remove_segment_efforts!(
     return [SegmentEffort(r) for r in result]
 end
 
-function fetch_segment_efforts_by_name(db::SQLite.DB, name::String)
+function fetch_segment_efforts_by_name(
+        db::SQLite.DB, name::String; sport::Union{String, Nothing} = nothing
+    )
     query = """
             SELECT
                 se.effort_id,
@@ -415,13 +419,17 @@ function fetch_segment_efforts_by_name(db::SQLite.DB, name::String)
                 se.idx_start,
                 se.idx_end,
                 CAST(a.start_time AS REAL) AS start_time,
-    	    s.name AS name
+                a.sport AS sport,
+    	        s.name AS name
             FROM segment_efforts se
             JOIN activities a ON a.activity_id = se.activity_id
             JOIN segments s ON s.segment_id = se.segment_id
-            WHERE s.name = ?
-            ORDER BY elapsed_time_s;
+            WHERE s.name = :name
             """
-    result = DBInterface.execute(db, query, [name])
+    if sport !== nothing
+        query *= " AND a.sport = :sport "
+    end
+    query *= "ORDER BY elapsed_time_s;"
+    result = DBInterface.execute(db, query, Dict(:name => name, :sport => sport))
     return [SegmentEffort(r) for r in result]
 end

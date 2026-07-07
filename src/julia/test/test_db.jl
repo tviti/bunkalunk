@@ -679,3 +679,57 @@ end
         end
     end
 end
+
+@testset "fetch_segment_efforts_by_name" begin
+    @testset "roundtrip no sport filter" begin
+        with_tmp_bunk_db!() do _, db_path
+            create_connection!(db_path) do db
+                seed_segment_efforts_table!(db)
+                efforts = fetch_segment_efforts_by_name(db, "a")
+                e = only(efforts)
+                @test e[:effort_id] == 1
+                @test e[:activity_id] == 1
+                @test e[:segment_id] == 3
+                @test e[:elapsed_time_s] == 100.0
+                @test e[:matched_at] == 1234
+                @test e[:matcher_version] == 20260607
+                @test e[:idx_start] == 1
+                @test e[:idx_end] == 2
+                @test e[:start_time] == 99.999
+                @test e[:name] == "a"
+                @test e[:sport] == "cycling"
+            end
+        end
+    end
+
+    @testset "roundtrip with sport filter" begin
+        with_tmp_bunk_db!() do _, db_path
+            create_connection!(db_path) do db
+                seed_segment_efforts_table!(db)
+                efforts = fetch_segment_efforts_by_name(db, "b"; sport = "basket-weaving")
+                e = only(efforts)
+                @test e[:effort_id] == 3
+                @test e[:activity_id] == 3
+                @test e[:segment_id] == 2
+                @test e[:elapsed_time_s] == 102.2
+                @test e[:matched_at] == 1236
+                @test e[:matcher_version] == 20260607
+                @test e[:idx_start] == 5
+                @test e[:idx_end] == 6
+                @test e[:start_time] == 99.999
+                @test e[:name] == "b"
+                @test e[:sport] == "basket-weaving"
+            end
+        end
+    end
+
+    @testset "no matches" begin
+        with_tmp_bunk_db!() do _, db_path
+            create_connection!(db_path) do db
+                seed_segment_efforts_table!(db)
+                efforts = fetch_segment_efforts_by_name(db, "b"; sport = "unsporty")
+                @test efforts == []
+            end
+        end
+    end
+end

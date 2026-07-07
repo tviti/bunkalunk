@@ -162,6 +162,12 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
         action = :store_arg
         default = 10
         help = "Number of efforts to show."
+
+        "--sport"
+        required = false
+        action = :store_arg
+        default = nothing
+        help = "Show only matches with the given sport."
     end
 
     return
@@ -574,17 +580,23 @@ end
 function run_segment_show(args::ArgDict, ctx::Context)
     segment_name::String = args["name"]
     top::Int = args["top"]
-    return segment_show(segment_name; top = top, ctx = ctx)
+    sport::Union{String, Nothing} = args["sport"]
+    return segment_show(segment_name; top = top, sport = sport, ctx = ctx)
 end
 
 """
-    segment_show(segment_name::String; ctx = Context(), top = Int64(10))
+    segment_show(segment_name::String; ctx = Context(), top = Int64(10), sport = sport)
 
 Show a table of segment efforts for `segment_name`
 """
-function segment_show(segment_name::String; ctx = Context(), top = Int64(10))
+function segment_show(
+        segment_name::String;
+        ctx = Context(),
+        top = Int64(10),
+        sport::Union{String, Nothing} = nothing
+    )
     efforts = create_connection!(ctx.db_path) do conn
-        fetch_segment_efforts_by_name(conn, segment_name)
+        fetch_segment_efforts_by_name(conn, segment_name; sport = sport)
     end
 
     num_efforts = length(efforts)

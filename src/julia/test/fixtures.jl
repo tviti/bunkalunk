@@ -112,13 +112,15 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         return
     end
 
-    function insert_dummy_activity!(conn::SQLite.DB, fingerprint::String)::Nothing
+    function insert_dummy_activity!(
+            conn::SQLite.DB, fingerprint::String; sport::String = "cycling"
+        )::Nothing
         insert_activity!(
             conn, Dict(
                 :start_time => 99.999,
                 :source_fingerprint => fingerprint,
                 :ride_tag => nothing,
-                :sport => "cycling",
+                :sport => sport,
                 :cache_version => 123456
             )
         )
@@ -128,7 +130,7 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
     function seed_segment_efforts_table!(db::SQLite.DB)::Nothing
         insert_dummy_activity!(db, "fingerprint-1")
         insert_dummy_activity!(db, "fingerprint-2")
-        insert_dummy_activity!(db, "fingerprint-3")
+        insert_dummy_activity!(db, "fingerprint-3"; sport = "basket-weaving")
         insert_dummy_activity!(db, "fingerprint-4")
         seed_segments_table!(db)
         DBInterface.execute(
