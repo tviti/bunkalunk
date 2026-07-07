@@ -588,8 +588,17 @@ function segment_show(
         top = Int64(10),
         sport::Union{String, Nothing} = nothing
     )
-    efforts = create_connection!(ctx.db_path) do conn
-        fetch_segment_efforts_by_name(conn, segment_name; sport = sport)
+
+    efforts, registration = create_connection!(ctx.db_path) do conn
+        (
+            fetch_segment_efforts_by_name(conn, segment_name, sport = sport),
+            fetch_segment_registration_by_name(conn, segment_name),
+        )
+    end
+
+    if registration === nothing
+        @error "No segment is registered under $segment_name"
+        return 1
     end
 
     num_efforts = length(efforts)
@@ -616,10 +625,21 @@ function segment_show(
         )
     end
 
+    segment = read_segment(registration[:definition_path])
+    distance = let diffs = Float64[]
+        for i in 1:(length(segment.longitude) - 1)
+            p1 = (segment.latitude[i], segment.longitude[i])
+            p2 = (segment.latitude[i + 1], segment.longitude[i + 1])
+            push!(diffs, haversine_distance(p1, p2))
+        end
+        sum(diffs)
+    end
+
     row_format = Printf.Format("  %-4s  %-21s  %s\n")
     println(ctx.io, "")
     println(ctx.io, "  " * repeat("-", 41))
     println(ctx.io, "   Segment name: $segment_name")
+    @printf(ctx.io, "   Distance: %.4f km (%.4f mi)\n", 1.0e-3 * distance, meters2miles(distance))
     println(ctx.io, "   $num_efforts efforts total")
     println(ctx.io, "  " * repeat("-", 41))
     println(ctx.io, "")

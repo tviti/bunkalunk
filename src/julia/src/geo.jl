@@ -135,6 +135,7 @@ function linterp(q_1, q_2, t)
     return (1 - t) * q_1 + t * q_2
 end
 
+# TODO: This function uses (lat, lon) ordering where the rest of the project uses (lon, lat)
 function haversine_distance(p₁::Tuple{Float64, Float64}, p₂::Tuple{Float64, Float64})::Float64
     # p1 and p2 are tuples of (lat, lon) in degrees
     Δϕ = p₂[1] - p₁[1]
@@ -145,3 +146,5 @@ function haversine_distance(p₁::Tuple{Float64, Float64}, p₂::Tuple{Float64, 
     θ = 2 * asin(sqrt(havθ))
     return R_Earth * θ
 end
+
+meters2miles(m) = m / 1609.344
