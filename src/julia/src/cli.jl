@@ -368,13 +368,15 @@ end
 function segment_remove(name::String; ctx = Context())
     create_connection!(ctx.db_path) do conn
         DBInterface.transaction(conn) do
-            registration = remove_segment!(conn, name)
+            registration = fetch_segment_registration_by_name(conn, name)
             if registration === nothing
                 @info "No segment found by name $name"
                 return 1
             end
             efforts = remove_segment_efforts!(conn, registration[:segment_id])
             @info "Removed $(length(efforts)) segment efforts"
+            remove_segment!(conn, name)
+            return
         end
     end
     return 0

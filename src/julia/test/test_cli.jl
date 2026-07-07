@@ -877,3 +877,27 @@ end
         end
     end
 end
+
+@testset "segment_remove" begin
+    @testset "happy path" begin
+        with_tempdir_context() do ctx, dir
+            before = create_connection!(ctx.db_path) do db
+                seed_segment_efforts_table!(db)
+                fetch_segment_efforts_by_name(db, "c")
+            end
+            @test length(before) > 0
+            args = Dict{String, Any}(
+                "name" => "c"
+            )
+            result = @test_logs (:info,) Lunk.run_segment_remove(args, ctx)
+            after, registration = create_connection!(ctx.db_path) do db
+                (
+                    fetch_segment_efforts_by_name(db, "c"),
+                    fetch_segment_registration_by_name(db, "c"),
+                )
+            end
+            @test length(after) == 0
+            @test registration === nothing
+        end
+    end
+end
