@@ -471,7 +471,6 @@ end
 
             args = Dict{String, Any}(
                 "name" => "segment",
-                "sport" => nothing,
                 "export" => nothing,
             )
 
@@ -504,7 +503,6 @@ end
 
             args = Dict{String, Any}(
                 "name" => "segment",
-                "sport" => nothing,
                 "export" => export_path,
             )
 
@@ -539,7 +537,6 @@ end
 
             args = Dict{String, Any}(
                 "name" => "segment",
-                "sport" => nothing,
                 "export" => export_path,
             )
 
@@ -553,7 +550,6 @@ end
         with_tempdir_context() do ctx, dir
             args::Dict{String, Any} = Dict(
                 "name" => "segment",
-                "sport" => nothing,
                 "export" => joinpath(dir, ".notcsv")
             )
             result = @test_logs (:error,) Lunk.run_segment_match(args, ctx)
@@ -585,7 +581,6 @@ end
             write(segment_path, "test")
             args::Dict{String, Any} = Dict(
                 "name" => "segment",
-                "sport" => nothing,
                 "export" => nothing
             )
             result = @test_logs (:error,) Lunk.run_segment_match(args, ctx)

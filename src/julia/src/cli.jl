@@ -138,12 +138,6 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
         action = :store_arg
         help = "Segment name."
 
-        "sport"
-        required = false
-        action = :store_arg
-        default = nothing
-        help = "Match only activities with this sport."
-
         "--export"
         required = false
         action = :store_arg
@@ -435,10 +429,10 @@ function is_stale_segment(
 end
 
 function load_matcher_inputs(
-        db_conn::SQLite.DB, definition_path::String, sport::Union{String, Nothing}
+        db_conn::SQLite.DB, definition_path::String
     )
     segment = read_segment(definition_path)
-    activities = select_all(db_conn, sport = sport)
+    activities = select_all(db_conn)
     activities_data = load_activities(activities)
     return (segment, activities_data)
 end
@@ -505,12 +499,10 @@ end
 
 function run_segment_match(args::ArgDict, ctx::Context)
     segment_name::String = args["name"]
-    sport::Union{String, Nothing} = args["sport"]
     export_path::Union{String, Nothing} = args["export"]
     return segment_match(
         segment_name;
         ctx = ctx,
-        sport = sport,
         export_path = export_path
     )
 end
@@ -518,7 +510,6 @@ end
 function segment_match(
         segment_name::String;
         ctx = Context(),
-        sport::Union{String, Nothing} = nothing,
         export_path::Union{String, Nothing} = nothing
     )
     if export_path !== nothing
@@ -541,7 +532,7 @@ function segment_match(
         end
 
         (segment, activities_data) = load_matcher_inputs(
-            db_conn, definition_path, sport
+            db_conn, definition_path
         )
 
         match_results = match_to_activities(segment, activities_data)
