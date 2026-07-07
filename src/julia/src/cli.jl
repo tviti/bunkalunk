@@ -62,7 +62,7 @@ function add_root_argtable!(settings::ArgParseSettings)::Nothing
         help = "Enable verbose output"
         action = :store_true
 
-        "--debug"
+        "--debug", "-d"
         help = "Enable debug-level logging"
         action = :store_true
 
@@ -81,22 +81,22 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
     segment_settings = settings["segment"]
 
     @add_arg_table! segment_settings begin
-        "register"
+        "register", "add"
         action = :command
         help = """Add a new segment to the database. Supports OSM XML files
         and GeoJSON. Only supports GeoJSON Feature file-types with
         LineString geometry, all other rejected. Generate using ogr2ogr with
         GeoJSONSeq formatted output."""
 
-        "remove"
+        "remove", "rm"
         action = :command
         help = "Remove a segment and its efforts from the database."
 
-        "rename"
+        "rename", "mv"
         action = :command
         help = "Rename a segment in the database."
 
-        "list"
+        "list", "ls"
         action = :command
         help = "List all registered segments."
 
@@ -110,7 +110,7 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
     end
 
     @add_arg_table! segment_settings["register"] begin
-        "--force"
+        "--force", "-f"
         help = "Force overwrite of an existing segment"
         action = :store_true
 
@@ -138,7 +138,7 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
         action = :store_arg
         help = "Segment name."
 
-        "--export"
+        "--export", "-e"
         required = false
         action = :store_arg
         arg_type = String
@@ -151,13 +151,13 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
         action = :store_arg
         help = "Segment name."
 
-        "--top"
+        "--top", "-t"
         arg_type = Int
         action = :store_arg
         default = 10
         help = "Number of efforts to show."
 
-        "--sport"
+        "--sport", "-s"
         required = false
         action = :store_arg
         default = nothing
