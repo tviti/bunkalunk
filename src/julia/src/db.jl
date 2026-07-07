@@ -405,23 +405,23 @@ end
 
 function fetch_segment_efforts_by_name(db::SQLite.DB, name::String)
     query = """
-        SELECT
-            se.effort_id,
-            se.activity_id,
-            se.segment_id,
-            se.elapsed_time_s,
-            se.matched_at,
-            se.matcher_version,
-            se.idx_start,
-            se.idx_end,
-            CAST(a.start_time AS REAL) AS start_time,
-	    s.name AS name
-        FROM segment_efforts se
-        JOIN activities a ON a.activity_id = se.activity_id
-        JOIN segments s ON s.segment_id = se.segment_id
-        WHERE s.name = ?
-        ORDER BY elapsed_time_s;
-        """
+            SELECT
+                se.effort_id,
+                se.activity_id,
+                se.segment_id,
+                se.elapsed_time_s,
+                se.matched_at,
+                se.matcher_version,
+                se.idx_start,
+                se.idx_end,
+                CAST(a.start_time AS REAL) AS start_time,
+    	    s.name AS name
+            FROM segment_efforts se
+            JOIN activities a ON a.activity_id = se.activity_id
+            JOIN segments s ON s.segment_id = se.segment_id
+            WHERE s.name = ?
+            ORDER BY elapsed_time_s;
+            """
     result = DBInterface.execute(db, query, [name])
     return [SegmentEffort(r) for r in result]
 end

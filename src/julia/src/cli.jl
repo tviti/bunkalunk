@@ -19,6 +19,14 @@ function Context(db_path::String, activity_store::String, verbose::Bool)
     return Context(db_path, activity_store, verbose, stdout)
 end
 
+function Context()
+    return Context(
+        joinpath(resolve_bunk_home(), BUNKALUNK_DB),
+        resolve_activity_store(),
+        false
+    )
+end
+
 function run_subcommand(
         args::ArgDict, ctx::Context, command_map::CommandMap
     )
@@ -322,11 +330,7 @@ function segment_register_transaction(
 
 end
 
-function run_segment_register(args::ArgDict, ctx::Context)
-    force::Bool = args["force"]
-    name::String = args["name"]
-    path::String = abspath(args["path"])
-
+function segment_register(name::String, path::String; force::Bool = false, ctx = Context())
     # Verify that the segment is decodable
     try
         read_segment(path)
@@ -348,8 +352,14 @@ function run_segment_register(args::ArgDict, ctx::Context)
     end
 end
 
-function run_segment_remove(args::ArgDict, ctx::Context)
+function run_segment_register(args::ArgDict, ctx::Context)
+    force::Bool = args["force"]
     name::String = args["name"]
+    path::String = abspath(args["path"])
+    return segment_register(name, path; force = force, ctx = ctx)
+end
+
+function segment_remove(name::String; ctx = Context())
     create_connection!(ctx.db_path) do conn
         DBInterface.transaction(conn) do
             registration = remove_segment!(conn, name)
@@ -364,7 +374,12 @@ function run_segment_remove(args::ArgDict, ctx::Context)
     return 0
 end
 
-function run_segment_list(args::ArgDict, ctx::Context)
+function run_segment_remove(args::ArgDict, ctx::Context)
+    name::String = args["name"]
+    return segment_remove(name; ctx = ctx)
+end
+
+function segment_list(; ctx = Context())
     row_fmt = Printf.Format("  %-4s  %-30s  %s\n")
     Printf.format(ctx.io, row_fmt, "ID", "Name", "Path")
     Printf.format(
@@ -389,6 +404,10 @@ function run_segment_list(args::ArgDict, ctx::Context)
         end
         return 0
     end
+end
+
+function run_segment_list(args::ArgDict, ctx::Context)
+    return segment_list(ctx = ctx)
 end
 
 function is_stale_segment(
@@ -480,7 +499,20 @@ function run_segment_match(args::ArgDict, ctx::Context)
     segment_name::String = args["name"]
     sport::Union{String, Nothing} = args["sport"]
     export_path::Union{String, Nothing} = args["export"]
+    return segment_match(
+        segment_name;
+        ctx = ctx,
+        sport = sport,
+        export_path = export_path
+    )
+end
 
+function segment_match(
+        segment_name::String;
+        ctx = Context(),
+        sport::Union{String, Nothing} = nothing,
+        export_path::Union{String, Nothing} = nothing
+    )
     if export_path !== nothing
         _, ext = splitext(export_path)
         if ext != ".csv"
@@ -491,7 +523,7 @@ function run_segment_match(args::ArgDict, ctx::Context)
 
     return create_connection!(ctx.db_path) do db_conn
         segment_reg = fetch_segment_registration(db_conn, segment_name)
-        segment_id::Int64 = segment_reg[:segment_id]
+        segment_id = segment_reg[:segment_id]
         definition_path = segment_reg[:definition_path]
 
         if is_stale_segment(
@@ -526,6 +558,11 @@ function run_segment_match(args::ArgDict, ctx::Context)
     end
 end
 
+"""
+    seconds2hms(t::Float64)
+
+Convert `t` in seconds to a `Tuple` `(hours, minutes, seconds)`.
+"""
 function seconds2hms(t::Float64)
     t_h = divrem(t, 60)
     hours = floor(Int64, t / 3600.0)
@@ -537,7 +574,15 @@ end
 function run_segment_show(args::ArgDict, ctx::Context)
     segment_name::String = args["name"]
     top::Int = args["top"]
+    return segment_show(segment_name; top = top, ctx = ctx)
+end
 
+"""
+    segment_show(segment_name::String; ctx = Context(), top = Int64(10))
+
+Show a table of segment efforts for `segment_name`
+"""
+function segment_show(segment_name::String; ctx = Context(), top = Int64(10))
     efforts = create_connection!(ctx.db_path) do conn
         fetch_segment_efforts_by_name(conn, segment_name)
     end
@@ -568,13 +613,13 @@ function run_segment_show(args::ArgDict, ctx::Context)
 
     row_format = Printf.Format("  %-4s  %-21s  %s\n")
     println(ctx.io, "")
-    println(ctx.io, repeat("-", 50))
-    println(ctx.io, "  Segment name: $segment_name")
-    println(ctx.io, "  $num_efforts efforts total")
-    println(ctx.io, repeat("-", 50))
+    println(ctx.io, "  " * repeat("-", 41))
+    println(ctx.io, "   Segment name: $segment_name")
+    println(ctx.io, "   $num_efforts efforts total")
+    println(ctx.io, "  " * repeat("-", 41))
     println(ctx.io, "")
-    Printf.format(ctx.io, row_format, "Rank", "Activity Date", "Segment Time")
-    Printf.format(ctx.io, row_format, repeat("-", 4), repeat("-", 21), repeat("-", 15))
+    Printf.format(ctx.io, row_format, "Rank", "Activity Date", "Time")
+    Printf.format(ctx.io, row_format, repeat("-", 4), repeat("-", 19), repeat("-", 12))
 
     i = 1
     for (; effort_id, start_time, activity_id, elapsed_time_s) in efforts
@@ -602,7 +647,7 @@ function accumulate_geocsv_data!(
     num_fields = length(g.field_names)
     num_cache = length(cache.longitude)
     field_values = Union{Vector{Float64}, Vector{Int64}}[
-        name == "activity_id" ? repeat(Int64[activity_id], num_cache) : getfield(cache, Symbol(name))
+        name == "activity_id" ? fill(activity_id, num_cache) : getfield(cache, Symbol(name))
             for name in g.field_names
     ]
     for i in 1:num_cache
