@@ -90,23 +90,23 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
 
         "remove", "rm"
         action = :command
-        help = "Remove a segment and its efforts from the database."
+        help = "Remove a segment and its efforts from the database"
 
         "rename", "mv"
         action = :command
-        help = "Rename a segment in the database."
+        help = "Rename a segment in the database"
 
         "list", "ls"
         action = :command
-        help = "List all registered segments."
+        help = "List all registered segments"
 
         "match"
         action = :command
-        help = "Run match and timing calculations."
+        help = "Run match and timing calculations"
 
         "show"
         action = :command
-        help = "Show segment efforts."
+        help = "Show segment efforts"
     end
 
     @add_arg_table! segment_settings["register"] begin
@@ -117,52 +117,52 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
         "--name", "-n"
         action = :store_arg
         arg_type = String
-        help = "Segment name."
+        help = "Segment name"
 
         "path"
         required = true
         action = :store_arg
         arg_type = String
-        help = "Path to segment file."
+        help = "Path to segment file"
     end
 
     @add_arg_table! segment_settings["remove"] begin
         "name"
         required = true
         action = :store_arg
-        help = "Segment name."
+        help = "Segment name"
     end
 
     @add_arg_table! segment_settings["match"] begin
         "name"
         required = true
         action = :store_arg
-        help = "Segment name."
+        help = "Segment name"
 
         "--export", "-e"
         required = false
         action = :store_arg
         arg_type = String
-        help = "Export match data to a GeoCSV + CSVT at the given path."
+        help = "Export match data to a GeoCSV + CSVT at the given path"
     end
 
     @add_arg_table! segment_settings["show"] begin
         "name"
         required = true
         action = :store_arg
-        help = "Segment name."
+        help = "Segment name"
 
         "--top", "-t"
         arg_type = Int
         action = :store_arg
         default = 10
-        help = "Number of efforts to show."
+        help = "Number of efforts to show"
 
         "--sport", "-s"
         required = false
         action = :store_arg
         default = nothing
-        help = "Show only matches with the given sport."
+        help = "Show only matches with the given sport"
     end
 
     return
@@ -173,7 +173,7 @@ function add_activities_argtable!(settings::ArgParseSettings)::Nothing
     @add_arg_table! activity_settings begin
         "export"
         action = :command
-        help = "Export a list of activities to GeoCSV + CSVT sidecar."
+        help = "Export a list of activities to GeoCSV + CSVT sidecar"
     end
 
     @add_arg_table! activity_settings["export"] begin
@@ -182,12 +182,12 @@ function add_activities_argtable!(settings::ArgParseSettings)::Nothing
         required = true
         action = :store_arg
         arg_type = Int
-        help = "The activities to be included in the export."
+        help = "The activities to be included in the export"
 
         "--output", "-o"
         required = true
         action = :store_arg
-        help = "Output path."
+        help = "Output path"
     end
     return
 end
