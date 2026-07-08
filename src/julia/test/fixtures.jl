@@ -174,39 +174,80 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         end
     end
 
+    function write_minimal_osm(
+            path::AbstractString;
+            name::Union{String, Nothing} = "segment",
+            latitude::AbstractVector{<:Real} = [0.0, 0.0001, 0.0002],
+            longitude::AbstractVector{<:Real} = [0.0, 0.0, 0.0]
+        )
+        length(latitude) == length(longitude) || throw(
+            ArgumentError("latitude and longitude must have the same length")
+        )
+        length(latitude) >= 2 || throw(
+            ArgumentError("minimal OSM fixture requires at least two points")
+        )
+
+        # Minimal valid file: one way, N nodes, nd refs match. Changing the
+        # name kwarg is an easy way to change the file contents and fingerprint.
+        xml = "<osm>\n"
+        for (i, (lat, lon)) in enumerate(zip(latitude, longitude))
+            xml *= "    <node id=\"$i\" visible=\"true\" lat=\"$lat\" lon=\"$lon\" />\n"
+        end
+        xml *= "    <way id=\"1\" visible=\"true\">\n"
+        for i in eachindex(latitude)
+            xml *= "        <nd ref=\"$i\" />\n"
+        end
+        if name !== nothing
+            xml *= """<tag k="name" v="$name" />"""
+        end
+        xml *= "\n    </way>\n</osm>\n"
+        return write(path, xml)
+    end
+
     function make_cache_file(
             dir
             ;
             filename = "cache",
             start_time = 946598400.0,
-            sport = "basket-weaving"
+            sport::Union{String, Nothing} = "basket-weaving",
+            time = Float64[0.0, 0.1, 0.2],
+            latitude = Float64[1.0, 1.1, 1.2],
+            longitude = Float64[2.0, 2.1, 2.2],
+            heart_rate::Union{AbstractVector{<:Real}, Nothing} = Float64[99.0, 99.0, 99.0],
+            elevation::Union{AbstractVector{<:Real}, Nothing} = Float64[10.0, 11.0, 12.0],
+            distance::Union{AbstractVector{<:Real}, Nothing} = Float64[0.0, 1.0, 2.0],
+            speed::Union{AbstractVector{<:Real}, Nothing} = Float64[3.0, 3.1, 3.2]
         )
-        time = Float64[0.0, 0.1, 0.2]
-        latitude = Float64[1.0, 1.1, 1.2]
-        longitude = Float64[2.0, 2.1, 2.2]
-        heart_rate = Float64[99.0, 99.0, 99.0]
-        elevation = Float64[10.0, 11.0, 12.0]
-        distance = Float64[0.0, 1.0, 2.0]
-        speed = Float64[3.0, 3.1, 3.2]
 
         path = joinpath(dir, filename * ".h5")
         h5open(path, "w") do file
             file["time"] = time
             file["latitude"] = latitude
             file["longitude"] = longitude
-            file["heart_rate"] = heart_rate
-            file["elevation"] = elevation
-            file["distance"] = distance
-            file["speed"] = speed
+            heart_rate !== nothing && (file["heart_rate"] = heart_rate)
+            elevation !== nothing && (file["elevation"] = elevation)
+            distance !== nothing && (file["distance"] = distance)
+            speed !== nothing && (file["speed"] = speed)
             attributes(file)["start_time"] = start_time
-            attributes(file)["sport"] = sport
+            sport !== nothing && (attributes(file)["sport"] = sport)
         end
         return path
     end
 
-    function make_registered_cache_file!(conn, dir; fingerprint = "cache")
-        start_time = 946598400.0
-        sport = "cycling"
+    function make_registered_cache_file!(
+            conn,
+            dir;
+            fingerprint = "cache",
+            start_time = 946598400.0,
+            sport::Union{String, Nothing} = "cycling",
+            time = Float64[0.0, 0.1, 0.2],
+            latitude = Float64[1.0, 1.1, 1.2],
+            longitude = Float64[2.0, 2.1, 2.2],
+            heart_rate::Union{AbstractVector{<:Real}, Nothing} = Float64[99.0, 99.0, 99.0],
+            elevation::Union{AbstractVector{<:Real}, Nothing} = Float64[10.0, 11.0, 12.0],
+            distance::Union{AbstractVector{<:Real}, Nothing} = Float64[0.0, 1.0, 2.0],
+            speed::Union{AbstractVector{<:Real}, Nothing} = Float64[3.0, 3.1, 3.2]
+        )
         insert_activity!(
             conn,
             Dict(
@@ -224,7 +265,14 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
             ;
             filename = fingerprint,
             start_time = start_time,
-            sport = sport
+            sport = sport,
+            time = time,
+            latitude = latitude,
+            longitude = longitude,
+            heart_rate = heart_rate,
+            elevation = elevation,
+            distance = distance,
+            speed = speed
         )
     end
 

@@ -124,28 +124,6 @@ end
     end
 end
 
-function write_minimal_osm(path; name = "segment")
-    # minimal valid file: one way, N nodes, nd refs match, name tag present
-    # changing the name kwarg is an easy way to change the file contents (and
-    # hence change the fingerprint)
-    xml = """
-        <osm>
-            <node id="1" visible="true" lat="1.5" lon="2.25" />
-            <node id="2" visible="true" lat="1.6" lon="2.35" />
-            <way id="1" visible="true">
-                    <nd ref="1" />
-                    <nd ref="2" />
-    """
-    if name !== nothing
-        xml *= """<tag k="name" v="$name" />"""
-    end
-    xml *= """
-            </way>
-        </osm> 
-    """
-    return write(path, xml)
-end
-
 @testset "run_segment_register" begin
     @testset "Happy path" begin
         with_tempdir_context() do ctx, dir
