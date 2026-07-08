@@ -2,10 +2,9 @@
 
 ## Overview
 
-Bunkalunk is a local-first ride-data analysis tool. It accepts
-user-supplied local activity files, decodes them into a stable
-intermediate format, and computes segment efforts for a personal
-leaderboard.
+Bunkalunk is an activity data analysis toolchain. It accepts user-supplied
+activity files, decodes them into a stable intermediate format, and computes
+segment efforts for a personal leaderboard.
 
 ## Design Principles
 
@@ -16,8 +15,7 @@ leaderboard.
 - Scriptability: stable command-line workflows over local files.
 - Minimal abstraction: one canonical decoded schema, a small number
   of storage roles, no plugin frameworks.
-- Format-based decoding: decoders dispatch by file format, not
-  acquisition source.
+- Format-based decoding: decoders dispatch by file format.
 - Narrow scope: sync, archival, backup, and vendor integration are
   out of scope.
 - Discover don't prescribe: design decisions not on the critical path
@@ -68,9 +66,6 @@ queries and writes to a narrow set of analysis-owned tables.
 ## Simplifying Assumptions
 
 - One source file decodes to exactly one activity. 
-- `.fit` is the only supported format initially.
-- One or more explicit file path operands only; no recursive directory
-  ingestion.
 
 ## Input Contract
 
@@ -98,12 +93,8 @@ SQLite stores cross-activity relational state:
 - computed segment efforts
 
 HDF5 stores per-activity decoded payloads:
-- canonical time-series arrays such as timestamps, position, elevation,
-  distance, heart rate, and speed
-
-This split is intentional. SQLite is the catalog and result store; HDF5 is the
-decoded artifact store. The project does not treat either as interchangeable
-with the other.
+- canonical time-series arrays such as time, latitude, longitude,
+  elevation, distance, heart rate, and speed
 
 A file-only design would turn cross-activity metadata and analysis results into
 an ad hoc database. A SQLite-only design would force large decoded time-series
@@ -119,13 +110,13 @@ Therefore the architecture intentionally keeps:
 Minimum tables:
 
 - `source_files` — Python-owned, Julia-readable catalog of admitted source files
-  - `source_path`
+  - `source_path` (primary key)
   - `content_fingerprint` (FK → `activities.source_fingerprint`)
   - `decode_state`
   - `decode_error` (nullable)
 
 - `activities` — Python-owned, Julia-readable
-  - `activity_id`
+  - `activity_id` (primary key)
   - `source_fingerprint` (CAS address; unique)
   - `start_time` — Real (Float) seconds from Unix epoch
   - `cache_version`
@@ -139,12 +130,14 @@ Minimum tables:
   - `definition_fingerprint` (SHA-256 of definition file bytes; unique)
 
 - `segment_efforts` — analysis-owned
-  - `effort_id`
+  - `effort_id` (primary key)
   - `activity_id`
   - `segment_id`
   - `elapsed_time_s`
   - `matched_at` — Integer seconds from Unix epoch
   - `matcher_version`
+  - `idx_start`
+  - `idx_end`
 
 `activities.source_fingerprint` is the SHA-256 fingerprint of the source file
 bytes and serves as the CAS address for the decoded HDF5 artifact.
@@ -190,21 +183,25 @@ successful shared CAS entry.
 
 ### HDF5
 
-Each decoded activity is stored as a single HDF5 file named by the
-source file's SHA-256 fingerprint, sharded by the first two
-characters of that fingerprint.
+Each decoded activity is stored as a single HDF5 file named by the source file's
+SHA-256 fingerprint, sharded by the first two characters of that fingerprint.
 
-Each HDF5 file carries a `cache_version` integer attribute. If the
-version does not match the current expected version, the cache entry
-is considered stale. Rebuilding stale entries is the user's
-responsibility via `bunk decode`.
+Each HDF5 file carries a `cache_version` integer attribute. If the version does
+not match the current expected version, the cache entry is considered
+stale. Rebuilding stale entries is the user's responsibility via `bunk decode`.
 - version format: YYYYMMDD as an integer
 
 The canonical schema includes:
 
-- timestamps (required)
-- latitude / longitude (nullable)
-- heart rate (nullable)
+- `time` (required)
+- `latitude` / `longitude` (required row-aligned float datasets; missing
+  coordinates are represented as `NaN`)
+- `heart_rate` (optional row-aligned float dataset)
+- `elevation` (optional row-aligned float dataset)
+- `distance` (optional row-aligned float dataset)
+- `speed` (optional row-aligned float dataset)
+- `start_time` file attribute (required)
+- `sport` file attribute (optional)
 
 Failed or interrupted decodes must not leave a completed artifact at the final
 path.
@@ -218,7 +215,7 @@ path.
 - One decoded activity per source file (MVP assumption).
 
 The decoder treats FitData as a sparse row-aligned table: one row per
-FIT record, timestamp always present, other fields may be None.
+FIT record, `time` always present, other fields may be absent.
 
 ## Ingestion Workflow
 
