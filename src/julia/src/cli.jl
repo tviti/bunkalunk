@@ -114,14 +114,15 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
         help = "Force overwrite of an existing segment"
         action = :store_true
 
-        "name"
-        required = true
+        "--name", "-n"
         action = :store_arg
+        arg_type = String
         help = "Segment name."
 
         "path"
         required = true
         action = :store_arg
+        arg_type = String
         help = "Path to segment file."
     end
 
@@ -330,13 +331,35 @@ function segment_register_transaction(
 
 end
 
-function segment_register(name::String, path::String; force::Bool = false, ctx = Context())
+"""
+    segment_register(
+        path::String; name::Union{String, Nothing} = nothing, force::Bool = false, ctx = Context()
+    )
+
+Register a new segment in the database.
+
+If `name` is `nothing`, attempts to register using the name read from the segment
+file.
+
+"""
+function segment_register(
+        path::String; name::Union{String, Nothing} = nothing, force::Bool = false, ctx = Context()
+    )
     # Verify that the segment is decodable
-    try
+    segment::Segment = try
         read_segment(path)
     catch e
         showerror(ctx.io, e)
         @error "Segment at $path could not be decoded"
+        return 1
+    end
+
+    if name !== nothing
+        registered_name = name
+    elseif segment.name != ""
+        registered_name = segment.name
+    else
+        @error "Could not determine name for segment at $path"
         return 1
     end
 
@@ -347,16 +370,16 @@ function segment_register(name::String, path::String; force::Bool = false, ctx =
 
     return create_connection!(ctx.db_path) do conn
         DBInterface.transaction(conn) do
-            segment_register_transaction(conn, name, path, fingerprint, force)
+            segment_register_transaction(conn, registered_name, path, fingerprint, force)
         end
     end
 end
 
 function run_segment_register(args::ArgDict, ctx::Context)
     force::Bool = args["force"]
-    name::String = args["name"]
+    name::Union{String, Nothing} = args["name"]
     path::String = abspath(args["path"])
-    return segment_register(name, path; force = force, ctx = ctx)
+    return segment_register(path; name = name, force = force, ctx = ctx)
 end
 
 function segment_remove(name::String; ctx = Context())
@@ -370,7 +393,6 @@ function segment_remove(name::String; ctx = Context())
             efforts = remove_segment_efforts!(conn, registration[:segment_id])
             @info "Removed $(length(efforts)) segment efforts"
             remove_segment!(conn, name)
-            return
         end
     end
     return 0

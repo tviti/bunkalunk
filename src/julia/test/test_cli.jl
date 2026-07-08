@@ -135,7 +135,11 @@ function write_minimal_osm(path; name = "segment")
             <way id="1" visible="true">
                     <nd ref="1" />
                     <nd ref="2" />
-                    <tag k="name" v="$name" />
+    """
+    if name !== nothing
+        xml *= """<tag k="name" v="$name" />"""
+    end
+    xml *= """
             </way>
         </osm> 
     """
@@ -168,6 +172,47 @@ end
             @test row[:name] == "segment"
             @test row[:definition_path] == dir * "/segment.osm"
             @test row[:definition_fingerprint] == fingerprint
+        end
+    end
+
+    @testset "uses name from segment file when requested" begin
+        with_tempdir_context() do ctx, dir
+            args::Dict{String, Any} = Dict(
+                "force" => false,
+                "name" => nothing,
+                "path" => dir * "/segment.osm"
+            )
+            write_minimal_osm(args["path"]; name = "segment")
+            fingerprint = open(args["path"], "r") do f
+                compute_fingerprint(f)
+            end
+
+            @test Lunk.run_segment_register(args, ctx) == 0
+
+            row = create_connection!(ctx.db_path) do conn
+                result = DBInterface.execute(
+                    conn,
+                    "SELECT * FROM segments WHERE name = ?",
+                    ["segment"]
+                )
+                return only(NamedTuple(r) for r in result)
+            end
+            @test row[:name] == "segment"
+            @test row[:definition_path] == dir * "/segment.osm"
+            @test row[:definition_fingerprint] == fingerprint
+        end
+    end
+
+    @testset "fails when unable to determine segment name" begin
+        with_tempdir_context() do ctx, dir
+            args::Dict{String, Any} = Dict(
+                "force" => false,
+                "name" => nothing,
+                "path" => dir * "/segment.osm"
+            )
+            write_minimal_osm(args["path"]; name = nothing)
+            result = @test_logs (:warn,) (:error,) Lunk.run_segment_register(args, ctx)
+            @test result == 1
         end
     end
 
