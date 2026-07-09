@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 import shutil
 from bunkalunk.bunk_helpers import compute_fingerprint
-from bunkalunk.db import create_connection
+from bunkalunk.db.connections import create_connection
 
 
 _FIT_DIR = Path(__file__).parent / "fits"

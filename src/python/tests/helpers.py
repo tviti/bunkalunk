@@ -1,4 +1,6 @@
-from bunkalunk.db import Connection, Activity, _upsert_activity
+from sqlite3 import Connection
+
+from bunkalunk.db.activities import Activity, _upsert_activity
 
 
 def upsert_dummy_activity(db_conn, fingerprint):

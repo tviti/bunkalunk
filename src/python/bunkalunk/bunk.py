@@ -34,6 +34,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
+from sqlite3 import Connection
 
 from bunkalunk.bunk_helpers import (
     compute_fingerprint,
@@ -43,22 +44,19 @@ from bunkalunk.bunk_helpers import (
     validate_extension,
 )
 from bunkalunk.cache import resolve_cache_path, write_cache
-from bunkalunk.db import (
-    Connection,
+from bunkalunk.db import create_connection
+from bunkalunk.db.activities import drop_activity, is_stale, record_cache_creation
+from bunkalunk.db.source_files import (
     DecodeState,
     SourceFile,
-    create_connection,
     drop_source_file,
-    drop_activity,
     get_source_file,
     list_source_files_by_content_fingerprint,
     list_source_files_by_decode_state,
     list_source_files_stale_cache,
-    record_cache_creation,
     record_decode_outcome,
     record_source_file_fingerprint,
     upsert_source_file,
-    is_stale,
 )
 from bunkalunk.formats.fit import UnsupportedFITFileType, fit_to_cache, read_fit
 

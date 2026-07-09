@@ -5,8 +5,12 @@ using Lunk
     @testset "Happy path" begin
         mktempdir() do dir
             db_path = joinpath(dir, "db.sqlite3")
-            cmd = `python -c "from bunkalunk import db; conn = db.create_connection('$db_path'); conn.close()"`
-            process = run(cmd)
+            script = """
+            from bunkalunk.db import create_connection
+            conn = create_connection('$db_path')
+            conn.close()
+            """
+            process = run(`python -c $script`)
             @test process.exitcode == 0
             @test isfile(db_path)
             create_connection!(db_path) do conn
@@ -25,9 +29,9 @@ using Lunk
             db_path = joinpath(dir, "db.sqlite3")
             bad_version = Lunk.bunk_schema_version() - 1
             script = """
-            from bunkalunk import db
-            db.BUNK_SCHEMA_VERSION = $bad_version
-            conn = db.create_connection('$db_path')
+            from bunkalunk.db import connections
+            connections.BUNK_SCHEMA_VERSION = $bad_version
+            conn = connections.create_connection('$db_path')
             conn.close()
             """
             cmd = `python -c "$script"`

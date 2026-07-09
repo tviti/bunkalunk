@@ -14,12 +14,11 @@ from bunkalunk import bunk
 from bunkalunk.bunk import main
 from bunkalunk.bunk_helpers import compute_fingerprint, resolve_activity_store
 from bunkalunk.cache import resolve_cache_path
-from bunkalunk.db import (
-    Activity,
+from bunkalunk.db.activities import Activity, _upsert_activity
+from bunkalunk.db.connections import create_connection
+from bunkalunk.db.source_files import (
     DecodeState,
     SourceFile,
-    _upsert_activity,
-    create_connection,
     get_source_file,
     upsert_source_file,
 )

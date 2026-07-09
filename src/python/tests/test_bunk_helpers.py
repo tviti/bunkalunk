@@ -4,7 +4,8 @@ import pytest
 from helpers import upsert_dummy_activity
 
 from bunkalunk.bunk_helpers import validate_path_registration, compute_fingerprint
-from bunkalunk.db import SourceFile, DecodeState, upsert_source_file
+from bunkalunk.db.source_files import DecodeState, SourceFile
+from bunkalunk.db.source_files import upsert_source_file
 
 
 @pytest.fixture(scope="function")

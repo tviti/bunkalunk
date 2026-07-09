@@ -3,16 +3,15 @@ from sqlite3 import Row, connect
 import pytest
 from bunkalunk import cache
 from bunkalunk.cache import CacheData
-from bunkalunk import db
-from bunkalunk.db import (
-    create_connection,
+import bunkalunk.db.connections as db
+from bunkalunk.db.activities import is_stale, record_cache_creation
+from bunkalunk.db.connections import BUNK_SCHEMA_VERSION, create_connection
+from bunkalunk.db.source_files import (
     DecodeState,
     SourceFile,
-    is_stale,
     drop_source_file,
     get_source_file,
     list_source_files_stale_cache,
-    record_cache_creation,
     record_decode_outcome,
     record_source_file_fingerprint,
     upsert_source_file,
@@ -188,8 +187,6 @@ def test_create_connection_sets_user_version(monkeypatch):
 
 
 def test_create_connection_raises_on_user_version_mismatch(monkeypatch, tmp_path):
-    from bunkalunk.db import BUNK_SCHEMA_VERSION
-
     db_path = tmp_path / "db.sqlite3"
     conn = connect(db_path)
     conn.execute(f"PRAGMA user_version = {BUNK_SCHEMA_VERSION + 1}")

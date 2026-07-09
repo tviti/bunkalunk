@@ -1,8 +1,11 @@
 from pathlib import Path
 from hashlib import sha256
 from typing import BinaryIO
-from bunkalunk.db import Connection, get_source_file
 import os
+
+from sqlite3 import Connection
+
+from bunkalunk.db.source_files import get_source_file
 
 
 def validate_extension(input_path: Path) -> bool:
