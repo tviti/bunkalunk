@@ -35,19 +35,14 @@ function reset_precompile_state!()::Nothing
     mkpath(PRECOMPILE_ACTIVITY_STORE)
 
     cmd = `python -c "from bunkalunk import db; conn = db.create_connection('$PRECOMPILE_DB_PATH'); conn.close()"`
-    process = run(cmd)
-    process.exitcode == 0 || throw(
-        Error(
-            "Got exit code $process.exitcode while trying to initialize bunk db"
-        )
-    )
+    run(cmd)
 
     return nothing
 end
 
 function seed_matching_cache!()::Nothing
+    create_bunk_tables!(PRECOMPILE_DB_PATH)
     create_connection!(PRECOMPILE_DB_PATH) do conn
-        create_activities_table!(conn)
         make_registered_cache_file!(conn, PRECOMPILE_ACTIVITY_STORE; MATCHING_CACHE_KWARGS...)
     end
     return nothing
@@ -70,7 +65,7 @@ function write_minimal_geojson(path::String; name::String = "segment-json")::Not
     return nothing
 end
 
-# Empty-state branches.
+# Empty-state branches (these should throw exceptions/errors/warnings)
 reset_precompile_state!()
 fire_lunk(["segment", "list"])
 fire_lunk(["segment", "show", "missing-segment"])

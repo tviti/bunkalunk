@@ -11,7 +11,6 @@ using Lunk
             conn.close()
             """
             process = run(`python -c $script`)
-            @test process.exitcode == 0
             @test isfile(db_path)
             create_connection!(db_path) do conn
             end
@@ -36,7 +35,6 @@ using Lunk
             """
             cmd = `python -c "$script"`
             process = run(cmd)
-            @test process.exitcode == 0
             @test isfile(db_path)
             @test_throws Lunk.SchemaVersionMismatchError create_connection!(db_path) do conn
             end

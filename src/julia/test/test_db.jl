@@ -87,24 +87,30 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
 end
 
 function with_activities_db(f::Function)
-    conn = SQLite.DB()
-    return try
-        create_bunk_tables!(conn)
-        seed_activities_table!(conn)
-        f(conn)
-    finally
-        close(conn)
+    return mktempdir() do dir
+        db_path = joinpath(dir, "db.sqlite3")
+        create_bunk_tables!(db_path)
+        conn = SQLite.DB(db_path)
+        return try
+            seed_activities_table!(conn)
+            f(conn)
+        finally
+            close(conn)
+        end
     end
 end
 
 @testset "get_content_fingerprint" begin
-    let conn = SQLite.DB()
-        try
-            create_bunk_tables!(conn)
-            seed_source_files_table!(conn)
-            @test get_content_fingerprint(conn, "a/fake/path.fit") == "123"
-        finally
-            close(conn)
+    mktempdir() do dir
+        db_path = joinpath(dir, "db.sqlite3")
+        create_bunk_tables!(db_path)
+        let conn = SQLite.DB(db_path)
+            try
+                seed_source_files_table!(conn)
+                @test get_content_fingerprint(conn, "a/fake/path.fit") == "123"
+            finally
+                close(conn)
+            end
         end
     end
 end

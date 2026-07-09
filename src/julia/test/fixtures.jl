@@ -44,49 +44,23 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         )
     end
 
-    function create_bunk_tables!(
-            conn::SQLite.DB; user_version = Lunk.bunk_schema_version()
-        )::Nothing
-        DBInterface.execute(conn, "PRAGMA user_version = $user_version")
-        DBInterface.execute(
-            conn, """
-            CREATE TABLE IF NOT EXISTS source_files (
-                source_path TEXT PRIMARY KEY,
-                content_fingerprint TEXT NOT NULL,
-                decode_state TEXT,
-                decode_error TEXT
-            )
-            """
-        )
-        create_activities_table!(conn)
+    function create_bunk_tables!(db_path::String)
+        script = """
+        from bunkalunk.db import create_connection
+        with create_connection("$db_path") as conn:
+            pass
+        """
+        cmd = `python -c $script`
+        run(cmd)
         return
     end
 
     function with_tmp_bunk_db!(f::Function)
         return mktempdir() do dir
             db_path = joinpath(dir, "tmp.sqlite3")
-            conn = SQLite.DB(db_path)
-            create_bunk_tables!(conn)
-            close(conn)
+            create_bunk_tables!(db_path)
             f(dir, db_path)
         end
-    end
-
-    function create_activities_table!(conn::SQLite.DB)::Nothing
-        DBInterface.execute(
-            conn,
-            """
-            CREATE TABLE IF NOT EXISTS activities (
-                activity_id INTEGER PRIMARY KEY,
-                source_fingerprint TEXT UNIQUE NOT NULL,
-                start_time REAL,
-                cache_version INT,
-                ride_tag TEXT,
-                sport TEXT
-            )
-            """
-        )
-        return
     end
 
     function insert_activity!(conn::SQLite.DB, activity::Dict)::Nothing
@@ -286,10 +260,10 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         verbose = false
 
         user_version = Lunk.bunk_schema_version()
-        conn = SQLite.DB(db_path)
-        create_bunk_tables!(conn)
-        DBInterface.execute(conn, "PRAGMA user_version = $user_version")
-        close(conn)
+        create_bunk_tables!(db_path)
+        # conn = SQLite.DB(db_path)
+        # DBInterface.execute(conn, "PRAGMA user_version = $user_version")
+        # close(conn)
 
         return Lunk.Context(db_path, activity_store_path, verbose, io)
     end

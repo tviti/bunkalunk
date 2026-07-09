@@ -477,8 +477,8 @@ end
             fingerprint = open(segment_path, "r") do f
                 compute_fingerprint(f)
             end
+            create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
-                create_activities_table!(conn)
                 DBInterface.execute(
                     conn,
                     """
@@ -509,8 +509,8 @@ end
             fingerprint = open(segment_path, "r") do f
                 compute_fingerprint(f)
             end
+            create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
-                create_activities_table!(conn)
                 DBInterface.execute(
                     conn,
                     """
@@ -543,8 +543,8 @@ end
             fingerprint = open(segment_path, "r") do f
                 compute_fingerprint(f)
             end
+            create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
-                create_activities_table!(conn)
                 DBInterface.execute(
                     conn,
                     """
@@ -651,9 +651,9 @@ end
     @testset "Records multiple efforts from multi-lap activity" begin
         # Two matches for the same activity should persist two efforts
         with_tempdir_context() do ctx, dir
+            create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
                 seed_segments_table!(conn)
-                create_activities_table!(conn)
                 insert_activity!(
                     conn,
                     Dict(
@@ -687,9 +687,9 @@ end
     end
     @testset "Removes pre-existing efforts" begin
         with_tempdir_context() do ctx, dir
+            create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
                 seed_segments_table!(conn)
-                create_activities_table!(conn)
                 insert_activity!(
                     conn,
                     Dict(
@@ -733,9 +733,9 @@ end
     end
     @testset "Preserves efforts for activities not in match_results" begin
         with_tempdir_context() do ctx, dir
+            create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
                 seed_segments_table!(conn)
-                create_activities_table!(conn)
                 insert_activity!(
                     conn,
                     Dict(
@@ -789,9 +789,9 @@ end
     end
     @testset "Preserves efforts for the same activity under a different segment" begin
         with_tempdir_context() do ctx, dir
+            create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
                 seed_segments_table!(conn)
-                create_activities_table!(conn)
                 insert_activity!(
                     conn,
                     Dict(
@@ -835,9 +835,9 @@ end
     end
     @testset "Handles multiple distinct activity_ids in one call" begin
         with_tempdir_context() do ctx, dir
+            create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
                 seed_segments_table!(conn)
-                create_activities_table!(conn)
                 insert_activity!(
                     conn,
                     Dict(

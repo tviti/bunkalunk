@@ -64,8 +64,8 @@ include("fixtures.jl")
 
     @testset "Roundtrip, creates csv and csvt files" begin
         with_tempdir_context() do ctx, dir
+            create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
-                create_activities_table!(conn)
                 make_registered_cache_file!(conn, dir)
             end
             output_path = joinpath(dir, "activity.csv")
@@ -80,8 +80,8 @@ include("fixtures.jl")
 
     @testset "Rejects non-csv extension" begin
         with_tempdir_context() do ctx, dir
+            create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
-                create_activities_table!(conn)
                 make_registered_cache_file!(conn, dir)
             end
             output_path = joinpath(dir, "activity.notcsv")
@@ -97,9 +97,7 @@ include("fixtures.jl")
 
     @testset "Returns non-zero for nonexistent activity_id" begin
         with_tempdir_context() do ctx, dir
-            create_connection!(ctx.db_path) do conn
-                create_activities_table!(conn)
-            end
+            create_bunk_tables!(ctx.db_path)
             output_path = joinpath(dir, "activity.csv")
             args = Dict{String, Any}(
                 "activity_ids" => Int64[1],
@@ -113,8 +111,8 @@ include("fixtures.jl")
 
     @testset "Returns one if any activity_id is nonexistent" begin
         with_tempdir_context() do ctx, dir
+            create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
-                create_activities_table!(conn)
                 make_registered_cache_file!(conn, dir)
                 make_registered_cache_file!(conn, dir; fingerprint = "cache-2")
             end
@@ -139,8 +137,8 @@ include("fixtures.jl")
             open(output_path * "t", "w") do f
                 println(f, "test-csvt")
             end
+            create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
-                create_activities_table!(conn)
                 make_registered_cache_file!(conn, dir)
             end
             args = Dict{String, Any}(
@@ -162,9 +160,7 @@ include("fixtures.jl")
                 println(f, "test-csvt")
             end
 
-            create_connection!(ctx.db_path) do conn
-                create_activities_table!(conn)
-            end
+            create_bunk_tables!(ctx.db_path)
 
             args = Dict{String, Any}(
                 "activity_ids" => Int64[1],
