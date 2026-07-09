@@ -66,6 +66,7 @@ pkgs.mkShell {
       universal-ctags
       ruff
       sqlite
+      sqlfluff
     ]);
 
   TMPDIR = "/tmp";  # Julia tries (and fails) to write tmpdata to nix-store without this
