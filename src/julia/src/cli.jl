@@ -261,6 +261,7 @@ function segment_register_transaction(
         path::String,
         fingerprint::String,
         force::Bool,
+        segment::Segment
     )
     # Check for potential collisions
     column_matches = find_column_matches(conn, name, path, fingerprint)
@@ -268,7 +269,7 @@ function segment_register_transaction(
 
     # No collisions -> cleared for takeoff
     if num_matches == 0
-        insert_segment!(conn, name, path, fingerprint)
+        insert_segment!(conn, name, path, fingerprint, segment)
         return 0
     end
 
@@ -309,7 +310,7 @@ function segment_register_transaction(
         remove_segment_efforts!(conn, segment_id)
         removed = remove_segment!(conn, segment_id)
         removed === nothing && error("Expected segment_id=$segment_id to exist")
-        insert_segment!(conn, name, path, fingerprint)
+        insert_segment!(conn, name, path, fingerprint, segment)
         return 0
     end
 
@@ -370,7 +371,9 @@ function segment_register(
 
     return create_connection!(ctx.db_path) do conn
         DBInterface.transaction(conn) do
-            segment_register_transaction(conn, registered_name, path, fingerprint, force)
+            segment_register_transaction(
+                conn, registered_name, path, fingerprint, force, segment
+            )
         end
     end
 end

@@ -10,7 +10,7 @@ def upsert_dummy_activity(db_conn, fingerprint):
     entry.
 
     """
-    activity = Activity(99.999, fingerprint)
+    activity = Activity(99.999, fingerprint, x_min=0.0, y_min=0.0, x_max=1.0, y_max=2.0)
     _upsert_activity(db_conn, activity)
     return activity
 

@@ -8,6 +8,13 @@ from bunkalunk import cache
 class Activity:
     start_time: float
     source_fingerprint: str
+
+    x_min: float
+    y_min: float
+
+    x_max: float
+    y_max: float
+
     ride_tag: str | None = None
     activity_id: int | None = None
     sport: str | None = None
@@ -25,13 +32,17 @@ def _upsert_activity(conn: Connection, activity: Activity) -> None:
                 source_fingerprint,
                 ride_tag,
                 sport,
-                cache_version
+                cache_version,
+                x_min, x_max,
+                y_min, y_max
             ) VALUES (
                 :start_time,
                 :source_fingerprint,
                 :ride_tag,
                 :sport,
-                :cache_version
+                :cache_version,
+                :x_min, :x_max,
+                :y_min, :y_max
             ) ON CONFLICT(source_fingerprint) DO UPDATE SET
                 start_time=excluded.start_time,
                 ride_tag=excluded.ride_tag,
@@ -57,10 +68,17 @@ def drop_activity(conn: Connection, source_fingerprint: str) -> None:
 def record_cache_creation(
     conn: Connection, cache_data: cache.CacheData, source_fingerprint: str
 ):
+    x_nanless = [x for x in cache_data.longitude if x is not None]
+    y_nanless = [y for y in cache_data.latitude if y is not None]
+
     activity = Activity(
         start_time=cache_data.start_time,
         source_fingerprint=source_fingerprint,
         sport=cache_data.sport,
+        x_min=min(x_nanless),
+        x_max=max(x_nanless),
+        y_min=min(y_nanless),
+        y_max=max(y_nanless),
     )
     _upsert_activity(conn, activity)
 

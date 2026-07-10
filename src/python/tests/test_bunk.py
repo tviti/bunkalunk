@@ -102,7 +102,7 @@ def seed_source_files_with_decode_state(db_path, fit_path, state):
 
 @pytest.fixture(scope="function")
 def registered_source_files_and_activities(
-    monkeypatch, fit_path, fit_path_fingerprint, tmp_db_path
+    fit_path, fit_path_fingerprint, tmp_db_path
 ):
     source_file = SourceFile(
         source_path=str(fit_path),
@@ -113,6 +113,10 @@ def registered_source_files_and_activities(
     activity = Activity(
         start_time=1767263400.0,
         source_fingerprint=fit_path_fingerprint,
+        x_min=0.0,
+        y_min=0.0,
+        x_max=1.0,
+        y_max=1.0,
         sport="basket-weaving",
     )
     with create_connection(tmp_db_path) as conn:
@@ -139,6 +143,10 @@ def registered_source_files_and_activities_with_pinned_cache_version(
     activity = Activity(
         start_time=1767263400.0,
         source_fingerprint=content_fingerprint,
+        x_min=0.0,
+        y_min=0.0,
+        x_max=1.0,
+        y_max=1.0,
         sport="basket-weaving",
     )
     with create_connection(tmp_db_path) as conn:
@@ -168,6 +176,10 @@ def registered_source_files_with_activity_table(
         activity = Activity(
             start_time=1767263400.0,
             source_fingerprint=content_fingerprint,
+            x_min=0.0,
+            y_min=0.0,
+            x_max=1.0,
+            y_max=1.0,
             sport="basket-weaving",
         )
         _upsert_activity(conn, activity)

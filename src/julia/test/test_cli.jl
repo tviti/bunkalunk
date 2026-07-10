@@ -238,20 +238,12 @@ end
                 compute_fingerprint(f)
             end
             create_connection!(ctx.db_path) do conn
-                DBInterface.execute(
+                insert_segment!(
                     conn,
-                    """
-                    INSERT INTO segments (
-                        name,
-                        definition_fingerprint,
-                        definition_path
-                    ) VALUES (
-                        "segment",
-                        ?,
-                        ?
-                    )
-                    """,
-                    [fingerprint, segment_path]
+                    "segment",
+                    segment_path,
+                    fingerprint,
+                    make_dummy_segment()
                 )
             end
 
@@ -479,16 +471,12 @@ end
             end
             create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
-                DBInterface.execute(
+                insert_segment!(
                     conn,
-                    """
-                    INSERT INTO segments (
-                        name,
-                        definition_fingerprint,
-                        definition_path
-                    ) VALUES (?, ?, ?)
-                    """,
-                    ["segment", fingerprint, abspath(segment_path)]
+                    "segment",
+                    abspath(segment_path),
+                    fingerprint,
+                    make_dummy_segment()
                 )
             end
 
@@ -511,16 +499,12 @@ end
             end
             create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
-                DBInterface.execute(
+                insert_segment!(
                     conn,
-                    """
-                    INSERT INTO segments (
-                        name,
-                        definition_fingerprint,
-                        definition_path
-                    ) VALUES (?, ?, ?)
-                    """,
-                    ["segment", fingerprint, abspath(segment_path)]
+                    "segment",
+                    abspath(segment_path),
+                    fingerprint,
+                    make_dummy_segment()
                 )
             end
 
@@ -545,16 +529,12 @@ end
             end
             create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
-                DBInterface.execute(
+                insert_segment!(
                     conn,
-                    """
-                    INSERT INTO segments (
-                        name,
-                        definition_fingerprint,
-                        definition_path
-                    ) VALUES (?, ?, ?)
-                    """,
-                    ["segment", fingerprint, abspath(segment_path)]
+                    "segment",
+                    abspath(segment_path),
+                    fingerprint,
+                    make_dummy_segment()
                 )
             end
 
@@ -585,20 +565,12 @@ end
             segment_path = dir * "/segment.osm"
             create_connection!(ctx.db_path) do conn
                 # Fake fingerprint ensures there will be a mismatch
-                DBInterface.execute(
+                insert_segment!(
                     conn,
-                    """
-                    INSERT INTO segments (
-                        name,
-                        definition_fingerprint,
-                        definition_path
-                    ) VALUES (
-                        "segment",
-                        "fake-fingerprint",
-                        ?
-                    )
-                    """,
-                    [segment_path]
+                    "segment",
+                    segment_path,
+                    "fake-fingerprint",
+                    make_dummy_segment()
                 )
             end
             write(segment_path, "test")
@@ -654,17 +626,7 @@ end
             create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
                 seed_segments_table!(conn)
-                insert_activity!(
-                    conn,
-                    Dict(
-                        :activity_id => 1,
-                        :source_fingerprint => "fingerprint-1",
-                        :start_time => nothing,
-                        :ride_tag => nothing,
-                        :sport => nothing,
-                        :cache_version => nothing,
-                    )
-                )
+                insert_dummy_activity!(conn, "fingerprint-1")
 
                 match_results = [
                     make_match_result(1, 20.0, 1000),
@@ -690,17 +652,7 @@ end
             create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
                 seed_segments_table!(conn)
-                insert_activity!(
-                    conn,
-                    Dict(
-                        :activity_id => 1,
-                        :source_fingerprint => "fingerprint-1",
-                        :start_time => nothing,
-                        :ride_tag => nothing,
-                        :sport => nothing,
-                        :cache_version => nothing,
-                    )
-                )
+                insert_dummy_activity!(conn, "fingerprint-1")
                 DBInterface.execute(
                     conn,
                     """
@@ -736,28 +688,8 @@ end
             create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
                 seed_segments_table!(conn)
-                insert_activity!(
-                    conn,
-                    Dict(
-                        :activity_id => 1,
-                        :source_fingerprint => "fingerprint-1",
-                        :start_time => nothing,
-                        :ride_tag => nothing,
-                        :sport => nothing,
-                        :cache_version => nothing,
-                    )
-                )
-                insert_activity!(
-                    conn,
-                    Dict(
-                        :activity_id => 2,
-                        :source_fingerprint => "fingerprint-2",
-                        :start_time => nothing,
-                        :ride_tag => nothing,
-                        :sport => nothing,
-                        :cache_version => nothing,
-                    )
-                )
+                insert_dummy_activity!(conn, "fingerprint-1")
+                insert_dummy_activity!(conn, "fingerprint-2")
                 DBInterface.execute(
                     conn,
                     """
@@ -792,17 +724,7 @@ end
             create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
                 seed_segments_table!(conn)
-                insert_activity!(
-                    conn,
-                    Dict(
-                        :activity_id => 1,
-                        :source_fingerprint => "fingerprint-1",
-                        :start_time => nothing,
-                        :ride_tag => nothing,
-                        :sport => nothing,
-                        :cache_version => nothing,
-                    )
-                )
+                insert_dummy_activity!(conn, "fingerprint-1")
                 DBInterface.execute(
                     conn,
                     """
@@ -838,28 +760,8 @@ end
             create_bunk_tables!(ctx.db_path)
             create_connection!(ctx.db_path) do conn
                 seed_segments_table!(conn)
-                insert_activity!(
-                    conn,
-                    Dict(
-                        :activity_id => 1,
-                        :source_fingerprint => "fingerprint-1",
-                        :start_time => nothing,
-                        :ride_tag => nothing,
-                        :sport => nothing,
-                        :cache_version => nothing,
-                    )
-                )
-                insert_activity!(
-                    conn,
-                    Dict(
-                        :activity_id => 2,
-                        :source_fingerprint => "fingerprint-2",
-                        :start_time => nothing,
-                        :ride_tag => nothing,
-                        :sport => nothing,
-                        :cache_version => nothing,
-                    )
-                )
+                insert_dummy_activity!(conn, "fingerprint-1")
+                insert_dummy_activity!(conn, "fingerprint-2")
                 DBInterface.execute(
                     conn,
                     """

@@ -12,6 +12,11 @@ export resolve_bunk_home,
     resolve_cache_path,
     BUNKALUNK_DB
 
+include("segments.jl")
+export Segment,
+    read_segment,
+    compute_fingerprint
+
 include("db.jl")
 export create_connection!,
     get_content_fingerprint,
@@ -29,11 +34,6 @@ export create_connection!,
     remove_segment!,
     remove_segment_efforts!,
     fetch_segment_efforts_by_name
-
-include("segments.jl")
-export Segment,
-    read_segment,
-    compute_fingerprint
 
 include("geo.jl")
 export compute_ecef_r,

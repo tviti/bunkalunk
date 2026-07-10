@@ -1,10 +1,15 @@
-from sqlite3 import Row, connect
+from sqlite3 import Row, connect, IntegrityError
 
 import pytest
 from bunkalunk import cache
 from bunkalunk.cache import CacheData
 import bunkalunk.db.connections as db
-from bunkalunk.db.activities import is_stale, record_cache_creation
+from bunkalunk.db.activities import (
+    is_stale,
+    record_cache_creation,
+    _upsert_activity,
+    Activity,
+)
 from bunkalunk.db.connections import BUNK_SCHEMA_VERSION, create_connection
 from bunkalunk.db.source_files import (
     DecodeState,
@@ -244,6 +249,10 @@ def test_record_cache_creation_idempotent(db_conn, monkeypatch):
     assert row["start_time"] == 1767263400.0
     assert row["sport"] == "yoyo"
     assert row["cache_version"] == 19991230
+    assert row["x_min"] == 2.0
+    assert row["x_max"] == 2.2
+    assert row["y_min"] == 1.0
+    assert row["y_max"] == 1.2
 
 
 def test_record_cache_creation_updates(db_conn, monkeypatch):
@@ -271,6 +280,10 @@ def test_record_cache_creation_updates(db_conn, monkeypatch):
     assert row["sport"] == "yoyo"
     assert row["source_fingerprint"] == "cde456"
     assert row["cache_version"] == 19991231
+    assert row["x_min"] == 2.0
+    assert row["y_min"] == 1.0
+    assert row["x_max"] == 2.2
+    assert row["y_max"] == 1.2
 
 
 @pytest.fixture(scope="function")
@@ -300,16 +313,34 @@ def source_file_with_cache_version_factory(db_conn):
                     start_time,
                     cache_version,
                     ride_tag,
-                    sport
-                ) VALUES (?, ?, ?, ?, ?)
+                    sport,
+                    x_min,
+                    x_max,
+                    y_min,
+                    y_max
+                ) VALUES (
+                    :source_fingerprint,
+                    :start_time,
+                    :cache_version,
+                    :ride_tag,
+                    :sport,
+                    :x_min,
+                    :x_max,
+                    :y_min,
+                    :y_max
+                )
             """,
-                (
-                    source_file.content_fingerprint,
-                    1767263400.0,
-                    cache_version,
-                    None,
-                    None,
-                ),
+                {
+                    "source_fingerprint": source_file.content_fingerprint,
+                    "start_time": 1767263400.0,
+                    "cache_version": cache_version,
+                    "ride_tag": None,
+                    "sport": None,
+                    "x_min": 0.0,
+                    "x_max": 1.0,
+                    "y_min": 0.1,
+                    "y_max": 1.1,
+                },
             )
         finally:
             cursor.close()
@@ -367,3 +398,12 @@ def test_is_stale_newer_match(
 ):
     source_file = source_file_with_cache_version_factory(19991232)
     assert not is_stale(db_conn, source_file.content_fingerprint)
+
+
+def test_activities_table_bbox_constraint_violation_raise(db_conn):
+    activity = Activity(0.0, "fingerprint", x_min=1.0, x_max=0.0, y_min=0.0, y_max=1.0)
+    with pytest.raises(IntegrityError, match="constraint failed: x_min <= x_max"):
+        _upsert_activity(db_conn, activity)
+    activity = Activity(0.0, "fingerprint", x_min=0.0, x_max=1.0, y_min=1.0, y_max=0.0)
+    with pytest.raises(IntegrityError, match="constraint failed: y_min <= y_max"):
+        _upsert_activity(db_conn, activity)

@@ -53,7 +53,11 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :source_fingerprint => "123",
             :ride_tag => nothing,
             :sport => "cycling",
-            :cache_version => 20260101
+            :cache_version => 20260101,
+            :x_min => 0.0,
+            :x_max => 1.0,
+            :y_min => 0.1,
+            :y_max => 1.1
         )
     )
     insert_activity!(
@@ -62,7 +66,11 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :source_fingerprint => "456",
             :ride_tag => nothing,
             :sport => "basket-weaving",
-            :cache_version => 20260101
+            :cache_version => 20260101,
+            :x_min => 0.0,
+            :x_max => 1.0,
+            :y_min => 0.1,
+            :y_max => 1.1
         )
     )
     insert_activity!(
@@ -71,7 +79,11 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :source_fingerprint => "789",
             :ride_tag => nothing,
             :sport => "cycling",
-            :cache_version => 20260101
+            :cache_version => 20260101,
+            :x_min => 0.0,
+            :x_max => 1.0,
+            :y_min => 0.1,
+            :y_max => 1.1
         )
     )
     insert_activity!(
@@ -80,7 +92,11 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :source_fingerprint => "abc",
             :ride_tag => nothing,
             :sport => "cycling",
-            :cache_version => 20260101
+            :cache_version => 20260101,
+            :x_min => 0.0,
+            :x_max => 1.0,
+            :y_min => 0.1,
+            :y_max => 1.1
         )
     )
     return
@@ -239,7 +255,14 @@ end
                 cols = DBInterface.execute(db, "PRAGMA table_info(segments)")
                 names = [row[:name] for row in cols]
                 @test names == [
-                    "segment_id", "name", "definition_fingerprint", "definition_path",
+                    "segment_id",
+                    "name",
+                    "definition_fingerprint",
+                    "definition_path",
+                    "x_min",
+                    "x_max",
+                    "y_min",
+                    "y_max",
                 ]
 
                 cols = DBInterface.execute(db, "PRAGMA table_info(segment_efforts)")
@@ -279,7 +302,13 @@ end
     @testset "Happy path" begin
         with_tmp_bunk_db!() do dir, db_path
             create_connection!(db_path) do db
-                insert_segment!(db, "segment", "path/to/segment", "fingerprint")
+                insert_segment!(
+                    db,
+                    "segment",
+                    "path/to/segment",
+                    "fingerprint",
+                    make_dummy_segment()
+                )
                 result = DBInterface.execute(
                     db,
                     "SELECT * FROM segments WHERE name = ?",
@@ -296,10 +325,22 @@ end
     @testset "Name conflict throws SQLiteException" begin
         with_tmp_bunk_db!() do dir, db_path
             create_connection!(db_path) do db
-                insert_segment!(db, "segment", "path/to/segment", "fingerprint")
-                @test_throws SQLiteException insert_segment!(
-                    db, "segment", "new/path/to/segment", "new-fingerprint"
+                insert_segment!(
+                    db,
+                    "segment",
+                    "path/to/segment",
+                    "fingerprint",
+                    make_dummy_segment()
                 )
+                @test_throws SQLiteException begin
+                    insert_segment!(
+                        db,
+                        "segment",
+                        "path/to/segment",
+                        "new-fingerprint",
+                        make_dummy_segment()
+                    )
+                end
             end
         end
     end
@@ -307,10 +348,22 @@ end
     @testset "Path conflict throws SQLiteException" begin
         with_tmp_bunk_db!() do dir, db_path
             create_connection!(db_path) do db
-                insert_segment!(db, "segment", "path/to/segment", "fingerprint")
-                @test_throws SQLiteException insert_segment!(
-                    db, "new-segment", "path/to/segment", "new-fingerprint"
+                insert_segment!(
+                    db,
+                    "segment",
+                    "path/to/segment",
+                    "fingerprint",
+                    make_dummy_segment()
                 )
+                @test_throws SQLiteException begin
+                    insert_segment!(
+                        db,
+                        "new-segment",
+                        "path/to/segment",
+                        "new-fingerprint",
+                        make_dummy_segment()
+                    )
+                end
             end
         end
     end
@@ -318,10 +371,23 @@ end
     @testset "Fingerprint conflict throws SQLiteException" begin
         with_tmp_bunk_db!() do dir, db_path
             create_connection!(db_path) do db
-                insert_segment!(db, "segment", "path/to/segment", "fingerprint")
-                @test_throws SQLiteException insert_segment!(
-                    db, "new-segment", "new-path/to/segment", "fingerprint"
+                insert_segment!(
+                    db,
+                    "segment",
+                    "path/to/segment",
+                    "fingerprint",
+                    make_dummy_segment()
                 )
+                @test_throws SQLiteException begin
+                    insert_segment!(
+                        db,
+                        "new-segment",
+                        "new-path/to/segment",
+                        "fingerprint",
+                        make_dummy_segment()
+                    )
+                end
+
             end
         end
     end
@@ -329,10 +395,22 @@ end
     @testset "Conflicts must not partially update the original row" begin
         with_tmp_bunk_db!() do dir, db_path
             create_connection!(db_path) do db
-                insert_segment!(db, "segment", "path/to/segment", "fingerprint")
-                @test_throws SQLiteException insert_segment!(
-                    db, "new-segment", "new-path/to/segment", "fingerprint"
+                insert_segment!(
+                    db,
+                    "segment",
+                    "path/to/segment",
+                    "fingerprint",
+                    make_dummy_segment()
                 )
+                @test_throws SQLiteException begin
+                    insert_segment!(
+                        db,
+                        "new-segment",
+                        "new-path/to/segment",
+                        "fingerprint",
+                        make_dummy_segment()
+                    )
+                end
 
                 result = DBInterface.execute(
                     db,
@@ -428,7 +506,13 @@ end
     @testset "Happy path" begin
         with_tmp_bunk_db!() do dir, db_path
             create_connection!(db_path) do db
-                insert_segment!(db, "segment", "path/to/segment", "fingerprint")
+                insert_segment!(
+                    db,
+                    "segment",
+                    "path/to/segment",
+                    "fingerprint",
+                    make_dummy_segment()
+                )
                 reg = fetch_segment_registration(db, "segment")
                 @test reg[:segment_id] == 1
                 @test reg[:name] == "segment"
@@ -443,16 +527,7 @@ end
     @testset "Returns all rows ordered by name" begin
         with_tmp_bunk_db!() do dir, db_path
             create_connection!(db_path) do db
-                DBInterface.execute(
-                    db,
-                    """
-                    INSERT INTO segments (name, definition_fingerprint, definition_path)
-                    VALUES
-                        ("c", "fingerprint-c", "path/to/c"),
-                        ("b", "fingerprint-b", "path/to/b"),
-                        ("a", "fingerprint-a", "path/to/a");
-                    """
-                )
+                seed_segments_table!(db)
                 regs = fetch_segment_registration(db)
                 @test regs[1][:name] == "c"
                 @test regs[2][:name] == "b"

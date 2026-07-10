@@ -2,7 +2,7 @@ using SQLite
 using Dates
 
 function bunk_schema_version()
-    return 20260705
+    return 20260710
 end
 
 function fetch_user_version(conn::SQLite.DB)
@@ -45,7 +45,11 @@ function create_lunk_tables!(db::SQLite.DB)::Nothing
             segment_id INTEGER PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
             definition_fingerprint TEXT NOT NULL UNIQUE,
-            definition_path TEXT NOT NULL UNIQUE
+            definition_path TEXT NOT NULL UNIQUE,
+            x_min REAL NOT NULL, x_max REAL NOT NULL,
+            y_min REAL NOT NULL, y_max REAL NOT NULL,
+            CHECK (x_min <= x_max),
+            CHECK (y_min <= y_max)
         );
         """
     )
@@ -182,7 +186,8 @@ function insert_segment!(
         db::SQLite.DB,
         name::String,
         definition_path::String,
-        definition_fingerprint::String
+        definition_fingerprint::String,
+        segment::Segment
     )::Nothing
     DBInterface.execute(
         db,
@@ -190,17 +195,29 @@ function insert_segment!(
         INSERT INTO segments (
             name,
             definition_fingerprint,
-            definition_path
+            definition_path,
+            x_min,
+            x_max,
+            y_min,
+            y_max
         ) VALUES (
             :name,
             :definition_fingerprint,
-            :definition_path
+            :definition_path,
+            :x_min,
+            :x_max,
+            :y_min,
+            :y_max
         )
         """,
         Dict(
             :name => name,
             :definition_fingerprint => definition_fingerprint,
-            :definition_path => definition_path
+            :definition_path => definition_path,
+            :x_min => minimum(segment.longitude),
+            :x_max => maximum(segment.longitude),
+            :y_min => minimum(segment.latitude),
+            :y_max => maximum(segment.latitude)
         )
     )
     return

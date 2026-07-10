@@ -72,13 +72,21 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
                    source_fingerprint,
                    ride_tag,
                    sport,
-                   cache_version
+                   cache_version,
+                   x_min,
+                   x_max,
+                   y_min,
+                   y_max
             ) VALUES (
                    :start_time,
                    :source_fingerprint,
                    :ride_tag,
                    :sport,
-                   :cache_version
+                   :cache_version,
+                   :x_min,
+                   :x_max,
+                   :y_min,
+                   :y_max
             )
             """,
             activity
@@ -95,10 +103,22 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
                 :source_fingerprint => fingerprint,
                 :ride_tag => nothing,
                 :sport => sport,
-                :cache_version => 123456
+                :cache_version => 123456,
+                :x_min => 0.0,
+                :x_max => 1.0,
+                :y_min => 0.1,
+                :y_max => 1.1
             )
         )
         return
+    end
+
+    function make_dummy_segment()
+        return Segment(
+            "segment-name-field",
+            Float64[0.0, 0.1, 0.2, 0.3, 0.4],
+            Float64[1.0, 1.1, 1.2, 1.3, 1.4],
+        )
     end
 
     function seed_segment_efforts_table!(db::SQLite.DB)::Nothing
@@ -131,11 +151,18 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         DBInterface.execute(
             db,
             """
-                INSERT INTO segments (name, definition_fingerprint, definition_path)
-                VALUES
-                    ("c", "fingerprint-c", "path/to/c"),
-                    ("b", "fingerprint-b", "path/to/b"),
-                    ("a", "fingerprint-a", "path/to/a");
+                INSERT INTO segments (
+                    name,
+                    definition_fingerprint,
+                    definition_path,
+                    x_min,
+                    x_max,
+                    y_min,
+                    y_max
+                ) VALUES
+                    ("c", "fingerprint-c", "path/to/c", 0.0, 0.1, 1.0, 1.1),
+                    ("b", "fingerprint-b", "path/to/b", 0.0, 0.1, 1.0, 1.1),
+                    ("a", "fingerprint-a", "path/to/a", 0.0, 0.1, 1.0, 1.1);
             """
         )
         return
@@ -230,6 +257,10 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
                 :ride_tag => nothing,
                 :sport => sport,
                 :cache_version => 20260624,
+                :x_min => 2.0,
+                :x_max => 2.2,
+                :y_min => 1.0,
+                :y_max => 1.2
             )
         )
         cache_dir = joinpath(dir, fingerprint[1:2])
