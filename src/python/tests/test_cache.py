@@ -8,11 +8,6 @@ from bunkalunk.cache import CacheData, write_cache, _write_cache_file, CacheWrit
 
 
 @pytest.fixture(scope="function")
-def patched_cache_version(monkeypatch):
-    monkeypatch.setattr(cache, "CACHE_VERSION", 19991230)
-
-
-@pytest.fixture(scope="function")
 def cache_path(tmp_path):
     return tmp_path / "test.hdf5"
 
@@ -42,7 +37,8 @@ def cache_data():
     )
 
 
-def test_write_cache(monkeypatch, cache_path, cache_data, patched_cache_version):
+def test_write_cache(cache_path, cache_data, patch_cache_version):
+    patch_cache_version(19991230)
     write_cache(cache_path, cache_data)
     with h5py.File(cache_path, "r") as cache_file:
         assert_equal(cache_file["latitude"][:], [1.0, 1.1, 1.2])
@@ -57,8 +53,9 @@ def test_write_cache(monkeypatch, cache_path, cache_data, patched_cache_version)
 
 
 def test_write_cache_unequal_length_arrays(
-    tmp_path, monkeypatch, cache_path, unequal_length_cache_data, patched_cache_version
+    tmp_path, cache_path, unequal_length_cache_data, patch_cache_version
 ):
+    patch_cache_version(19991230)
     with pytest.raises(CacheWriteFailure, match="Cache write"):
         write_cache(cache_path, unequal_length_cache_data)
 
@@ -79,8 +76,9 @@ def test_write_cache_cleanup(tmp_path, monkeypatch, cache_path, cache_data):
 
 
 def test_write_cache_attribute_types(
-    tmp_path, cache_path, cache_data, patched_cache_version
+    tmp_path, cache_path, cache_data, patch_cache_version
 ):
+    patch_cache_version(19991230)
     write_cache(cache_path, cache_data)
     with h5py.File(cache_path, "r") as cache_file:
         assert isinstance(cache_file.attrs["cache_version"], np.int64)
@@ -89,8 +87,9 @@ def test_write_cache_attribute_types(
 
 
 def test_write_cache_rejects_non_string_sport(
-    tmp_path, cache_path, cache_data, patched_cache_version
+    tmp_path, cache_path, cache_data, patch_cache_version
 ):
+    patch_cache_version(19991230)
     cache_data.sport = 42  # type: ignore[assignment]
     with pytest.raises(CacheWriteFailure):
         write_cache(cache_path, cache_data)

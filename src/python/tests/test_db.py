@@ -1,7 +1,6 @@
 from sqlite3 import Row, connect, IntegrityError
 
 import pytest
-from bunkalunk import cache
 from bunkalunk.cache import CacheData
 import bunkalunk.db.connections as db
 from bunkalunk.db.activities import (
@@ -22,11 +21,6 @@ from bunkalunk.db.source_files import (
     upsert_source_file,
 )
 from helpers import upsert_dummy_activity
-
-
-@pytest.fixture(scope="function")
-def patched_cache_version(monkeypatch):
-    monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
 
 
 def _fetch_source_file_by_path(conn, source_path) -> Row | None:
@@ -71,105 +65,6 @@ def _fetch_activities_by_fingerprint(conn, source_fingerprint) -> list[Row]:
     return rows
 
 
-def test_upsert_source_file_roundtrip(db_conn):
-    source_file = SourceFile(
-        source_path="a/ride/somewhere.fit",
-        content_fingerprint="content-fingerprint",
-        decode_state="error",
-        decode_error="last-decode-error",
-    )
-
-    upsert_dummy_activity(db_conn, source_file.content_fingerprint)
-    upsert_source_file(db_conn, source_file)
-    db_conn.commit()
-
-    row = _fetch_source_file_by_path(db_conn, "a/ride/somewhere.fit")
-
-    assert row["source_path"] == "a/ride/somewhere.fit"
-    assert row["content_fingerprint"] == "content-fingerprint"
-    assert row["decode_state"] == "error"
-    assert row["decode_error"] == "last-decode-error"
-
-
-def test_upsert_source_file_idempotent(db_conn):
-    source_file = SourceFile(
-        source_path="a/ride/somewhere.fit",
-        content_fingerprint="content-fingerprint",
-        decode_state="error",
-        decode_error="last-decode-error",
-    )
-
-    upsert_dummy_activity(db_conn, source_file.content_fingerprint)
-    upsert_source_file(db_conn, source_file)
-    upsert_source_file(db_conn, source_file)
-    db_conn.commit()
-
-    rows = _fetch_source_files_by_path(db_conn, "a/ride/somewhere.fit")
-
-    assert len(rows) == 1
-    row = rows[0]
-    assert row["source_path"] == "a/ride/somewhere.fit"
-    assert row["content_fingerprint"] == "content-fingerprint"
-    assert row["decode_state"] == "error"
-    assert row["decode_error"] == "last-decode-error"
-
-
-def test_upsert_source_file_update(db_conn):
-    source_file = SourceFile(
-        source_path="a/ride/somewhere.fit",
-        content_fingerprint="content-fingerprint",
-        decode_state="pending",
-        decode_error="last-decode-error",
-    )
-
-    upsert_dummy_activity(db_conn, source_file.content_fingerprint)
-    upsert_source_file(db_conn, source_file)
-    source_file.content_fingerprint = "new-fingerprint"
-    source_file.decode_state = "error"
-    source_file.content_fingerprint = "new-fingerprint"
-    source_file.decode_error = "new-error"
-    upsert_dummy_activity(db_conn, source_file.content_fingerprint)
-    upsert_source_file(db_conn, source_file)
-    db_conn.commit()
-
-    rows = _fetch_source_files_by_path(db_conn, "a/ride/somewhere.fit")
-
-    assert len(rows) == 1
-    row = rows[0]
-    assert row["source_path"] == "a/ride/somewhere.fit"
-    assert row["content_fingerprint"] == "new-fingerprint"
-    assert row["decode_state"] == "error"
-    assert row["decode_error"] == "new-error"
-
-
-def test_drop_source_file_drops(db_conn, dummy_source_files_table):
-    rows = _fetch_source_files_by_path(db_conn, "a/fit/file.fit")
-    assert len(rows) == 1
-    assert rows[0]["source_path"] == "a/fit/file.fit"
-    drop_source_file(db_conn, "a/fit/file.fit")
-    rows = _fetch_source_files_by_path(db_conn, "a/fit/file.fit")
-    assert rows == []
-
-
-def test_record_decode_outcome(db_conn):
-    state = DecodeState.SUCCESS
-    source_file = SourceFile(
-        source_path="ride.fit",
-        content_fingerprint="content-fingerprint",
-        decode_state="error",
-        decode_error="last-decode-error",
-    )
-
-    upsert_dummy_activity(db_conn, source_file.content_fingerprint)
-    upsert_source_file(db_conn, source_file)
-    record_decode_outcome(db_conn, "ride.fit", state=state)
-    db_conn.commit()
-
-    row = _fetch_source_file_by_path(db_conn, "ride.fit")
-
-    assert row["decode_state"] == "success"
-
-
 @pytest.fixture(scope="function")
 def dummy_source_files_table(db_conn):
     """Fixture with dummy source_files row."""
@@ -183,107 +78,6 @@ def dummy_source_files_table(db_conn):
     upsert_source_file(db_conn, source_file)
     db_conn.commit()
     return db_conn
-
-
-def test_create_connection_sets_user_version(monkeypatch):
-    monkeypatch.setattr(db, "BUNK_SCHEMA_VERSION", 9999)
-    with create_connection(":memory:") as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 9999
-
-
-def test_create_connection_raises_on_user_version_mismatch(monkeypatch, tmp_path):
-    db_path = tmp_path / "db.sqlite3"
-    conn = connect(db_path)
-    conn.execute(f"PRAGMA user_version = {BUNK_SCHEMA_VERSION + 1}")
-    conn.close()
-    with pytest.raises(RuntimeError, match="mismatch"):
-        create_connection(db_path)
-
-
-def test_record_source_file_fingerprint_updates_fingerprint(
-    db_conn, dummy_source_files_table
-):
-    source_path = "a/fit/file.fit"
-    source_file = get_source_file(db_conn, source_path)
-    assert "fingerprint123" == source_file.content_fingerprint
-    upsert_dummy_activity(db_conn, "new-fingerprint")
-    record_source_file_fingerprint(db_conn, source_path, "new-fingerprint")
-    source_file = get_source_file(db_conn, source_path)
-    assert "new-fingerprint" == source_file.content_fingerprint
-
-
-def test_get_source_file_found(dummy_source_files_table):
-    result = get_source_file(dummy_source_files_table, "a/fit/file.fit")
-    assert result is not None
-    assert result.source_path == "a/fit/file.fit"
-    assert result.content_fingerprint == "fingerprint123"
-    assert result.decode_state == DecodeState.SUCCESS
-    assert result.decode_error == "an-error-code"
-
-
-def test_get_source_file_not_found(db_conn):
-    result = get_source_file(db_conn, "non/existent/file.fit")
-    assert result is None
-
-
-def test_record_cache_creation_idempotent(db_conn, monkeypatch):
-    source_fingerprint = "abc123"
-    cache_data = CacheData(
-        start_time=1767263400.0,
-        latitude=[1.0, 1.1, 1.2],
-        longitude=[2.0, 2.1, 2.2],
-        time=[0.0, 1.0, 2.0],
-        sport="yoyo",
-    )
-
-    monkeypatch.setattr(cache, "CACHE_VERSION", 19991230)
-    record_cache_creation(db_conn, cache_data, source_fingerprint)
-    record_cache_creation(db_conn, cache_data, source_fingerprint)
-    db_conn.commit()
-
-    rows = _fetch_activities_by_fingerprint(db_conn, source_fingerprint)
-
-    assert len(rows) == 1
-    row = rows[0]
-    assert row["source_fingerprint"] == source_fingerprint
-    assert row["start_time"] == 1767263400.0
-    assert row["sport"] == "yoyo"
-    assert row["cache_version"] == 19991230
-    assert row["x_min"] == 2.0
-    assert row["x_max"] == 2.2
-    assert row["y_min"] == 1.0
-    assert row["y_max"] == 1.2
-
-
-def test_record_cache_creation_updates(db_conn, monkeypatch):
-    source_fingerprint = "abc123"
-    cache_data = CacheData(
-        start_time=1767263400.0,
-        latitude=[1.0, 1.1, 1.2],
-        longitude=[2.0, 2.1, 2.2],
-        time=[0.0, 1.0, 2.0],
-        sport="yoyo",
-    )
-
-    monkeypatch.setattr(cache, "CACHE_VERSION", 19991230)
-    record_cache_creation(db_conn, cache_data, source_fingerprint)
-    monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
-    cache_data.start_time = 1798799400.0
-    source_fingerprint = "cde456"
-    record_cache_creation(db_conn, cache_data, source_fingerprint)
-    db_conn.commit()
-
-    rows = _fetch_activities_by_fingerprint(db_conn, source_fingerprint)
-    assert len(rows) == 1
-    row = rows[0]
-    assert row["start_time"] == 1798799400.0
-    assert row["sport"] == "yoyo"
-    assert row["source_fingerprint"] == "cde456"
-    assert row["cache_version"] == 19991231
-    assert row["x_min"] == 2.0
-    assert row["y_min"] == 1.0
-    assert row["x_max"] == 2.2
-    assert row["y_max"] == 1.2
 
 
 @pytest.fixture(scope="function")
@@ -350,60 +144,258 @@ def source_file_with_cache_version_factory(db_conn):
     return _factory
 
 
-def test_list_source_files_stale_cache_stale(
-    db_conn, source_file_with_cache_version_factory, patched_cache_version
-):
-    source_file = source_file_with_cache_version_factory(19991230)
-    result = list_source_files_stale_cache(db_conn)
-    assert len(result) == 1
-    assert result[0].source_path == source_file.source_path
+class TestConnectionConfig:
+    def test_create_connection_sets_user_version(self, monkeypatch):
+        monkeypatch.setattr(db, "BUNK_SCHEMA_VERSION", 9999)
+        with create_connection(":memory:") as conn:
+            assert conn.execute("PRAGMA user_version").fetchone()[0] == 9999
+
+    def test_create_connection_raises_on_user_version_mismatch(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = tmp_path / "db.sqlite3"
+        conn = connect(db_path)
+        conn.execute(f"PRAGMA user_version = {BUNK_SCHEMA_VERSION + 1}")
+        conn.close()
+        with pytest.raises(RuntimeError, match="mismatch"):
+            create_connection(db_path)
 
 
-def test_list_source_files_stale_cache_fresh(
-    db_conn, source_file_with_cache_version_factory, patched_cache_version
-):
-    source_file_with_cache_version_factory(19991231)
-    result = list_source_files_stale_cache(db_conn)
-    assert result == []
+class TestSourceFiles:
+    def test_upsert_source_file_roundtrip(self, db_conn):
+        source_file = SourceFile(
+            source_path="a/ride/somewhere.fit",
+            content_fingerprint="content-fingerprint",
+            decode_state="error",
+            decode_error="last-decode-error",
+        )
+
+        upsert_dummy_activity(db_conn, source_file.content_fingerprint)
+        upsert_source_file(db_conn, source_file)
+        db_conn.commit()
+
+        row = _fetch_source_file_by_path(db_conn, "a/ride/somewhere.fit")
+
+        assert row["source_path"] == "a/ride/somewhere.fit"
+        assert row["content_fingerprint"] == "content-fingerprint"
+        assert row["decode_state"] == "error"
+        assert row["decode_error"] == "last-decode-error"
+
+    def test_upsert_source_file_idempotent(self, db_conn):
+        source_file = SourceFile(
+            source_path="a/ride/somewhere.fit",
+            content_fingerprint="content-fingerprint",
+            decode_state="error",
+            decode_error="last-decode-error",
+        )
+
+        upsert_dummy_activity(db_conn, source_file.content_fingerprint)
+        upsert_source_file(db_conn, source_file)
+        upsert_source_file(db_conn, source_file)
+        db_conn.commit()
+
+        rows = _fetch_source_files_by_path(db_conn, "a/ride/somewhere.fit")
+
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["source_path"] == "a/ride/somewhere.fit"
+        assert row["content_fingerprint"] == "content-fingerprint"
+        assert row["decode_state"] == "error"
+        assert row["decode_error"] == "last-decode-error"
+
+    def test_upsert_source_file_update(self, db_conn):
+        source_file = SourceFile(
+            source_path="a/ride/somewhere.fit",
+            content_fingerprint="content-fingerprint",
+            decode_state="pending",
+            decode_error="last-decode-error",
+        )
+
+        upsert_dummy_activity(db_conn, source_file.content_fingerprint)
+        upsert_source_file(db_conn, source_file)
+        source_file.content_fingerprint = "new-fingerprint"
+        source_file.decode_state = "error"
+        source_file.content_fingerprint = "new-fingerprint"
+        source_file.decode_error = "new-error"
+        upsert_dummy_activity(db_conn, source_file.content_fingerprint)
+        upsert_source_file(db_conn, source_file)
+        db_conn.commit()
+
+        rows = _fetch_source_files_by_path(db_conn, "a/ride/somewhere.fit")
+
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["source_path"] == "a/ride/somewhere.fit"
+        assert row["content_fingerprint"] == "new-fingerprint"
+        assert row["decode_state"] == "error"
+        assert row["decode_error"] == "new-error"
+
+    def test_drop_source_file_drops(self, db_conn, dummy_source_files_table):
+        rows = _fetch_source_files_by_path(db_conn, "a/fit/file.fit")
+        assert len(rows) == 1
+        assert rows[0]["source_path"] == "a/fit/file.fit"
+        drop_source_file(db_conn, "a/fit/file.fit")
+        rows = _fetch_source_files_by_path(db_conn, "a/fit/file.fit")
+        assert rows == []
+
+    def test_record_decode_outcome(self, db_conn):
+        state = DecodeState.SUCCESS
+        source_file = SourceFile(
+            source_path="ride.fit",
+            content_fingerprint="content-fingerprint",
+            decode_state="error",
+            decode_error="last-decode-error",
+        )
+
+        upsert_dummy_activity(db_conn, source_file.content_fingerprint)
+        upsert_source_file(db_conn, source_file)
+        record_decode_outcome(db_conn, "ride.fit", state=state)
+        db_conn.commit()
+
+        row = _fetch_source_file_by_path(db_conn, "ride.fit")
+
+        assert row["decode_state"] == "success"
+
+    def test_record_source_file_fingerprint_updates_fingerprint(
+        self, db_conn, dummy_source_files_table
+    ):
+        source_path = "a/fit/file.fit"
+        source_file = get_source_file(db_conn, source_path)
+        assert "fingerprint123" == source_file.content_fingerprint
+        upsert_dummy_activity(db_conn, "new-fingerprint")
+        record_source_file_fingerprint(db_conn, source_path, "new-fingerprint")
+        source_file = get_source_file(db_conn, source_path)
+        assert "new-fingerprint" == source_file.content_fingerprint
+
+    def test_get_source_file_found(self, dummy_source_files_table):
+        result = get_source_file(dummy_source_files_table, "a/fit/file.fit")
+        assert result is not None
+        assert result.source_path == "a/fit/file.fit"
+        assert result.content_fingerprint == "fingerprint123"
+        assert result.decode_state == DecodeState.SUCCESS
+        assert result.decode_error == "an-error-code"
+
+    def test_get_source_file_not_found(self, db_conn):
+        result = get_source_file(db_conn, "non/existent/file.fit")
+        assert result is None
 
 
-def test_list_source_files_stale_cache_newer(
-    db_conn, source_file_with_cache_version_factory, patched_cache_version
-):
-    source_file_with_cache_version_factory(19991232)
-    result = list_source_files_stale_cache(db_conn)
-    assert result == []
+class TestActivities:
+    def test_activities_table_bbox_constraint_violation_raise(self, db_conn):
+        activity = Activity(
+            0.0, "fingerprint", x_min=1.0, x_max=0.0, y_min=0.0, y_max=1.0
+        )
+        with pytest.raises(IntegrityError, match="constraint failed: x_min <= x_max"):
+            _upsert_activity(db_conn, activity)
+        activity = Activity(
+            0.0, "fingerprint", x_min=0.0, x_max=1.0, y_min=1.0, y_max=0.0
+        )
+        with pytest.raises(IntegrityError, match="constraint failed: y_min <= y_max"):
+            _upsert_activity(db_conn, activity)
 
+    def test_record_cache_creation_idempotent(self, db_conn, patch_cache_version):
+        source_fingerprint = "abc123"
+        cache_data = CacheData(
+            start_time=1767263400.0,
+            latitude=[1.0, 1.1, 1.2],
+            longitude=[2.0, 2.1, 2.2],
+            time=[0.0, 1.0, 2.0],
+            sport="yoyo",
+        )
 
-def test_is_stale_no_match(db_conn):
-    assert is_stale(db_conn, "missing-fingerprint")
+        patch_cache_version(19991230)
+        record_cache_creation(db_conn, cache_data, source_fingerprint)
+        record_cache_creation(db_conn, cache_data, source_fingerprint)
+        db_conn.commit()
 
+        rows = _fetch_activities_by_fingerprint(db_conn, source_fingerprint)
 
-def test_is_stale_stale_match(
-    db_conn, source_file_with_cache_version_factory, patched_cache_version
-):
-    source_file = source_file_with_cache_version_factory(19991230)
-    assert is_stale(db_conn, source_file.content_fingerprint)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["source_fingerprint"] == source_fingerprint
+        assert row["start_time"] == 1767263400.0
+        assert row["sport"] == "yoyo"
+        assert row["cache_version"] == 19991230
+        assert row["x_min"] == 2.0
+        assert row["x_max"] == 2.2
+        assert row["y_min"] == 1.0
+        assert row["y_max"] == 1.2
 
+    def test_record_cache_creation_updates(self, db_conn, patch_cache_version):
+        source_fingerprint = "abc123"
+        cache_data = CacheData(
+            start_time=1767263400.0,
+            latitude=[1.0, 1.1, 1.2],
+            longitude=[2.0, 2.1, 2.2],
+            time=[0.0, 1.0, 2.0],
+            sport="yoyo",
+        )
 
-def test_is_stale_equal_match(
-    db_conn, source_file_with_cache_version_factory, patched_cache_version
-):
-    source_file = source_file_with_cache_version_factory(19991231)
-    assert not is_stale(db_conn, source_file.content_fingerprint)
+        patch_cache_version(19991230)
+        record_cache_creation(db_conn, cache_data, source_fingerprint)
+        patch_cache_version(19991231)
+        cache_data.start_time = 1798799400.0
+        source_fingerprint = "cde456"
+        record_cache_creation(db_conn, cache_data, source_fingerprint)
+        db_conn.commit()
 
+        rows = _fetch_activities_by_fingerprint(db_conn, source_fingerprint)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["start_time"] == 1798799400.0
+        assert row["sport"] == "yoyo"
+        assert row["source_fingerprint"] == "cde456"
+        assert row["cache_version"] == 19991231
+        assert row["x_min"] == 2.0
+        assert row["y_min"] == 1.0
+        assert row["x_max"] == 2.2
+        assert row["y_max"] == 1.2
 
-def test_is_stale_newer_match(
-    db_conn, source_file_with_cache_version_factory, patched_cache_version
-):
-    source_file = source_file_with_cache_version_factory(19991232)
-    assert not is_stale(db_conn, source_file.content_fingerprint)
+    def test_list_source_files_stale_cache_stale(
+        self, db_conn, source_file_with_cache_version_factory, patch_cache_version
+    ):
+        patch_cache_version(19991231)
+        source_file = source_file_with_cache_version_factory(19991230)
+        result = list_source_files_stale_cache(db_conn)
+        assert len(result) == 1
+        assert result[0].source_path == source_file.source_path
 
+    def test_list_source_files_stale_cache_fresh(
+        self, db_conn, source_file_with_cache_version_factory, patch_cache_version
+    ):
+        patch_cache_version(19991231)
+        source_file_with_cache_version_factory(19991231)
+        result = list_source_files_stale_cache(db_conn)
+        assert result == []
 
-def test_activities_table_bbox_constraint_violation_raise(db_conn):
-    activity = Activity(0.0, "fingerprint", x_min=1.0, x_max=0.0, y_min=0.0, y_max=1.0)
-    with pytest.raises(IntegrityError, match="constraint failed: x_min <= x_max"):
-        _upsert_activity(db_conn, activity)
-    activity = Activity(0.0, "fingerprint", x_min=0.0, x_max=1.0, y_min=1.0, y_max=0.0)
-    with pytest.raises(IntegrityError, match="constraint failed: y_min <= y_max"):
-        _upsert_activity(db_conn, activity)
+    def test_list_source_files_stale_cache_newer(
+        self, db_conn, source_file_with_cache_version_factory, patch_cache_version
+    ):
+        patch_cache_version(19991231)
+        source_file_with_cache_version_factory(19991232)
+        result = list_source_files_stale_cache(db_conn)
+        assert result == []
+
+    def test_is_stale_no_match(self, db_conn):
+        assert is_stale(db_conn, "missing-fingerprint")
+
+    def test_is_stale_stale_match(
+        self, db_conn, source_file_with_cache_version_factory, patch_cache_version
+    ):
+        patch_cache_version(19991231)
+        source_file = source_file_with_cache_version_factory(19991230)
+        assert is_stale(db_conn, source_file.content_fingerprint)
+
+    def test_is_stale_equal_match(
+        self, db_conn, source_file_with_cache_version_factory, patch_cache_version
+    ):
+        patch_cache_version(19991231)
+        source_file = source_file_with_cache_version_factory(19991231)
+        assert not is_stale(db_conn, source_file.content_fingerprint)
+
+    def test_is_stale_newer_match(
+        self, db_conn, source_file_with_cache_version_factory, patch_cache_version
+    ):
+        patch_cache_version(19991231)
+        source_file = source_file_with_cache_version_factory(19991232)
+        assert not is_stale(db_conn, source_file.content_fingerprint)

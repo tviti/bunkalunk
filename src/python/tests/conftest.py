@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 import shutil
+from bunkalunk import cache
 from bunkalunk.bunk_helpers import compute_fingerprint
 from bunkalunk.db.connections import create_connection
 
@@ -36,3 +37,11 @@ def db_conn():
     conn = create_connection(":memory:")
     yield conn
     conn.close()
+
+
+@pytest.fixture(scope="function")
+def patch_cache_version(monkeypatch):
+    def _patch(version: int):
+        monkeypatch.setattr(cache, "CACHE_VERSION", version)
+
+    return _patch

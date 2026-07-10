@@ -9,7 +9,6 @@ from sqlite3 import connect, Row
 
 import h5py
 import pytest
-from bunkalunk import cache
 from bunkalunk import bunk
 from bunkalunk.bunk import main
 from bunkalunk.bunk_helpers import compute_fingerprint, resolve_activity_store
@@ -127,9 +126,9 @@ def registered_source_files_and_activities(
 
 @pytest.fixture(scope="function")
 def registered_source_files_and_activities_with_pinned_cache_version(
-    monkeypatch, fit_path, patched_home, tmp_db_path
+    fit_path, patched_home, tmp_db_path, patch_cache_version
 ):
-    monkeypatch.setattr(cache, "CACHE_VERSION", 19991201)
+    patch_cache_version(19991201)
 
     with open(fit_path, "rb") as f:
         content_fingerprint = compute_fingerprint(f)
@@ -408,18 +407,18 @@ class TestDecodeCommand:
 
     def test_decode_rebuilds_stale(
         self,
-        monkeypatch,
         patched_home,
         fit_path,
         fit_path_fingerprint,
         tmp_db_path,
         registered_source_files_and_activities_with_pinned_cache_version,
+        patch_cache_version,
     ):
         """bunk decode with no path should rebuild stale cache entries."""
         registered_source_files_and_activities_with_pinned_cache_version
 
         # Re-patch the cache version to trigger re-decode
-        monkeypatch.setattr(cache, "CACHE_VERSION", 19991231)
+        patch_cache_version(19991231)
         assert 0 == main(["decode"])
 
         with create_connection(tmp_db_path) as conn:
