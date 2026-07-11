@@ -75,7 +75,7 @@ pkgs.mkShell {
   shellHook = ''
     export PYTHON=${bunkalunk.pythonEnv}/bin/python  # Allows Julia to see shell's python
     export PYTHONPATH=''${PYTHONPATH}:''${PWD}/src/python
-    export MYPYPATH=''${PYTHONPATH}/typings
+    export MYPY_BACKGROUND_COMMAND="mypy --python-executable=''${PYTHON}"
     export JULIA_PROJECT=''${PWD}/src/julia
     export PYTEST_DIR=''${PWD}/src/python/tests
     export PATH=/home/taylor/.julia/bin:''${PATH}
