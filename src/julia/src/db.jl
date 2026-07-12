@@ -2,7 +2,7 @@ using SQLite
 using Dates
 
 function bunk_schema_version()
-    return 20260710
+    return 20260711
 end
 
 function fetch_user_version(conn::SQLite.DB)

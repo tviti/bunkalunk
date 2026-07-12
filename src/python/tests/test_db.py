@@ -293,6 +293,36 @@ class TestActivities:
         with pytest.raises(IntegrityError, match="constraint failed: y_min <= y_max"):
             _upsert_activity(db_conn, activity)
 
+    @pytest.mark.parametrize(
+        "lat,lon",
+        [
+            ([], [0.0, 1.0, 2.0]),
+            ([0.0, 1.0, 2.0], []),
+            ([], []),
+        ],
+    )
+    def test_activites_table_bbox_is_null_when_any_coord_missing(
+        self, db_conn, lat, lon
+    ):
+        cache_data = CacheData(
+            start_time=1767263400.0,
+            latitude=lat,
+            longitude=lon,
+            time=[0.0, 1.0, 2.0],
+            sport="yoyo",
+        )
+        record_cache_creation(db_conn, cache_data, "fingerprint")
+        db_conn.commit()
+
+        result = db_conn.execute(
+            "SELECT x_min, x_max, y_min, y_max FROM activities WHERE activity_id = 1"
+        )
+        bbox = result.fetchone()
+        assert bbox["x_min"] is None
+        assert bbox["x_max"] is None
+        assert bbox["y_min"] is None
+        assert bbox["y_max"] is None
+
     def test_record_cache_creation_idempotent(self, db_conn, patch_cache_version):
         source_fingerprint = "abc123"
         cache_data = CacheData(

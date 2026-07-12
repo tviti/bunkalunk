@@ -71,14 +71,25 @@ def record_cache_creation(
     x_nanless = [x for x in cache_data.longitude if x is not None]
     y_nanless = [y for y in cache_data.latitude if y is not None]
 
+    if len(x_nanless) > 0 and len(y_nanless) > 0:
+        x_min = min(x_nanless)
+        x_max = max(x_nanless)
+        y_min = min(y_nanless)
+        y_max = max(y_nanless)
+    else:
+        x_min = None
+        x_max = None
+        y_min = None
+        y_max = None
+
     activity = Activity(
         start_time=cache_data.start_time,
         source_fingerprint=source_fingerprint,
         sport=cache_data.sport,
-        x_min=min(x_nanless),
-        x_max=max(x_nanless),
-        y_min=min(y_nanless),
-        y_max=max(y_nanless),
+        x_min=x_min,
+        x_max=x_max,
+        y_min=y_min,
+        y_max=y_max,
     )
     _upsert_activity(conn, activity)
 

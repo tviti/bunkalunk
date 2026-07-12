@@ -2,7 +2,7 @@ from pathlib import Path
 from sqlite3 import Connection, Row, connect
 
 
-BUNK_SCHEMA_VERSION = 20260710
+BUNK_SCHEMA_VERSION = 20260711
 _SCHEMA_FILE = Path(__file__).resolve().parent / "schema.sql"
 
 

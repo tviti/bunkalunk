@@ -252,9 +252,7 @@ class AddCommand(Command):
                 try:
                     fit_data = read_fit(f, logger=logger)
                 except UnsupportedFITFileType as e:
-                    logger.error(
-                        f"Error: {e}\nFile '{source_path}' has an unsupported type."
-                    )
+                    logger.debug(f"File '{source_path}' has an unsupported type.")
                     return 1
                 except Exception:
                     logger.exception(f"Decode on '{source_path}' failed")

@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS activities (
     cache_version INT,
     ride_tag TEXT,
     sport TEXT,
-    x_min REAL NOT NULL, x_max REAL NOT NULL,
-    y_min REAL NOT NULL, y_max REAL NOT NULL,
+    x_min REAL, x_max REAL,
+    y_min REAL, y_max REAL,
     CHECK (x_min <= x_max),
     CHECK (y_min <= y_max)
 );
