@@ -84,10 +84,17 @@ function crosses_gate(
         p_1::Vector{<:Real}, p_2::Vector{<:Real},
         tape_radius::Real,
     )::Union{NamedTuple, Nothing}
+    # Crossing is affirmed when the leading point lies in the gate's positive
+    # half-space, and the trailing point lies in the gate's negative half-space.
     if (p_2 - s_0) ⋅ l > 0 && (p_1 - s_0) ⋅ l < 0
+        # Derived by solving l'*(p - s_0) == 0 (the gate-plane's equation)
+        # where p = t*p_2 + (1 - t)*p_1; solve for t.
         num = (s_0 - p_1) ⋅ l
         den = (p_2 - p_1) ⋅ l
         t = num / den
+        # With exact arithmetic, this guard would never fail, but degenerate
+        # cases like low-angle crossings or crossings with a point lying nearly
+        # on the gate, can still cause t to go out of bounds.
         if 0 <= t && t <= 1
             p = linterp(p_1, p_2, t)
             if norm(p - s_0) < tape_radius
