@@ -55,9 +55,9 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :sport => "cycling",
             :cache_version => 20260101,
             :x_min => 0.0,
-            :x_max => 1.0,
-            :y_min => 0.1,
-            :y_max => 1.1
+            :x_max => 2.0,
+            :y_min => 0.0,
+            :y_max => 1.0
         )
     )
     insert_activity!(
@@ -67,10 +67,10 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :ride_tag => nothing,
             :sport => "basket-weaving",
             :cache_version => 20260101,
-            :x_min => 0.0,
-            :x_max => 1.0,
-            :y_min => 0.1,
-            :y_max => 1.1
+            :x_min => 3.0,
+            :x_max => 6.0,
+            :y_min => 0.0,
+            :y_max => 2.0
         )
     )
     insert_activity!(
@@ -81,9 +81,9 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :sport => "cycling",
             :cache_version => 20260101,
             :x_min => 0.0,
-            :x_max => 1.0,
-            :y_min => 0.1,
-            :y_max => 1.1
+            :x_max => 4.0,
+            :y_min => 3.0,
+            :y_max => 5.0
         )
     )
     insert_activity!(
@@ -93,10 +93,10 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :ride_tag => nothing,
             :sport => "cycling",
             :cache_version => 20260101,
-            :x_min => 0.0,
-            :x_max => 1.0,
-            :y_min => 0.1,
-            :y_max => 1.1
+            :x_min => 5.0,
+            :x_max => 10.0,
+            :y_min => 3.0,
+            :y_max => 4.0
         )
     )
     return
@@ -498,6 +498,31 @@ end
     @testset "sport = nothing behaves same as no sport" begin
         with_activities_db() do db
             @test select_all(db, sport = nothing) == [(1, "123"), (2, "456"), (3, "789"), (4, "abc")]
+        end
+    end
+end
+
+@testset "select_overlapping" begin
+    @testset "Complete overlap" begin
+        with_activities_db() do db
+            rows = select_overlapping(db, 0.5, 0.2, 1.5, 0.8)
+            @test length(rows) == 1
+            @test rows[1][2] == "123"
+        end
+    end
+
+    @testset "Partial overlap" begin
+        with_activities_db() do db
+            rows = select_overlapping(db, 5.5, 1.0, 7.0, 2.5)
+            @test length(rows) == 1
+            @test rows[1][2] == "456"
+        end
+    end
+
+    @testset "No overlap" begin
+        with_activities_db() do db
+            rows = select_overlapping(db, 7.0, 5.0, 8.0, 6.0)
+            @test length(rows) == 0
         end
     end
 end

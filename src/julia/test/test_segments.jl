@@ -339,3 +339,17 @@ end
         end
     end
 end
+
+@testset "compute_bbox" begin
+    @testset "happy path" begin
+        segment = Segment(
+            name = "segment",
+            longitude = [-10.0, -5.0, 5.0, 10.0],
+            latitude = [-100.0, -50.0, 50.0, 100.0]
+        )
+
+        bbox = Lunk.compute_bbox(segment)
+        @test bbox[1] == [-10.0, -100.0]
+        @test bbox[2] == [10.0, 100.0]
+    end
+end

@@ -9,6 +9,8 @@ struct Segment
     longitude::Vector{Float64}
 end
 
+Segment(; name, latitude, longitude) = Segment(name, latitude, longitude)
+
 struct GeoJsonGeometry
     type::String
     coordinates::Matrix{Float64}
@@ -195,4 +197,14 @@ function compute_fingerprint(f::IO)
     finally
         seek(f, pos)
     end
+end
+
+function compute_bbox(segment::Segment)
+    x_min = minimum(segment.longitude)
+    y_min = minimum(segment.latitude)
+
+    x_max = maximum(segment.longitude)
+    y_max = maximum(segment.latitude)
+
+    return (; x_min, y_min, x_max, y_max)
 end

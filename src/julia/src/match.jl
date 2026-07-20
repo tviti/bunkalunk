@@ -2,7 +2,7 @@ using SQLite
 using Dates
 using Lunk
 
-const matcher_version = 20260620
+const matcher_version = 20260719
 
 """
     load_activities(activities::Vector{Tuple{Int, String}})::Dict{Int, CacheData}

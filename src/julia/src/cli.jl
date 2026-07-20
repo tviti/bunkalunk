@@ -457,7 +457,10 @@ function load_matcher_inputs(
         db_conn::SQLite.DB, definition_path::String
     )
     segment = read_segment(definition_path)
-    activities = select_all(db_conn)
+    (; x_min, y_min, x_max, y_max) = compute_bbox(segment)
+    activities = select_overlapping(
+        db_conn, x_min, y_min, x_max, y_max
+    )
     activities_data = load_activities(activities)
     return (segment, activities_data)
 end

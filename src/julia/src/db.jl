@@ -182,6 +182,37 @@ function select_all(
     ]
 end
 
+function select_overlapping(
+        db::SQLite.DB, x_min::Real, y_min::Real, x_max::Real, y_max::Real
+        ; sport::Union{String, Nothing} = nothing
+    )
+    query = """
+    SELECT activity_id, source_fingerprint FROM activities
+    WHERE x_min <= :x_max AND x_max >= :x_min
+    AND y_min <= :y_max AND y_max >= :y_min
+    """
+
+    if sport !== nothing
+        query = add_sport_to_query(query)
+    end
+
+    result = DBInterface.execute(
+        db,
+        query,
+        Dict(
+            :x_min => x_min,
+            :x_max => x_max,
+            :y_min => y_min,
+            :y_max => y_max,
+            :sport => sport
+        )
+    )
+
+    return Tuple{Int, String}[
+        (row[:activity_id], row[:source_fingerprint]) for row in result
+    ]
+end
+
 function insert_segment!(
         db::SQLite.DB,
         name::String,
