@@ -629,6 +629,14 @@ function segment_show(
         return 1
     end
 
+    if is_stale_segment(
+            segment_name,
+            registration[:definition_path],
+            registration[:definition_fingerprint]
+        )
+        return 1
+    end
+
     num_efforts = length(efforts)
     if num_efforts == 0
         println("No efforts for segment $segment_name")
