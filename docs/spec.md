@@ -118,10 +118,12 @@ Minimum tables:
 - `activities` — Python-owned, Julia-readable
   - `activity_id` (primary key)
   - `source_fingerprint` (CAS address; unique)
-  - `start_time` — Real (Float) seconds from Unix epoch
+  - `start_time` — Real seconds from Unix epoch
   - `cache_version`
   - `ride_tag` (nullable)
   - `sport` (nullable)
+  - `x_min`, `y_min` — Real track bbox SW corner
+  - `x_max`, `y_max` — Real track bbox NE corner
 
 - `segments` — analysis-owned
   - `segment_id` (monotonic rowid alias)
@@ -248,15 +250,17 @@ On `bunk add <path>...`:
 
 ### `lunk`
 
-- `segment register [--force] <name> <path>` — register or update a segment
+- `segment register [--force] [name] <path>` — register or update a segment
   definition by name; `<path>` is the absolute path to the segment definition
-  file (`.osm` or `.geojson`)
+  file (`.osm` or `.geojson`). If `[name]` is not provided, it will be parsed
+  from the segment file. Re-registration with `--force` unconditionally purges
+  existing segment efforts.
 - `segment list` — list registered segments
 - `segment match <segment-name>` — compute and persist segment efforts for
   activities not yet matched against this segment
 - `segment show <segment-name>` — display leaderboard from cached results
 - `segment rename <old-name> <new-name>` — rename a segment in the database
-- `activity show <activity-id|ride-tag>` — display activity summary
+- `activity show <activity-id>` — display activity summary
 - `activity export activity-ids...` — export activities to GeoCSV + CSVT sidecar
 
 ## Segment Definitions
@@ -285,11 +289,10 @@ self-contained and suitable for segment matching.
 
 - https://geojson.org/
 
-GeoJSON segment files must contain a single `Feature` whose `geometry.type`
-is `"LineString"` and whose `geometry.coordinates` array contains at least
-two positions. Each position is a `[longitude, latitude]` pair per the
-GeoJSON spec. The segment name is read from `properties.name`; a missing
-`properties.name` is permitted and produces a warning with an empty name.
+GeoJSON segment files must contain a single `Feature` whose `geometry.type` is
+`"LineString"` and whose `geometry.coordinates` array contains at least two
+positions. Each position is a `[longitude, latitude]` pair per the GeoJSON
+spec. The segment name is read from `properties.name`.
 
 ## Directory Layout
 
@@ -325,7 +328,6 @@ docs/
 ```
 
 State lives under `~/.bunk/` by default, or `$BUNK_HOME` if set.
-The project directory contains no runtime state.
 
 ## Decisions Recorded
 
@@ -337,10 +339,10 @@ The project directory contains no runtime state.
   tables.
 - All state is rooted under `BUNK_HOME`.
 - Stale cache entries are rebuilt manually via `bunk decode`.
-- FitData is a sparse row-aligned table. The FIT protocol makes very few
-  guarantees about what fields are present in any given record, so the decoder
-  preserves record alignment without imposing stricter constraints than the
-  protocol requires. Invariants: timestamp, position_lat, position_long,
+- The FitData class is a sparse row-aligned table. The FIT protocol makes very
+  few guarantees about what fields are present in any given record, so the
+  decoder preserves record alignment without imposing stricter constraints than
+  the protocol requires. Invariants: timestamp, position_lat, position_long,
   heart_rate have equal lengths; each index corresponds to one FIT record.
 - `activities.start_time` is stored as REAL (Unix epoch seconds, UTC).
   The source datetime from fitdecode (a timezone-aware Python
@@ -371,19 +373,3 @@ Run Julia tests via `runtests.jl` instead of `Pkg.test()` (this avoids costly
 environment rebuilds). From `src/julia':
 
     julia --project test/runtests.jl
-
-### Task-tracker
-
-Tracked in `docs/tasks.org`. To prevent massive context costs, **DO NOT read the
-entire file by default**.
-
-1. **Rule checking:** Extract and read only the `* Task tracking system
-   overview` heading to understand formatting.
-2. **Inserting new items:** The file contains existing headings like `* Tasks`
-   and `* Issues`. Use search tools (e.g., `grep -n '^\* '`) or `org-mode`
-   functions to print the document skeleton and locate the correct line
-   numbers. Then, use programmatic insertion (e.g., `sed`) to add the item.
-3. **When to read the full file:** Only perform a full read of the file if you
-   are explicitly instructed to do so by the user (e.g., to deduplicate tasks,
-   find an appropriate niche category, or determine if a completely new heading
-   needs to be created).
