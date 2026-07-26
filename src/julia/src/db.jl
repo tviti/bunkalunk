@@ -184,7 +184,7 @@ end
 
 function select_overlapping(
         db::SQLite.DB, x_min::Real, y_min::Real, x_max::Real, y_max::Real
-        ; sport::Union{String, Nothing} = nothing
+        ; sport::Union{String, Nothing} = nothing, only_unmatched_to::Union{Int64, Nothing} = nothing
     )
     query = """
     SELECT activity_id, source_fingerprint FROM activities
@@ -196,6 +196,17 @@ function select_overlapping(
         query = add_sport_to_query(query)
     end
 
+    if only_unmatched_to !== nothing
+        query *= """
+            AND NOT EXISTS (
+                SELECT 1 FROM segment_efforts
+                WHERE activities.activity_id = segment_efforts.activity_id
+                AND segment_efforts.segment_id = :segment_id
+                AND segment_efforts.matcher_version == :matcher_version
+            )
+        """
+    end
+
     result = DBInterface.execute(
         db,
         query,
@@ -204,7 +215,9 @@ function select_overlapping(
             :x_max => x_max,
             :y_min => y_min,
             :y_max => y_max,
-            :sport => sport
+            :sport => sport,
+            :segment_id => only_unmatched_to,
+            :matcher_version => matcher_version
         )
     )
 
@@ -298,11 +311,28 @@ function insert_segment_effort!(
     return
 end
 
+const Activity = @NamedTuple{
+    activity_id::Int64,
+    source_fingerprint::String,
+    start_time::Union{Float64, Nothing, Missing},
+    cache_version::Union{Int64, Nothing, Missing},
+    ride_tag::Union{String, Nothing, Missing},
+    sport::Union{String, Nothing, Missing},
+    x_min::Union{Float64, Nothing, Missing},
+    x_max::Union{Float64, Nothing, Missing},
+    y_min::Union{Float64, Nothing, Missing},
+    y_max::Union{Float64, Nothing, Missing},
+}
+
 const SegmentRegistration = @NamedTuple{
     segment_id::Int64,
     name::String,
     definition_fingerprint::String,
     definition_path::String,
+    x_min::Float64,
+    x_max::Float64,
+    y_min::Float64,
+    y_max::Float64,
 }
 
 const SegmentEffort = @NamedTuple{
@@ -480,4 +510,14 @@ function fetch_segment_efforts_by_name(
     query *= "ORDER BY elapsed_time_s;"
     result = DBInterface.execute(db, query, Dict(:name => name, :sport => sport))
     return [SegmentEffort(r) for r in result]
+end
+
+function get_activity_sport(db::SQLite.DB, source_fingerprint::String)
+    result = DBInterface.execute(
+        db,
+        "SELECT sport FROM activities WHERE source_fingerprint = ?",
+        source_fingerprint
+    )
+    sports = String[row for row in result]
+    return only(sports)
 end

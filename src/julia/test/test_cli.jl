@@ -326,7 +326,7 @@ end
                             matcher_version,
                             idx_start,
                             idx_end
-                        ) VALUES (1, ?, 100.0, 1234, 20260607, 1, 2)
+                        ) VALUES (1, ?, 100.0, 1234, $matcher_version, 1, 2)
                         """,
                         [old_sid]
                     )
@@ -438,7 +438,7 @@ end
                             matcher_version,
                             idx_start,
                             idx_end
-                            ) VALUES (1, ?, 100.0, 1234, 20260607, 1, 2)
+                            ) VALUES (1, ?, 100.0, 1234, $matcher_version, 1, 2)
                         """,
                         [old_sid]
                     )

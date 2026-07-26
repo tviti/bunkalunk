@@ -99,6 +99,19 @@ function seed_activities_table!(conn::SQLite.DB)::Nothing
             :y_max => 4.0
         )
     )
+    insert_activity!(
+        conn, Dict(
+            :start_time => 1772690400.0, # 2026-03-05T06:00:00
+            :source_fingerprint => "123-copy",
+            :ride_tag => nothing,
+            :sport => "cycling",
+            :cache_version => 20260102,
+            :x_min => 0.0,
+            :x_max => 2.0,
+            :y_min => 0.0,
+            :y_max => 1.0
+        )
+    )
     return
 end
 
@@ -106,12 +119,9 @@ function with_activities_db(f::Function)
     return mktempdir() do dir
         db_path = joinpath(dir, "db.sqlite3")
         create_bunk_tables!(db_path)
-        conn = SQLite.DB(db_path)
-        return try
+        create_connection!(db_path) do conn
             seed_activities_table!(conn)
             f(conn)
-        finally
-            close(conn)
         end
     end
 end
@@ -479,13 +489,13 @@ end
 @testset "select_all" begin
     @testset "No sport returns all rows" begin
         with_activities_db() do db
-            @test select_all(db) == [(1, "123"), (2, "456"), (3, "789"), (4, "abc")]
+            @test select_all(db) == [(1, "123"), (2, "456"), (3, "789"), (4, "abc"), (5, "123-copy")]
         end
     end
 
     @testset "Selects only requested sport" begin
         with_activities_db() do db
-            @test select_all(db, sport = "cycling") == [(1, "123"), (3, "789"), (4, "abc")]
+            @test select_all(db, sport = "cycling") == [(1, "123"), (3, "789"), (4, "abc"), (5, "123-copy")]
         end
     end
 
@@ -497,7 +507,7 @@ end
 
     @testset "sport = nothing behaves same as no sport" begin
         with_activities_db() do db
-            @test select_all(db, sport = nothing) == [(1, "123"), (2, "456"), (3, "789"), (4, "abc")]
+            @test select_all(db, sport = nothing) == [(1, "123"), (2, "456"), (3, "789"), (4, "abc"), (5, "123-copy")]
         end
     end
 end
@@ -506,8 +516,7 @@ end
     @testset "Complete overlap" begin
         with_activities_db() do db
             rows = select_overlapping(db, 0.5, 0.2, 1.5, 0.8)
-            @test length(rows) == 1
-            @test rows[1][2] == "123"
+            @test rows == [(1, "123"), (5, "123-copy")]
         end
     end
 
@@ -523,6 +532,40 @@ end
         with_activities_db() do db
             rows = select_overlapping(db, 7.0, 5.0, 8.0, 6.0)
             @test length(rows) == 0
+        end
+    end
+
+    @testset "only_unmatched_to excludes rows with a corresponding effort" begin
+        with_activities_db() do db
+            insert_segment!(
+                db,
+                "segment",
+                "path/to/segment",
+                "fingerprint",
+                make_dummy_segment()
+            )
+            insert_segment_effort!(db, 5, 1, 123.456, 13, matcher_version, 1, 2)
+            rows = select_overlapping(
+                db, 0.5, 0.2, 1.5, 0.8; only_unmatched_to = 1
+            )
+            @test rows == [(1, "123")]
+        end
+    end
+
+    @testset "only_unmatched_to includes stale efforts" begin
+        with_activities_db() do db
+            insert_segment!(
+                db,
+                "segment",
+                "path/to/segment",
+                "fingerprint",
+                make_dummy_segment()
+            )
+            insert_segment_effort!(db, 5, 1, 123.456, 13, matcher_version - 1, 1, 2)
+            rows = select_overlapping(
+                db, 0.5, 0.2, 1.5, 0.8; only_unmatched_to = 1
+            )
+            @test rows == [(1, "123"), (5, "123-copy")]
         end
     end
 end
@@ -798,7 +841,7 @@ end
                 @test e[:segment_id] == 3
                 @test e[:elapsed_time_s] == 100.0
                 @test e[:matched_at] == 1234
-                @test e[:matcher_version] == 20260607
+                @test e[:matcher_version] == matcher_version
                 @test e[:idx_start] == 1
                 @test e[:idx_end] == 2
                 @test e[:start_time] == 99.999
@@ -819,7 +862,7 @@ end
                 @test e[:segment_id] == 2
                 @test e[:elapsed_time_s] == 102.2
                 @test e[:matched_at] == 1236
-                @test e[:matcher_version] == 20260607
+                @test e[:matcher_version] == matcher_version
                 @test e[:idx_start] == 5
                 @test e[:idx_end] == 6
                 @test e[:start_time] == 99.999

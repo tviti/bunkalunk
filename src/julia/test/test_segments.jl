@@ -348,8 +348,10 @@ end
             latitude = [-100.0, -50.0, 50.0, 100.0]
         )
 
-        bbox = Lunk.compute_bbox(segment)
-        @test bbox[1] == [-10.0, -100.0]
-        @test bbox[2] == [10.0, 100.0]
+        (; x_min, y_min, x_max, y_max) = Lunk.compute_bbox(segment)
+        @test x_min == -10.0
+        @test y_min == -100.0
+        @test x_max == 10.0
+        @test y_max == 100.0
     end
 end

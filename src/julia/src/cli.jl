@@ -454,14 +454,20 @@ function is_stale_segment(
 end
 
 function load_matcher_inputs(
-        db_conn::SQLite.DB, definition_path::String
+        db_conn::SQLite.DB,
+        segment_registration::SegmentRegistration,
+        definition_path::String
     )
     segment = read_segment(definition_path)
-    (; x_min, y_min, x_max, y_max) = compute_bbox(segment)
+    (; x_min, y_min, x_max, y_max, segment_id) = segment_registration[
+        (:x_min, :y_min, :x_max, :y_max, :segment_id),
+    ]
     activities = select_overlapping(
-        db_conn, x_min, y_min, x_max, y_max
+        db_conn, x_min, y_min, x_max, y_max; only_unmatched_to = segment_id
     )
+
     activities_data = load_activities(activities)
+
     return (segment, activities_data)
 end
 
@@ -560,7 +566,7 @@ function segment_match(
         end
 
         (segment, activities_data) = load_matcher_inputs(
-            db_conn, definition_path
+            db_conn, segment_reg, definition_path
         )
 
         match_results = match_to_activities(segment, activities_data)
