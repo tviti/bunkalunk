@@ -45,6 +45,7 @@ export compute_ecef_r,
 
 include("match.jl")
 export load_activities,
+    ActivityContext,
     match_to_activities,
     matcher_version,
     MatchResult

@@ -33,6 +33,7 @@ end
 """
     compute_ecef_r(lat::Real, lon::Real, h::Real, ellipsoid::Ellipsoid) -> Tuple{Real, Real, Real}
     compute_ecef_r(lat::Real, lon::Real, h::Real) -> Tuple{Real, Real, Real}
+    compute_ecef_r(lat::AbstractVector{<:Real}, lon::AbstractVector{<:Real}, h::Union{Real, AbstractVector{<:Real}}) -> Matrix{<:Real}
 
 Convert a set of geodetic coordinates to a rectangular ECEF frame, with `z`
 aligned with the poles, `x` orthogonal to the prime meridian, and the
@@ -45,21 +46,29 @@ function compute_ecef_r(
         lon::Real,
         h::Real,
         ellipsoid::Ellipsoid
-    )::Tuple{Real, Real, Real}
+    )
     N = normal_distance(lat, ellipsoid)
     cos_lat = cosd(lat)
     x = (h + N) * cos_lat * cosd(lon)
     y = (h + N) * cos_lat * sind(lon)
     z = (h + (1 - ellipsoid.eccentricity^2) * N) * sind(lat)
-    return (x, y, z)
+    return [x, y, z]
 end
 
 function compute_ecef_r(
         lat::Real,
         lon::Real,
         h::Real
-    )::Tuple{Real, Real, Real}
+    )
     return compute_ecef_r(lat, lon, h, WGS84())
+end
+
+function compute_ecef_r(
+        lat::AbstractVector{<:Real},
+        lon::AbstractVector{<:Real},
+        h::Union{Real, AbstractVector{<:Real}}
+    )
+    return stack(compute_ecef_r.(lat, lon, h))
 end
 
 """

@@ -57,6 +57,27 @@ using Lunk
             @test sqrt((x2 - x1)^2 + (y2 - y1)^2 + (z2 - z1)^2) ≈ h atol = 1.0e-6
         end
     end
+
+    @testset "vectorized overload returns a matrix" begin
+        let lat = [0.0, 90.0, -90.0, 45.0, -45.0, 10.0, -10.0],
+                lon = [0.0, 0.0, 0.0, 30.0, 30.0, 120.0, 120.0],
+                h = [0.0, 0.0, 0.0, 100.0, 100.0, 0.0, 0.0]
+
+            ecef = compute_ecef_r(lat, lon, h)
+            expected = hcat(
+                [a, 0.0, 0.0],
+                [0.0, 0.0, b],
+                [0.0, 0.0, -b],
+                compute_ecef_r(45.0, 30.0, 100.0),
+                compute_ecef_r(-45.0, 30.0, 100.0),
+                compute_ecef_r(10.0, 120.0, 0.0),
+                compute_ecef_r(-10.0, 120.0, 0.0),
+            )
+
+            @test size(ecef) == (3, 7)
+            @test ecef ≈ expected atol = 1.0e-3
+        end
+    end
 end
 
 @testset "crosses_gate" begin

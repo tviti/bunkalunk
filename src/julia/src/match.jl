@@ -30,6 +30,27 @@ struct MatchResult
     idx_end::Int64
 end
 
+"""Preprocessed activity data used by the matcher."""
+struct ActivityContext
+    tracks::Matrix{Float64}
+    filtered_cache::CacheData
+    cache_filter_map::Vector{Int64}
+end
+
+function ActivityContext(cache::CacheData; fixed_height::Real = 0.0)::ActivityContext
+    # Tracks can start with NaN, likely because the device hadn't acquired GPS
+    # lock when the activity was started. Remove them before matching.
+    valid = find_valid_points(cache)
+    filtered_cache = drop_cache_points(cache, valid)
+    tracks = compute_ecef_r(
+        filtered_cache.latitude, filtered_cache.longitude, fixed_height
+    )
+
+    return ActivityContext(tracks, filtered_cache, findall(valid))
+end
+
+const ActivitiesPayload = Dict{Int, ActivityContext}
+
 """
     match_to_activities(segment::Segment, activities::Dict{Int, CacheData})::Vector{MatchResult}
 
@@ -63,18 +84,27 @@ function match_to_activities(
         segment::Segment,
         activities::Dict{Int, CacheData}
         ;
-        tape_radius = 15.0
+        tape_radius = 15.0,
+        fixed_height = 0.0, # height above ellipsoid [m]
     )::Vector{MatchResult}
-    fixed_height = 0.0  # height above ellipsoid [m]
 
-    segment_ecef = compute_ecef_r.(segment.latitude, segment.longitude, fixed_height)
-    # TODO: This conversion happens at each compute_ecef_r callsite. Consider
-    # changing the return type
-    seg = vcat(
-        [s[1] for s in segment_ecef]',
-        [s[2] for s in segment_ecef]',
-        [s[3] for s in segment_ecef]'
+    seg = compute_ecef_r(segment.latitude, segment.longitude, fixed_height)
+    payload = ActivitiesPayload(
+        activity_id => ActivityContext(cache; fixed_height = fixed_height)
+            for (activity_id, cache) in activities
     )
+
+    return match_to_activities(
+        seg, payload; tape_radius = tape_radius
+    )
+end
+
+function match_to_activities(
+        seg::Matrix{Float64},
+        activities_payload::ActivitiesPayload
+        ;
+        tape_radius = 15.0,
+    )::Vector{MatchResult}
 
     # Start gate geometry
     s_0 = seg[:, 1]
@@ -86,33 +116,22 @@ function match_to_activities(
 
     matches = MatchResult[]
 
-    for (activity_id, cache) in activities
+    for (activity_id, context) in activities_payload
         @debug "Working on activity $activity_id"
-        @debug "Loaded $(length(cache.latitude)) track points"
+        @debug "Loaded $(length(context.filtered_cache.latitude)) track points"
 
         match_points = [Float64[]]
         match_times = Float64[]
 
-        # Tracks can start with NaN, likely because the device hadn't acquired GPS
-        # lock when the activity was started. Remove them
-        valid = find_valid_points(cache)
-        filtered_cache = drop_cache_points(cache, valid)
-        cache_filter_map = findall(valid)
-
-        track_ecef = compute_ecef_r.(
-            filtered_cache.latitude, filtered_cache.longitude, fixed_height
-        )
-        num_track = length(track_ecef)
+        track = context.tracks
+        num_track = size(track)[2]
         if num_track == 0
             @debug "ECEF track conversion has zero points, skipping."
             continue
         end
 
-        track = vcat(
-            [t[1] for t in track_ecef]',
-            [t[2] for t in track_ecef]',
-            [t[3] for t in track_ecef]'
-        )
+        filtered_cache = context.filtered_cache
+        cache_filter_map = context.cache_filter_map
 
         on_segment = false
         idx_start::Int64 = 0
@@ -179,7 +198,7 @@ function match_to_activities(
                         push!(
                             matches,
                             MatchResult(
-                                unix2datetime(cache.start_time),
+                                unix2datetime(filtered_cache.start_time),
                                 activity_id,
                                 segment_time,
                                 round(Int, time()),
