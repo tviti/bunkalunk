@@ -226,6 +226,10 @@ end
             write(args["path"], "invalid-segment")
             result = @test_logs (:error,) Lunk.run_segment_register(args, ctx)
             @test result == 1
+
+            create_connection!(ctx.db_path) do conn
+                @test fetch_segment_registration_by_name(conn, "segment") === nothing
+            end
         end
     end
 
