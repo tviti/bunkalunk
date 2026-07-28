@@ -795,6 +795,44 @@ end
             end
         end
     end
+
+    @testset "only_stale removes stale efforts and preserves current efforts" begin
+        with_tmp_bunk_db!() do dir, db_path
+            create_connection!(db_path) do db
+                seed_segment_efforts_table!(db)
+                DBInterface.execute(
+                    db,
+                    """
+                    INSERT INTO segment_efforts (
+                        activity_id,
+                        segment_id,
+                        elapsed_time_s,
+                        matched_at,
+                        matcher_version,
+                        idx_start,
+                        idx_end
+                    ) VALUES (2, 2, 99.9, 1238, $(matcher_version - 1), 9, 10)
+                    """
+                )
+
+                rows = remove_segment_efforts!(db, 2, 2; only_stale = true)
+                @test length(rows) == 1
+                @test rows[1][:effort_id] == 5
+                @test rows[1][:matcher_version] == matcher_version - 1
+
+                remaining = DBInterface.execute(
+                    db,
+                    """
+                    SELECT effort_id, matcher_version
+                    FROM segment_efforts
+                    WHERE segment_id = 2 AND activity_id = 2
+                    """
+                )
+                remaining = [NamedTuple(row) for row in remaining]
+                @test remaining == [(effort_id = 2, matcher_version = matcher_version)]
+            end
+        end
+    end
 end
 
 @testset "fetch_segment_registration_by_name" begin
@@ -890,6 +928,38 @@ end
                 seed_segments_table!(db)
                 @test Lunk.remove_segment!(db, 99999) === nothing
                 @test fetch_segment_names(db) == ["a", "b", "c"]
+            end
+        end
+    end
+end
+
+@testset "fetch_segment_efforts_by_pairing" begin
+    @testset "roundtrip" begin
+        with_tmp_bunk_db!() do _, db_path
+            create_connection!(db_path) do db
+                seed_segment_efforts_table!(db)
+                efforts = fetch_segment_efforts_by_pairing(db, 2, 2)
+                e = only(efforts)
+                @test e[:effort_id] == 2
+                @test e[:activity_id] == 2
+                @test e[:segment_id] == 2
+                @test e[:elapsed_time_s] == 101.1
+                @test e[:matched_at] == 1235
+                @test e[:matcher_version] == matcher_version
+                @test e[:idx_start] == 3
+                @test e[:idx_end] == 4
+                @test e[:start_time] == 99.999
+                @test e[:name] == "b"
+                @test e[:sport] == "cycling"
+            end
+        end
+    end
+
+    @testset "no matches" begin
+        with_tmp_bunk_db!() do _, db_path
+            create_connection!(db_path) do db
+                seed_segment_efforts_table!(db)
+                @test fetch_segment_efforts_by_pairing(db, 99999, 99999) == []
             end
         end
     end
