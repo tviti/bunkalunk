@@ -226,6 +226,25 @@ function select_overlapping(
     ]
 end
 
+function select_segments_overlapping_activity(db::SQLite.DB, activity_id::Int)
+    query = """
+        WITH a AS (
+            SELECT x_min, y_min, x_max, y_max FROM activities
+            WHERE activity_id = ?
+        )
+        SELECT s.* FROM segments s, a
+        WHERE s.x_min <= a.x_max AND s.x_max >= a.x_min
+        AND s.y_min <= a.y_max AND s.y_max >= a.y_min
+    """
+
+    result = DBInterface.execute(
+        db,
+        query,
+        (activity_id,)
+    )
+    return [SegmentRegistration(r) for r in result]
+end
+
 function insert_segment!(
         db::SQLite.DB,
         name::String,
@@ -310,19 +329,6 @@ function insert_segment_effort!(
     )
     return
 end
-
-const Activity = @NamedTuple{
-    activity_id::Int64,
-    source_fingerprint::String,
-    start_time::Union{Float64, Nothing, Missing},
-    cache_version::Union{Int64, Nothing, Missing},
-    ride_tag::Union{String, Nothing, Missing},
-    sport::Union{String, Nothing, Missing},
-    x_min::Union{Float64, Nothing, Missing},
-    x_max::Union{Float64, Nothing, Missing},
-    y_min::Union{Float64, Nothing, Missing},
-    y_max::Union{Float64, Nothing, Missing},
-}
 
 const SegmentRegistration = @NamedTuple{
     segment_id::Int64,
@@ -510,14 +516,4 @@ function fetch_segment_efforts_by_name(
     query *= "ORDER BY elapsed_time_s;"
     result = DBInterface.execute(db, query, Dict(:name => name, :sport => sport))
     return [SegmentEffort(r) for r in result]
-end
-
-function get_activity_sport(db::SQLite.DB, source_fingerprint::String)
-    result = DBInterface.execute(
-        db,
-        "SELECT sport FROM activities WHERE source_fingerprint = ?",
-        source_fingerprint
-    )
-    sports = String[row for row in result]
-    return only(sports)
 end

@@ -570,6 +570,72 @@ end
     end
 end
 
+@testset "select_segments_overlapping_activity" begin
+    @testset "returns segment with full overlap" begin
+        with_tmp_bunk_db!() do _, db_path
+            create_connection!(db_path) do db
+                insert_dummy_activity!(db, "activity")
+                insert_segment!(
+                    db,
+                    "contained",
+                    "path/to/contained",
+                    "fingerprint-contained",
+                    Segment("contained", [0.2, 0.8], [0.2, 0.8])
+                )
+
+                registrations = Lunk.select_segments_overlapping_activity(db, 1)
+                registration = only(registrations)
+
+                @test registration[:segment_id] == 1
+                @test registration[:name] == "contained"
+                @test registration[:definition_path] == "path/to/contained"
+                @test registration[:definition_fingerprint] == "fingerprint-contained"
+                @test registration[:x_min] == 0.2
+                @test registration[:x_max] == 0.8
+                @test registration[:y_min] == 0.2
+                @test registration[:y_max] == 0.8
+            end
+        end
+    end
+
+    @testset "returns segment with partial overlap" begin
+        with_tmp_bunk_db!() do _, db_path
+            create_connection!(db_path) do db
+                insert_dummy_activity!(db, "activity")
+                insert_segment!(
+                    db,
+                    "partial",
+                    "path/to/partial",
+                    "fingerprint-partial",
+                    Segment("partial", [0.2, 0.8], [0.8, 1.2])
+                )
+
+                registrations = Lunk.select_segments_overlapping_activity(db, 1)
+
+                @test length(registrations) == 1
+                @test only(registrations)[:name] == "partial"
+            end
+        end
+    end
+
+    @testset "no overlap returns empty array" begin
+        with_tmp_bunk_db!() do _, db_path
+            create_connection!(db_path) do db
+                insert_dummy_activity!(db, "activity")
+                insert_segment!(
+                    db,
+                    "disjoint",
+                    "path/to/disjoint",
+                    "fingerprint-disjoint",
+                    Segment("disjoint", [0.2, 0.8], [1.1, 1.2])
+                )
+
+                @test isempty(Lunk.select_segments_overlapping_activity(db, 1))
+            end
+        end
+    end
+end
+
 @testset "fetch_segment_registration" begin
     @testset "Happy path" begin
         with_tmp_bunk_db!() do dir, db_path
