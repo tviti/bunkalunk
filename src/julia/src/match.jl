@@ -4,6 +4,9 @@ using Lunk
 
 const matcher_version = 20260726
 
+# fixed_height value in [m] above ellipsoid, used project wide in matcher calls
+const FIXED_HEIGHT = 0.0
+
 """
     load_activities(activities::Vector{Tuple{Int, String}})::Dict{Int, CacheData}
 
@@ -14,9 +17,13 @@ function load_activities(
         activities::Vector{Tuple{Int, String}}
     )::Dict{Int, CacheData}
     return Dict(
-        id => fingerprint |> resolve_cache_path |> read_cache
+        id => load_activity(fingerprint)
             for (id, fingerprint) in activities
     )
+end
+
+function load_activity(fingerprint::String)
+    return fingerprint |> resolve_cache_path |> read_cache
 end
 
 struct MatchResult
@@ -37,7 +44,7 @@ struct ActivityContext
     cache_filter_map::Vector{Int64}
 end
 
-function ActivityContext(cache::CacheData; fixed_height::Real = 0.0)::ActivityContext
+function ActivityContext(cache::CacheData; fixed_height::Real = FIXED_HEIGHT)::ActivityContext
     # Tracks can start with NaN, likely because the device hadn't acquired GPS
     # lock when the activity was started. Remove them before matching.
     valid = find_valid_points(cache)
@@ -85,7 +92,7 @@ function match_to_activities(
         activities::Dict{Int, CacheData}
         ;
         tape_radius = 15.0,
-        fixed_height = 0.0, # height above ellipsoid [m]
+        fixed_height = FIXED_HEIGHT, # height above ellipsoid [m]
     )::Vector{MatchResult}
 
     seg = compute_ecef_r(segment.latitude, segment.longitude, fixed_height)

@@ -499,29 +499,32 @@ function remove_segment_efforts!(
     return [SegmentEffort(r) for r in result]
 end
 
+const BASE_SEGMENT_EFFORT_QUERY = """
+    SELECT
+        se.effort_id,
+        se.activity_id,
+        se.segment_id,
+        se.elapsed_time_s,
+        se.matched_at,
+        se.matcher_version,
+        se.idx_start,
+        se.idx_end,
+        CAST(a.start_time AS REAL) AS start_time,
+        a.sport AS sport,
+        s.name AS name
+    FROM segment_efforts se
+    JOIN activities a ON a.activity_id = se.activity_id
+    JOIN segments s ON s.segment_id = se.segment_id
+"""
+
 function fetch_segment_efforts_by_pairing(
         db::SQLite.DB, segment_id::Integer, activity_id::Integer
     )
-    query = """
-            SELECT
-                se.effort_id,
-                se.activity_id,
-                se.segment_id,
-                se.elapsed_time_s,
-                se.matched_at,
-                se.matcher_version,
-                se.idx_start,
-                se.idx_end,
-                CAST(a.start_time AS REAL) AS start_time,
-                a.sport AS sport,
-                s.name AS name
-            FROM segment_efforts se
-            JOIN activities a ON a.activity_id = se.activity_id
-            JOIN segments s ON s.segment_id = se.segment_id
-            WHERE se.segment_id = :segment_id
-              AND se.activity_id = :activity_id
-            ORDER BY se.effort_id;
-            """
+    query = BASE_SEGMENT_EFFORT_QUERY * """
+        WHERE se.segment_id = :segment_id
+          AND se.activity_id = :activity_id
+        ORDER BY se.effort_id;
+        """
     result = DBInterface.execute(
         db,
         query,
@@ -533,24 +536,9 @@ end
 function fetch_segment_efforts_by_name(
         db::SQLite.DB, name::String; sport::Union{String, Nothing} = nothing
     )
-    query = """
-            SELECT
-                se.effort_id,
-                se.activity_id,
-                se.segment_id,
-                se.elapsed_time_s,
-                se.matched_at,
-                se.matcher_version,
-                se.idx_start,
-                se.idx_end,
-                CAST(a.start_time AS REAL) AS start_time,
-                a.sport AS sport,
-    	        s.name AS name
-            FROM segment_efforts se
-            JOIN activities a ON a.activity_id = se.activity_id
-            JOIN segments s ON s.segment_id = se.segment_id
-            WHERE s.name = :name
-            """
+    query = BASE_SEGMENT_EFFORT_QUERY * """
+        WHERE s.name = :name
+        """
     if sport !== nothing
         query *= " AND a.sport = :sport "
     end

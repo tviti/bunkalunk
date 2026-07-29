@@ -453,19 +453,16 @@ function is_stale_segment(
     return false
 end
 
-function load_matcher_inputs(
+function load_segment_match_inputs(
         db_conn::SQLite.DB,
-        segment_registration::SegmentRegistration,
-        definition_path::String
+        segment_registration::SegmentRegistration
     )
-    segment = read_segment(definition_path)
-    (; x_min, y_min, x_max, y_max, segment_id) = segment_registration[
-        (:x_min, :y_min, :x_max, :y_max, :segment_id),
-    ]
+    (; x_min, y_min, x_max, y_max, segment_id) = segment_registration
     activities = select_overlapping(
         db_conn, x_min, y_min, x_max, y_max; only_unmatched_to = segment_id
     )
 
+    segment = read_segment(segment_registration[:definition_path])
     activities_data = load_activities(activities)
 
     return (segment, activities_data)
@@ -565,9 +562,7 @@ function segment_match(
             return 1
         end
 
-        (segment, activities_data) = load_matcher_inputs(
-            db_conn, segment_reg, definition_path
-        )
+        (segment, activities_data) = load_segment_match_inputs(db_conn, segment_reg)
 
         match_results = match_to_activities(segment, activities_data)
         export_data = DBInterface.transaction(db_conn) do
@@ -602,6 +597,24 @@ function seconds2hms(t::Float64)
     minutes = Int64(t_h[1])
     seconds = t_h[2]
     return (hours, minutes, seconds)
+end
+
+function hms2string(h, m, s)
+    return if h != 0
+        @sprintf("%d:%d:%0.4f", h, m, s)
+    else
+        @sprintf("%d:%0.4f", m, s)
+    end
+end
+
+"""
+    hms2string(t::Float64)
+
+Convert `t` in seconds to an `h:m:s` string. If `t` is less than one hour in
+duration, the output string is instead formatted `m:s`.
+"""
+function hms2string(t::Real)
+    return hms2string(seconds2hms(Float64(t))...)
 end
 
 function run_segment_show(args::ArgDict, ctx::Context)
@@ -691,13 +704,7 @@ function segment_show(
     i = 1
     for (; effort_id, start_time, activity_id, elapsed_time_s) in efforts
         start_time_iso = unix2datetime(start_time)
-        hms_string = let (h, m, s) = seconds2hms(elapsed_time_s)
-            if h != 0
-                @sprintf("%d:%d:%0.4f", h, m, s)
-            else
-                @sprintf("%d:%0.4f", m, s)
-            end
-        end
+        hms_string = hms2string(elapsed_time_s)
         Printf.format(ctx.io, row_format, i, start_time_iso, hms_string)
         i = i + 1
         if i > top
