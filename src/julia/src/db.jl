@@ -164,6 +164,32 @@ function select_by_id(db::SQLite.DB, activity_id::Int)
     return only(fingerprints)
 end
 
+function activity_start_time(db::SQLite.DB, activity_id::Int)
+    result = DBInterface.execute(
+        db,
+        """
+            SELECT start_time FROM activities
+            WHERE activity_id = ?
+        """,
+        [activity_id]
+    )
+    start_times = Float64[row[:start_time] for row in result]
+    return start_times |> only |> unix2datetime
+end
+
+function latest_activity(db::SQLite.DB)
+    result = DBInterface.execute(
+        db,
+        """
+            SELECT activity_id FROM activities
+            ORDER BY start_time DESC
+            LIMIT 1;
+        """
+    )
+    activity_ids = Int64[row[:activity_id] for row in result]
+    return only(activity_ids)
+end
+
 function select_all(
         db::SQLite.DB; sport::Union{String, Nothing} = nothing
     )
@@ -394,6 +420,18 @@ function fetch_segment_names(db::SQLite.DB)
     return String[r[:name] for r in result]
 end
 
+function fetch_segment_ids_matching_activity(db::SQLite.DB, activity_id::Int64)
+    query = """
+        SELECT s.segment_id FROM segments s
+        JOIN segment_efforts se ON se.segment_id = s.segment_id
+        WHERE se.activity_id = ?
+        ORDER BY s.segment_id;
+    """
+
+    result = DBInterface.execute(db, query, (activity_id,))
+    return unique(Int64[r[:segment_id] for r in result])
+end
+
 function remove_segment!(db::SQLite.DB, name::String)
     result = DBInterface.execute(
         db,
@@ -544,5 +582,19 @@ function fetch_segment_efforts_by_name(
     end
     query *= "ORDER BY elapsed_time_s;"
     result = DBInterface.execute(db, query, Dict(:name => name, :sport => sport))
+    return [SegmentEffort(r) for r in result]
+end
+
+function fetch_segment_efforts_by_segment_id(
+        db::SQLite.DB, segment_id::Int64; sport::Union{String, Nothing} = nothing
+    )
+    query = BASE_SEGMENT_EFFORT_QUERY * """
+        WHERE se.segment_id = :segment_id
+        """
+    if sport !== nothing
+        query *= " AND a.sport = :sport "
+    end
+    query *= "ORDER BY elapsed_time_s;"
+    result = DBInterface.execute(db, query, Dict(:segment_id => segment_id, :sport => sport))
     return [SegmentEffort(r) for r in result]
 end

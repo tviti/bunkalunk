@@ -171,9 +171,21 @@ end
 function add_activities_argtable!(settings::ArgParseSettings)::Nothing
     activity_settings = settings["activity"]
     @add_arg_table! activity_settings begin
+        "show"
+        action = :command
+        help = "Show an activity's segment efforts"
+
         "export"
         action = :command
         help = "Export a list of activities to GeoCSV + CSVT sidecar"
+    end
+
+    @add_arg_table! activity_settings["show"] begin
+        "activity_id"
+        required = false
+        action = :store_arg
+        arg_type = Int
+        help = "The activity to show, omit to show most recent"
     end
 
     @add_arg_table! activity_settings["export"] begin
@@ -714,6 +726,58 @@ function segment_show(
 
     return 0
 end
+function activity_show(; ctx = Context())
+    activity_id = create_connection!(ctx.db_path) do conn
+        latest_activity(conn)
+    end
+    return activity_show(activity_id; ctx = ctx)
+end
+
+function activity_show(activity_id::Int; ctx = Context())
+    start_time, segments = create_connection!(ctx.db_path) do db
+        segment_ids = fetch_segment_ids_matching_activity(db, activity_id)
+        segment_dict = Dict(
+            id => fetch_segment_efforts_by_segment_id(db, id)
+                for id in segment_ids
+        )
+
+        (activity_start_time(db, activity_id), segment_dict)
+    end
+
+    println(ctx.io, "")
+    println(ctx.io, "  " * repeat("-", 41))
+    println(ctx.io, "   Start time: $start_time")
+    # @printf(ctx.io, "   Distance: %.4f km (%.4f mi)\n", 1.0e-3 * distance, meters2miles(distance))
+    # println(ctx.io, "   $num_efforts efforts total")
+    println(ctx.io, "  " * repeat("-", 41))
+    println(ctx.io, "")
+
+    row_format = Printf.Format("  %-21s %-8s  %s\n")
+    Printf.format(ctx.io, row_format, "Segment Name", "Rank", "Time")
+    Printf.format(ctx.io, row_format, repeat("-", 19), repeat("-", 8), repeat("-", 12))
+
+    for (_, segment_efforts) in segments
+        name = segment_efforts[1][:name]
+        num_efforts = length(segment_efforts)
+        activity_efforts = [
+            (rank = i, time = hms2string(e[:elapsed_time_s]))
+                for (i, e) in enumerate(segment_efforts)
+                if e[:activity_id] == activity_id
+        ]
+
+        for effort in activity_efforts
+            rank_string = "$(effort[:rank])/$num_efforts"
+            Printf.format(ctx.io, row_format, "$name", rank_string, effort[:time])
+        end
+
+    end
+    return 0
+end
+
+function run_activity_show(args::ArgDict, ctx::Context)
+    activity_id = args["activity_id"]
+    return activity_show(activity_id; ctx = ctx)
+end
 
 function accumulate_geocsv_data!(
         g::GeoCSV, activity_id::Int, cache::CacheData
@@ -834,6 +898,7 @@ const SEGMENT_SUBCOMMANDS = Dict{String, Function}(
 )
 
 const ACTIVITY_SUBCOMMANDS = Dict{String, Function}(
+    "show" => run_activity_show,
     "export" => run_activity_export,
 )
 
