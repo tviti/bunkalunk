@@ -218,8 +218,16 @@ function select_overlapping(
     AND y_min <= :y_max AND y_max >= :y_min
     """
 
+    query_data = Dict(
+        :x_min => x_min,
+        :x_max => x_max,
+        :y_min => y_min,
+        :y_max => y_max,
+    )
+
     if sport !== nothing
         query = add_sport_to_query(query)
+        query_data[:sport] = sport
     end
 
     if only_unmatched_to !== nothing
@@ -231,20 +239,14 @@ function select_overlapping(
                 AND segment_efforts.matcher_version == :matcher_version
             )
         """
+        query_data[:segment_id] = only_unmatched_to
+        query_data[:matcher_version] = matcher_version
     end
 
     result = DBInterface.execute(
         db,
         query,
-        Dict(
-            :x_min => x_min,
-            :x_max => x_max,
-            :y_min => y_min,
-            :y_max => y_max,
-            :sport => sport,
-            :segment_id => only_unmatched_to,
-            :matcher_version => matcher_version
-        )
+        query_data
     )
 
     return Tuple{Int, String}[
