@@ -171,6 +171,10 @@ end
 function add_activities_argtable!(settings::ArgParseSettings)::Nothing
     activity_settings = settings["activity"]
     @add_arg_table! activity_settings begin
+        "match"
+        action = :command
+        help = "Run match and timing calculations on an activity"
+
         "show"
         action = :command
         help = "Show an activity's segment efforts"
@@ -178,6 +182,18 @@ function add_activities_argtable!(settings::ArgParseSettings)::Nothing
         "export"
         action = :command
         help = "Export a list of activities to GeoCSV + CSVT sidecar"
+    end
+
+    @add_arg_table! activity_settings["match"] begin
+        "activity_id"
+        required = false
+        action = :store_arg
+        arg_type = Int
+        help = "The activity to match, omit to match most recent"
+
+        "--update"
+        action = :store_true
+        help = "Update each matched segment's rankings"
     end
 
     @add_arg_table! activity_settings["show"] begin
@@ -726,6 +742,210 @@ function segment_show(
 
     return 0
 end
+
+"""
+    activity_match_update!(
+        db::SQLite.DB,
+        registration::SegmentRegistration,
+        segment_ecef::Matrix{Float64},
+        payload_cache::ActivitiesPayload
+    )
+
+Run the matcher over the segment described by `registration` and its precomputed
+ECEF matrix `segment_ecef`. Pre-existing efforts are not recomputed unless they
+have a stale `matcher_version`. The `ActivityContext` data for each of the found
+activity candidates are cached to `payload_cache`, such that under repeated
+calls with the same input `payload_cache`, activities already seen are not
+re-processed.
+"""
+function activity_match_update!(
+        db::SQLite.DB,
+        registration::SegmentRegistration,
+        segment_ecef::Matrix{Float64},
+        payload_cache::ActivitiesPayload
+    )
+    (; x_min, y_min, x_max, y_max, segment_id) = registration
+    activities = select_overlapping(
+        db, x_min, y_min, x_max, y_max; only_unmatched_to = segment_id
+    )
+
+    activity_ids = Int64[]
+    for (activity_id, fingerprint) in activities
+        if !(activity_id in keys(payload_cache))
+            payload_cache[activity_id] =
+                fingerprint |> load_activity |> ActivityContext
+        end
+        push!(activity_ids, activity_id)
+    end
+
+    payload = ActivitiesPayload(id => payload_cache[id] for id in activity_ids)
+
+    return match_to_activities(segment_ecef, payload)
+end
+
+function activity_match_transaction!(
+        db::SQLite.DB,
+        registration::SegmentRegistration,
+        segment_ecef::Matrix{Float64},
+        activity_payload::ActivitiesPayload,
+        payload_cache::ActivitiesPayload,
+        update::Bool,
+        io::IO
+    )
+    activity_id = only(keys(activity_payload))
+    (; segment_id, name) = registration
+
+    removed_efforts = remove_segment_efforts!(
+        db, segment_id, activity_id; only_stale = true
+    )
+    existing_efforts = fetch_segment_efforts_by_pairing(
+        db, segment_id, activity_id
+    )
+
+    @debug "Removed $(length(removed_efforts)) segment efforts "
+
+    # TODO: Future work should implement a dual to match_to_activities that
+    # matches multiple segments against a single activity, and can check N
+    # segments for matches simultaneously (within the same loop over M track
+    # points, instead of running a worst-case MxN iterations like the
+    # current design).
+    if isempty(existing_efforts)
+        match_results = match_to_activities(segment_ecef, activity_payload)
+
+        if isempty(match_results)
+            return 0
+        end
+
+        segment_match_transaction!(
+            db,
+            segment_id,
+            match_results,
+            nothing
+        )
+    end
+
+    if update
+        update_results = try
+            activity_match_update!(db, registration, segment_ecef, payload_cache)
+        catch e
+            showerror(io, e)
+            @error "Could not update activities for segment $name"
+            return 1
+        end
+
+        if isempty(update_results)
+            return 0
+        end
+
+        segment_match_transaction!(
+            db,
+            segment_id,
+            update_results,
+            nothing
+        )
+    end
+
+    return 0
+end
+
+"""
+    activity_match(activity_id::Int; ctx = Context(), update = false)
+
+Search for segments matching `activity_id`, and insert a row to the
+`segment_efforts` table for each affirmative match. Candidate segments are
+aggregated by partial-overlap with the given bbox for the given
+`activity_id`. For each of the candidate segments, efforts matching the
+`(segment_id, activity_id)` with a stale `matcher_version` are purged. If no
+existing efforts remain for that pair, the match algorithm is re-run, otherwise
+it is skipped.
+
+Set `update = true` to re-run a full corpus match for each of matched segments,
+ensuring that the rankings for that segment are up to date. The full corpus
+match is incremental; pre-existing efforts are not recomputed unless they are
+stale.
+"""
+function activity_match(activity_id::Int; ctx = Context(), update = false)
+    cache_fingerprint, overlapping_segments = try
+        create_connection!(ctx.db_path) do db
+            (
+                select_by_id(db, activity_id),
+                select_segments_overlapping_activity(db, activity_id),
+            )
+        end
+    catch e
+        if !(e isa ArgumentError)
+            rethrow(e)
+        end
+        showerror(ctx.io, e)
+        @error "Could not select activity with id $activity_id, row not found"
+        return 1
+    end
+
+    activity_ctx = try
+        cache_fingerprint |> load_activity |> ActivityContext
+    catch e
+        showerror(ctx.io, e)
+        @error "Could not read cache for activity $activity_id"
+        return 1
+    end
+    activity_payload = ActivitiesPayload(activity_id => activity_ctx)
+
+    # We store the ActivityContexts calculated while iterating over
+    # overlapping_segments so that they can be reused on subsequent iterations
+    payload_cache = ActivitiesPayload(activity_id => activity_ctx)
+
+    errors = Int64[]
+    for registration in overlapping_segments
+        (; name, definition_path, definition_fingerprint, segment_id) = registration
+        if is_stale_segment(name, definition_path, definition_fingerprint)
+            continue
+        end
+
+        segment = read_segment(definition_path)
+        segment_ecef = compute_ecef_r(segment.latitude, segment.longitude, FIXED_HEIGHT)
+
+        let error = create_connection!(ctx.db_path) do db
+                DBInterface.transaction(db) do
+                    activity_match_transaction!(
+                        db,
+                        registration,
+                        segment_ecef,
+                        activity_payload,
+                        payload_cache,
+                        update,
+                        ctx.io
+                    )
+                end
+            end
+            if error != 0
+                push!(errors, segment_id)
+            end
+        end
+    end
+
+    if !isempty(errors)
+        return 1
+    end
+
+    return 0
+end
+
+function activity_match(; ctx = Context(), update = false)
+    activity_id = create_connection!(ctx.db_path) do conn
+        latest_activity(conn)
+    end
+    return activity_match(activity_id; ctx = ctx, update = update)
+end
+
+function run_activity_match(args::ArgDict, ctx::Context)
+    activity_id = args["activity_id"]
+    update = args["update"]
+    if activity_id === nothing
+        return activity_match(; ctx = ctx, update = update)
+    end
+    return activity_match(activity_id; ctx = ctx, update = update)
+end
+
 function activity_show(; ctx = Context())
     activity_id = create_connection!(ctx.db_path) do conn
         latest_activity(conn)
@@ -776,6 +996,9 @@ end
 
 function run_activity_show(args::ArgDict, ctx::Context)
     activity_id = args["activity_id"]
+    if activity_id === nothing
+        return activity_show(; ctx = ctx)
+    end
     return activity_show(activity_id; ctx = ctx)
 end
 
@@ -898,6 +1121,7 @@ const SEGMENT_SUBCOMMANDS = Dict{String, Function}(
 )
 
 const ACTIVITY_SUBCOMMANDS = Dict{String, Function}(
+    "match" => run_activity_match,
     "show" => run_activity_show,
     "export" => run_activity_export,
 )
