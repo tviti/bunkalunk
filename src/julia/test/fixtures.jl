@@ -11,6 +11,7 @@ using DelimitedFiles
 if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
     const BUNK_TEST_FIXTURES_INCLUDED = true
 
+    # Cache fixtures
     function make_cache_lap_then_abort()::CacheData
         affirmative = CacheData(
             946598400.0,
@@ -42,167 +43,6 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         return CacheData(
             946598400.0, time, lat, lon, sport = "cycling", heart_rate = nothing
         )
-    end
-
-    function create_bunk_tables!(db_path::String)
-        script = """
-        from bunkalunk.db import create_connection
-        with create_connection("$db_path") as conn:
-            pass
-        """
-        cmd = `python -c $script`
-        run(cmd)
-        return
-    end
-
-    function with_tmp_bunk_db!(f::Function)
-        return mktempdir() do dir
-            db_path = joinpath(dir, "tmp.sqlite3")
-            create_bunk_tables!(db_path)
-            f(dir, db_path)
-        end
-    end
-
-    function insert_activity!(conn::SQLite.DB, activity::Dict)::Nothing
-        DBInterface.execute(
-            conn,
-            """
-            INSERT INTO activities (
-                   start_time,
-                   source_fingerprint,
-                   ride_tag,
-                   sport,
-                   cache_version,
-                   x_min,
-                   x_max,
-                   y_min,
-                   y_max
-            ) VALUES (
-                   :start_time,
-                   :source_fingerprint,
-                   :ride_tag,
-                   :sport,
-                   :cache_version,
-                   :x_min,
-                   :x_max,
-                   :y_min,
-                   :y_max
-            )
-            """,
-            activity
-        )
-        return
-    end
-
-    function insert_dummy_activity!(
-            conn::SQLite.DB, fingerprint::String; sport::String = "cycling"
-        )::Nothing
-        insert_activity!(
-            conn, Dict(
-                :start_time => 99.999,
-                :source_fingerprint => fingerprint,
-                :ride_tag => nothing,
-                :sport => sport,
-                :cache_version => 123456,
-                :x_min => 0.0,
-                :x_max => 1.0,
-                :y_min => 0.1,
-                :y_max => 1.1
-            )
-        )
-        return
-    end
-
-    function make_dummy_segment()
-        return Segment(
-            "segment-name-field",
-            Float64[0.0, 0.1, 0.2, 0.3, 0.4],
-            Float64[1.0, 1.1, 1.2, 1.3, 1.4],
-        )
-    end
-
-    function seed_segment_efforts_table!(db::SQLite.DB)::Nothing
-        insert_dummy_activity!(db, "fingerprint-1")
-        insert_dummy_activity!(db, "fingerprint-2")
-        insert_dummy_activity!(db, "fingerprint-3"; sport = "basket-weaving")
-        insert_dummy_activity!(db, "fingerprint-4")
-        seed_segments_table!(db)
-        DBInterface.execute(
-            db,
-            """
-                INSERT INTO segment_efforts (activity_id,
-                                             segment_id,
-                                             elapsed_time_s,
-                                             matched_at,
-                                             matcher_version,
-                                             idx_start,
-                                             idx_end)
-                VALUES
-                    (1, 3, 100.0, 1234, $matcher_version, 1, 2),
-                    (2, 2, 101.1, 1235, $matcher_version, 3, 4),
-                    (3, 2, 102.2, 1236, $matcher_version, 5, 6),
-                    (4, 1, 103.3, 1237, $matcher_version, 7, 8);
-            """
-        )
-        return
-    end
-
-    function seed_segments_table!(db::SQLite.DB)::Nothing
-        DBInterface.execute(
-            db,
-            """
-                INSERT INTO segments (
-                    name,
-                    definition_fingerprint,
-                    definition_path,
-                    x_min,
-                    x_max,
-                    y_min,
-                    y_max
-                ) VALUES
-                    ("c", "fingerprint-c", "path/to/c", 0.0, 0.1, 1.0, 1.1),
-                    ("b", "fingerprint-b", "path/to/b", 0.0, 0.1, 1.0, 1.1),
-                    ("a", "fingerprint-a", "path/to/a", 0.0, 0.1, 1.0, 1.1);
-            """
-        )
-        return
-    end
-
-    function load_csv(path::AbstractString)
-        return open(path, "r") do source
-            data, header = readdlm(source, ',', header = true)
-            return data, strip.(header)
-        end
-    end
-
-    function write_minimal_osm(
-            path::AbstractString;
-            name::Union{String, Nothing} = "segment",
-            latitude::AbstractVector{<:Real} = [0.0, 0.0001, 0.0002],
-            longitude::AbstractVector{<:Real} = [0.0, 0.0, 0.0]
-        )
-        length(latitude) == length(longitude) || throw(
-            ArgumentError("latitude and longitude must have the same length")
-        )
-        length(latitude) >= 2 || throw(
-            ArgumentError("minimal OSM fixture requires at least two points")
-        )
-
-        # Minimal valid file: one way, N nodes, nd refs match. Changing the
-        # name kwarg is an easy way to change the file contents and fingerprint.
-        xml = "<osm>\n"
-        for (i, (lat, lon)) in enumerate(zip(latitude, longitude))
-            xml *= "    <node id=\"$i\" visible=\"true\" lat=\"$lat\" lon=\"$lon\" />\n"
-        end
-        xml *= "    <way id=\"1\" visible=\"true\">\n"
-        for i in eachindex(latitude)
-            xml *= "        <nd ref=\"$i\" />\n"
-        end
-        if name !== nothing
-            xml *= """<tag k="name" v="$name" />"""
-        end
-        xml *= "\n    </way>\n</osm>\n"
-        return write(path, xml)
     end
 
     function make_cache_file(
@@ -281,6 +121,171 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         )
     end
 
+    # Database fixtures
+    function create_bunk_tables!(db_path::String)
+        script = """
+        from bunkalunk.db import create_connection
+        with create_connection("$db_path") as conn:
+            pass
+        """
+        cmd = `python -c $script`
+        run(cmd)
+        return
+    end
+
+    function with_tmp_bunk_db!(f::Function)
+        return mktempdir() do dir
+            db_path = joinpath(dir, "tmp.sqlite3")
+            create_bunk_tables!(db_path)
+            f(dir, db_path)
+        end
+    end
+
+    function insert_activity!(conn::SQLite.DB, activity::Dict)::Nothing
+        DBInterface.execute(
+            conn,
+            """
+            INSERT INTO activities (
+                   start_time,
+                   source_fingerprint,
+                   ride_tag,
+                   sport,
+                   cache_version,
+                   x_min,
+                   x_max,
+                   y_min,
+                   y_max
+            ) VALUES (
+                   :start_time,
+                   :source_fingerprint,
+                   :ride_tag,
+                   :sport,
+                   :cache_version,
+                   :x_min,
+                   :x_max,
+                   :y_min,
+                   :y_max
+            )
+            """,
+            activity
+        )
+        return
+    end
+
+    function insert_dummy_activity!(
+            conn::SQLite.DB, fingerprint::String; sport::String = "cycling"
+        )::Nothing
+        insert_activity!(
+            conn, Dict(
+                :start_time => 99.999,
+                :source_fingerprint => fingerprint,
+                :ride_tag => nothing,
+                :sport => sport,
+                :cache_version => 123456,
+                :x_min => 0.0,
+                :x_max => 1.0,
+                :y_min => 0.1,
+                :y_max => 1.1
+            )
+        )
+        return
+    end
+
+    function seed_segments_table!(db::SQLite.DB)::Nothing
+        DBInterface.execute(
+            db,
+            """
+                INSERT INTO segments (
+                    name,
+                    definition_fingerprint,
+                    definition_path,
+                    x_min,
+                    x_max,
+                    y_min,
+                    y_max
+                ) VALUES
+                    ("c", "fingerprint-c", "path/to/c", 0.0, 0.1, 1.0, 1.1),
+                    ("b", "fingerprint-b", "path/to/b", 0.0, 0.1, 1.0, 1.1),
+                    ("a", "fingerprint-a", "path/to/a", 0.0, 0.1, 1.0, 1.1);
+            """
+        )
+        return
+    end
+
+    function seed_segment_efforts_table!(db::SQLite.DB)::Nothing
+        insert_dummy_activity!(db, "fingerprint-1")
+        insert_dummy_activity!(db, "fingerprint-2")
+        insert_dummy_activity!(db, "fingerprint-3"; sport = "basket-weaving")
+        insert_dummy_activity!(db, "fingerprint-4")
+        seed_segments_table!(db)
+        DBInterface.execute(
+            db,
+            """
+                INSERT INTO segment_efforts (activity_id,
+                                             segment_id,
+                                             elapsed_time_s,
+                                             matched_at,
+                                             matcher_version,
+                                             idx_start,
+                                             idx_end)
+                VALUES
+                    (1, 3, 100.0, 1234, $matcher_version, 1, 2),
+                    (2, 2, 101.1, 1235, $matcher_version, 3, 4),
+                    (3, 2, 102.2, 1236, $matcher_version, 5, 6),
+                    (4, 1, 103.3, 1237, $matcher_version, 7, 8);
+            """
+        )
+        return
+    end
+
+    # Segment fixtures
+    function make_dummy_segment()
+        return Segment(
+            "segment-name-field",
+            Float64[0.0, 0.1, 0.2, 0.3, 0.4],
+            Float64[1.0, 1.1, 1.2, 1.3, 1.4],
+        )
+    end
+
+    function write_minimal_osm(
+            path::AbstractString;
+            name::Union{String, Nothing} = "segment",
+            latitude::AbstractVector{<:Real} = [0.0, 0.0001, 0.0002],
+            longitude::AbstractVector{<:Real} = [0.0, 0.0, 0.0]
+        )
+        length(latitude) == length(longitude) || throw(
+            ArgumentError("latitude and longitude must have the same length")
+        )
+        length(latitude) >= 2 || throw(
+            ArgumentError("minimal OSM fixture requires at least two points")
+        )
+
+        # Minimal valid file: one way, N nodes, nd refs match. Changing the
+        # name kwarg is an easy way to change the file contents and fingerprint.
+        xml = "<osm>\n"
+        for (i, (lat, lon)) in enumerate(zip(latitude, longitude))
+            xml *= "    <node id=\"$i\" visible=\"true\" lat=\"$lat\" lon=\"$lon\" />\n"
+        end
+        xml *= "    <way id=\"1\" visible=\"true\">\n"
+        for i in eachindex(latitude)
+            xml *= "        <nd ref=\"$i\" />\n"
+        end
+        if name !== nothing
+            xml *= """<tag k="name" v="$name" />"""
+        end
+        xml *= "\n    </way>\n</osm>\n"
+        return write(path, xml)
+    end
+
+    # File fixtures
+    function load_csv(path::AbstractString)
+        return open(path, "r") do source
+            data, header = readdlm(source, ',', header = true)
+            return data, strip.(header)
+        end
+    end
+
+    # Context fixtures
     """
     Create a testing `Context` object that points to a DB that has been seeded
     with `bunk` tables and the right schema version.
