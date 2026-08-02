@@ -4,10 +4,14 @@ const MATCHING_CACHE_KWARGS = (
     time = [0.0, 10.0, 20.0, 30.0],
     latitude = [-0.00005, 0.00005, 0.00015, 0.00025],
     longitude = [0.0, 0.0, 0.0, 0.0],
-    heart_rate = nothing,
-    elevation = nothing,
-    distance = nothing,
-    speed = nothing,
+    heart_rate = [99.0, 99.0, 99.0, 99.0],
+    elevation = [10.0, 11.0, 12.0, 13.0],
+    distance = [0.0, 1.0, 2.0, 3.0],
+    speed = [3.0, 3.1, 3.2, 3.3],
+    x_min = 0.0,
+    x_max = 0.0,
+    y_min = -0.00005,
+    y_max = 0.00025,
 )
 mkpath(PRECOMPILE_ACTIVITY_STORE)
 
@@ -20,14 +24,6 @@ using Lunk
 include(joinpath(@__DIR__, "..", "..", "test", "fixtures.jl"))
 
 const PRECOMPILE_DB_PATH = joinpath(PRECOMPILE_BUNK_HOME, BUNKALUNK_DB)
-
-function fire_lunk(args::Vector{String})::Nothing
-    try
-        Lunk.main(args)
-    catch
-    end
-    return nothing
-end
 
 function reset_precompile_state!()::Nothing
     rm(PRECOMPILE_DB_PATH; force = true)
@@ -44,6 +40,13 @@ function seed_matching_cache!()::Nothing
     create_bunk_tables!(PRECOMPILE_DB_PATH)
     create_connection!(PRECOMPILE_DB_PATH) do conn
         make_registered_cache_file!(conn, PRECOMPILE_ACTIVITY_STORE; MATCHING_CACHE_KWARGS...)
+        make_registered_cache_file!(
+            conn,
+            PRECOMPILE_ACTIVITY_STORE;
+            fingerprint = "cache-2",
+            start_time = 946598401.0,
+            MATCHING_CACHE_KWARGS...
+        )
     end
     return nothing
 end
@@ -65,13 +68,28 @@ function write_minimal_geojson(path::String; name::String = "segment-json")::Not
     return nothing
 end
 
-# Empty-state branches (these should throw exceptions/errors/warnings)
+# Empty-state branches.
 reset_precompile_state!()
-fire_lunk(["segment", "list"])
-fire_lunk(["segment", "show", "missing-segment"])
-fire_lunk(["segment", "remove", "missing-segment"])
-fire_lunk(["segment", "match", "missing-segment"])
-fire_lunk(["activity", "export", "--output", joinpath(PRECOMPILE_BUNK_HOME, "missing.csv"), "99"])
+Lunk.main(["segment", "list"])
+Lunk.main(["segment", "show", "missing-segment"])
+Lunk.main(["segment", "remove", "missing-segment"])
+try
+    Lunk.main(["segment", "match", "missing-segment"])
+catch e
+    e isa ArgumentError || rethrow()
+end
+try
+    Lunk.main(["activity", "show"])
+catch e
+    e isa ArgumentError || rethrow()
+end
+try
+    Lunk.main(["activity", "match"])
+catch e
+    e isa ArgumentError || rethrow()
+end
+Lunk.main(["activity", "match", "99"])
+Lunk.main(["activity", "export", "--output", joinpath(PRECOMPILE_BUNK_HOME, "missing.csv"), "99"])
 
 # Segment registration, collision handling, and the populated list branch.
 reset_precompile_state!()
@@ -86,38 +104,53 @@ write(
 )
 write_minimal_osm(collision_segment_path; name = "segment-alt")
 write_minimal_osm(nameless_segment_path; name = nothing)
-fire_lunk(["segment", "register", segment_path])
-fire_lunk(["segment", "list"])
-fire_lunk(["segment", "register", bad_segment_path])
-fire_lunk(["segment", "register", nameless_segment_path])
-fire_lunk(["segment", "register", "--name", "segment", collision_segment_path])
-fire_lunk(["segment", "register", "--force", "--name", "segment", collision_segment_path])
+Lunk.main(["segment", "register", segment_path])
+Lunk.main(["segment", "list"])
+Lunk.main(["segment", "register", bad_segment_path])
+Lunk.main(["segment", "register", nameless_segment_path])
+Lunk.main(["segment", "register", "--name", "segment", collision_segment_path])
+Lunk.main(["segment", "register", "--force", "--name", "segment", collision_segment_path])
 
-# Matching, export, show, and removal against a real activity/cache pair.
+# Matching, export, show, and removal against real activity/cache pairs.
 seed_matching_cache!()
 
 match_export_path = joinpath(PRECOMPILE_BUNK_HOME, "segment-match.csv")
 bad_match_export_path = joinpath(PRECOMPILE_BUNK_HOME, "segment-match.txt")
 activity_export_path = joinpath(PRECOMPILE_BUNK_HOME, "activity.csv")
 
-fire_lunk(["segment", "match", "segment"])
-fire_lunk(["segment", "match", "segment", "--export", bad_match_export_path])
-fire_lunk(["segment", "match", "segment", "--export", match_export_path])
-fire_lunk(["segment", "show", "segment", "--top", "1"])
-fire_lunk(["activity", "export", "--output", activity_export_path, "1"])
-fire_lunk(["segment", "remove", "segment"])
+Lunk.main(["activity", "match", "1"])
+Lunk.main(["activity", "match", "1", "--update"])
+Lunk.main(["activity", "match"])
+Lunk.main(["activity", "show", "1"])
+Lunk.main(["activity", "show"])
+Lunk.main(["segment", "match", "segment"])
+Lunk.main(["segment", "match", "segment", "--export", bad_match_export_path])
+Lunk.main(["segment", "match", "segment", "--export", match_export_path])
+Lunk.main(["segment", "show", "segment", "--top", "1"])
+Lunk.main(["activity", "export", "--output", activity_export_path, "1"])
+Lunk.main(["segment", "remove", "segment"])
 
 # JSON segment-file registration and matching.
 reset_precompile_state!()
 geojson_segment_path = joinpath(PRECOMPILE_BUNK_HOME, "segment.geojson")
 write_minimal_geojson(geojson_segment_path)
-fire_lunk(["segment", "register", geojson_segment_path])
+Lunk.main(["segment", "register", geojson_segment_path])
 seed_matching_cache!()
-fire_lunk(["segment", "match", "segment-json"])
+Lunk.main(["segment", "match", "segment-json"])
 
 reset_precompile_state!()
-fire_lunk(["--help"])
-fire_lunk(["segment", "--help"])
-fire_lunk(["segment", "match", "--help"])
-fire_lunk(["activity", "--help"])
-fire_lunk(["activity", "export", "--help"])
+for args in [
+        ["--help"],
+        ["segment", "--help"],
+        ["segment", "match", "--help"],
+        ["activity", "--help"],
+        ["activity", "match", "--help"],
+        ["activity", "show", "--help"],
+        ["activity", "export", "--help"],
+    ]
+    try
+        Lunk.main(args)
+    catch e
+        e isa MethodError || rethrow()
+    end
+end
