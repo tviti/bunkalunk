@@ -4,42 +4,12 @@ using Lunk
 
 include("fixtures.jl")
 
-function make_synthetic_segment()::Segment
-    return Segment(
-        "synthetic segment",
-        [0.0, 0.0001, 0.0002],
-        [0.0, 0.0, 0.0]
-    )
-end
-
-function make_cache_affirmative_match()::CacheData
-    return CacheData(
-        946598400.0,
-        [0.0, 10.0, 20.0, 30.0],
-        [-0.00005, 0.00005, 0.00015, 0.00025],
-        [0.0, 0.0, 0.0, 0.0],
-        sport = "cycling",
-        heart_rate = nothing
-    )
-end
-
 function make_cache_full_match_with_nans()::CacheData
     return CacheData(
         946598400.0,
         [-30.0, -20.0, -10.0, 0.0, 10.0, 20.0, 30.0, 40.0, 50.0],
         [NaN, NaN, NaN, -0.00005, 0.00005, NaN, NaN, 0.00015, 0.00025],
         [NaN, NaN, NaN, 0.0, 0.0, NaN, NaN, 0.0, 0.0],
-        sport = "cycling",
-        heart_rate = nothing
-    )
-end
-
-function make_cache_partial_overlap()::CacheData
-    return CacheData(
-        946598400.0,
-        [0.0, 10.0, 20.0, 30.0, 40.0],
-        [-0.00005, 0.00005, 0.00015, 0.00018, 0.00018],
-        [0.0, 0.0, 0.0, 0.001, 0.001],
         sport = "cycling",
         heart_rate = nothing
     )

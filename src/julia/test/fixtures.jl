@@ -45,6 +45,36 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
         )
     end
 
+    function make_cache_affirmative_match()::CacheData
+        return CacheData(
+            946598400.0,
+            [0.0, 10.0, 20.0, 30.0],
+            [-0.00005, 0.00005, 0.00015, 0.00025],
+            [0.0, 0.0, 0.0, 0.0],
+            sport = "cycling",
+            heart_rate = nothing
+        )
+    end
+
+    function make_cache_partial_overlap()::CacheData
+        return CacheData(
+            946598400.0,
+            [0.0, 10.0, 20.0, 30.0, 40.0],
+            [-0.00005, 0.00005, 0.00015, 0.00018, 0.00018],
+            [0.0, 0.0, 0.0, 0.001, 0.001],
+            sport = "cycling",
+            heart_rate = nothing
+        )
+    end
+
+    function make_synthetic_segment()::Segment
+        return Segment(
+            "synthetic segment",
+            [0.0, 0.0001, 0.0002],
+            [0.0, 0.0, 0.0]
+        )
+    end
+
     function make_cache_file(
             dir
             ;
@@ -87,7 +117,11 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
             heart_rate::Union{AbstractVector{<:Real}, Nothing} = Float64[99.0, 99.0, 99.0],
             elevation::Union{AbstractVector{<:Real}, Nothing} = Float64[10.0, 11.0, 12.0],
             distance::Union{AbstractVector{<:Real}, Nothing} = Float64[0.0, 1.0, 2.0],
-            speed::Union{AbstractVector{<:Real}, Nothing} = Float64[3.0, 3.1, 3.2]
+            speed::Union{AbstractVector{<:Real}, Nothing} = Float64[3.0, 3.1, 3.2],
+            x_min = 2.0,
+            x_max = 2.2,
+            y_min = 1.0,
+            y_max = 1.2
         )
         insert_activity!(
             conn,
@@ -97,10 +131,10 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
                 :ride_tag => nothing,
                 :sport => sport,
                 :cache_version => 20260624,
-                :x_min => 2.0,
-                :x_max => 2.2,
-                :y_min => 1.0,
-                :y_max => 1.2
+                :x_min => x_min,
+                :x_max => x_max,
+                :y_min => y_min,
+                :y_max => y_max
             )
         )
         cache_dir = joinpath(dir, fingerprint[1:2])
