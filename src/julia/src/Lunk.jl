@@ -1,59 +1,30 @@
 module Lunk
 
 include("cache.jl")
-export CacheData,
-    read_cache,
-    find_valid_points,
-    drop_cache_points
+export CacheData, drop_cache_points, find_valid_points, read_cache
 
 include("paths.jl")
-export resolve_bunk_home,
-    resolve_activity_store,
-    resolve_cache_path,
-    BUNKALUNK_DB
+export BUNKALUNK_DB, resolve_activity_store, resolve_bunk_home, resolve_cache_path
 
 include("segments.jl")
-export Segment,
-    read_segment,
-    compute_fingerprint
+export Segment, compute_fingerprint, read_segment
 
 include("db.jl")
-export create_connection!,
-    get_content_fingerprint,
-    select_overlapping,
-    select_by_start_date,
-    select_by_time_range,
-    select_by_id,
-    select_all,
-    insert_segment!,
-    insert_segment_effort!,
-    fetch_segment_registration,
-    fetch_segment_names,
-    fetch_segment_registration_by_name,
-    fetch_segment_registration_by_fingerprint,
-    fetch_segment_registration_by_path,
-    remove_segment!,
-    remove_segment_efforts!,
-    fetch_segment_efforts_by_pairing,
-    fetch_segment_efforts_by_name
+export create_connection!, fetch_segment_efforts_by_name, fetch_segment_efforts_by_pairing,
+    fetch_segment_names, fetch_segment_registration,
+    fetch_segment_registration_by_fingerprint, fetch_segment_registration_by_name,
+    fetch_segment_registration_by_path, get_content_fingerprint, insert_segment!,
+    insert_segment_effort!, remove_segment!, remove_segment_efforts!, select_all,
+    select_by_id, select_by_start_date, select_by_time_range, select_overlapping
 
 include("geo.jl")
-export compute_ecef_r,
-    crosses_gate,
-    on_polyline,
-    haversine_distance,
-    linterp
+export compute_ecef_r, crosses_gate, haversine_distance, linterp, on_polyline
 
 include("match.jl")
-export load_activities,
-    ActivityContext,
-    match_to_activities,
-    matcher_version,
-    MatchResult
+export ActivityContext, MatchResult, load_activities, match_to_activities, matcher_version
 
 include("export.jl")
-export write_geocsv!,
-    GeoCSV
+export GeoCSV, write_geocsv!
 
 include("cli.jl")
 end
