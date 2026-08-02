@@ -8,22 +8,29 @@ const matcher_version = 20260726
 const FIXED_HEIGHT = 0.0
 
 """
-    load_activities(activities::Vector{Tuple{Int, String}})::Dict{Int, CacheData}
+    load_activities(
+        activities::Vector{Tuple{Int, String}},
+        activity_store::Union{String, Nothing} = nothing
+    )::Dict{Int, CacheData}
 
 Load cached `CacheData` objects for a vector of `(activity_id, source_fingerprint)`
 tuples and return a `Dict` keyed by activity ID.
 """
 function load_activities(
-        activities::Vector{Tuple{Int, String}}
+        activities::Vector{Tuple{Int, String}},
+        activity_store::Union{String, Nothing} = nothing
     )::Dict{Int, CacheData}
     return Dict(
-        id => load_activity(fingerprint)
+        id => load_activity(fingerprint, activity_store)
             for (id, fingerprint) in activities
     )
 end
 
-function load_activity(fingerprint::String)
-    return fingerprint |> resolve_cache_path |> read_cache
+function load_activity(
+        fingerprint::String,
+        activity_store::Union{String, Nothing} = nothing
+    )
+    return read_cache(resolve_cache_path(fingerprint, activity_store))
 end
 
 struct MatchResult

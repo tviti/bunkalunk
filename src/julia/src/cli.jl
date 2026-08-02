@@ -483,7 +483,8 @@ end
 
 function load_segment_match_inputs(
         db_conn::SQLite.DB,
-        segment_registration::SegmentRegistration
+        segment_registration::SegmentRegistration,
+        activity_store::Union{String, Nothing} = nothing
     )
     (; x_min, y_min, x_max, y_max, segment_id) = segment_registration
     activities = select_overlapping(
@@ -491,7 +492,7 @@ function load_segment_match_inputs(
     )
 
     segment = read_segment(segment_registration[:definition_path])
-    activities_data = load_activities(activities)
+    activities_data = load_activities(activities, activity_store)
 
     return (segment, activities_data)
 end
@@ -590,7 +591,9 @@ function segment_match(
             return 1
         end
 
-        (segment, activities_data) = load_segment_match_inputs(db_conn, segment_reg)
+        (segment, activities_data) = load_segment_match_inputs(
+            db_conn, segment_reg, ctx.activity_store
+        )
 
         match_results = match_to_activities(segment, activities_data)
         export_data = DBInterface.transaction(db_conn) do
@@ -762,7 +765,8 @@ function activity_match_update!(
         db::SQLite.DB,
         registration::SegmentRegistration,
         segment_ecef::Matrix{Float64},
-        payload_cache::ActivitiesPayload
+        payload_cache::ActivitiesPayload,
+        activity_store::Union{String, Nothing} = nothing
     )
     (; x_min, y_min, x_max, y_max, segment_id) = registration
     activities = select_overlapping(
@@ -773,7 +777,7 @@ function activity_match_update!(
     for (activity_id, fingerprint) in activities
         if !(activity_id in keys(payload_cache))
             payload_cache[activity_id] =
-                fingerprint |> load_activity |> ActivityContext
+                load_activity(fingerprint, activity_store) |> ActivityContext
         end
         push!(activity_ids, activity_id)
     end
@@ -790,7 +794,8 @@ function activity_match_transaction!(
         activity_payload::ActivitiesPayload,
         payload_cache::ActivitiesPayload,
         update::Bool,
-        io::IO
+        io::IO,
+        activity_store::Union{String, Nothing} = nothing
     )
     activity_id = only(keys(activity_payload))
     (; segment_id, name) = registration
@@ -826,7 +831,9 @@ function activity_match_transaction!(
 
     if update
         update_results = try
-            activity_match_update!(db, registration, segment_ecef, payload_cache)
+            activity_match_update!(
+                db, registration, segment_ecef, payload_cache, activity_store
+            )
         catch e
             showerror(io, e)
             @error "Could not update activities for segment $name"
@@ -882,7 +889,7 @@ function activity_match(activity_id::Int; ctx = Context(), update = false)
     end
 
     activity_ctx = try
-        cache_fingerprint |> load_activity |> ActivityContext
+        load_activity(cache_fingerprint, ctx.activity_store) |> ActivityContext
     catch e
         showerror(ctx.io, e)
         @error "Could not read cache for activity $activity_id"
@@ -913,7 +920,8 @@ function activity_match(activity_id::Int; ctx = Context(), update = false)
                         activity_payload,
                         payload_cache,
                         update,
-                        ctx.io
+                        ctx.io,
+                        ctx.activity_store
                     )
                 end
             end
