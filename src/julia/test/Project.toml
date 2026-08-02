@@ -1,6 +1,5 @@
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
-Debugger = "31a5f54b-26ea-5ae9-a837-f05ce5417438"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 Infiltrator = "5903a43b-9cc3-4c30-8d17-598619ec4e9b"
@@ -11,6 +10,5 @@ SQLite = "0aa819cd-b072-5ff4-a722-6bc24af294d9"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
-Debugger = "0.7.16"
 Infiltrator = "1.9.10"
 Revise = "3.14.2"
