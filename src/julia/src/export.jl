@@ -130,14 +130,19 @@ function write_geocsv!(
     end
 
     time_formatted = Dates.format.(time, "YYYY-mm-ddTHH:MM:SS.sssZ")
-    data_out = [x y time_formatted]
-    header = [x_name, y_name, time_name]
-    types = eltype.([x, y, time])
 
-    if fields !== nothing
-        data_out = hcat(data_out, fields...)
-        header = vcat(header, field_names)
-        types = [types; eltype.(f for f in fields)]
+    data_out, header, types = let data_out = [x y time_formatted],
+            header = [x_name, y_name, time_name],
+            types = eltype.([x, y, time])
+        if fields !== nothing
+            (
+                hcat(data_out, fields...),
+                vcat(header, field_names),
+                [types; eltype.(f for f in fields)],
+            )
+        else
+            (data_out, header, types)
+        end
     end
 
     invalid_name = findfirst(name -> occursin(',', name), header)

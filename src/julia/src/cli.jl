@@ -383,10 +383,10 @@ function segment_register(
         return 1
     end
 
-    if name !== nothing
-        registered_name = name
+    registered_name = if name !== nothing
+        name
     elseif segment.name != ""
-        registered_name = segment.name
+        segment.name
     else
         @error "Could not determine name for segment at $path"
         return 1
@@ -500,8 +500,6 @@ end
 function accumulate_geocsv_data!(
         g::GeoCSV, match::MatchResult
     )::Nothing
-    num_fields = length(g.field_names)
-    num_matches = length(match.match_points)
     activity_id = match.activity_id
     for (p, t) in zip(match.match_points, match.match_times)
         push!(g.x, p[1])
@@ -733,7 +731,7 @@ function segment_show(
     Printf.format(ctx.io, row_format, repeat("-", 4), repeat("-", 19), repeat("-", 12))
 
     i = 1
-    for (; effort_id, start_time, activity_id, elapsed_time_s) in efforts
+    for (; start_time, elapsed_time_s) in efforts
         start_time_iso = unix2datetime(start_time)
         hms_string = hms2string(elapsed_time_s)
         Printf.format(ctx.io, row_format, i, start_time_iso, hms_string)
