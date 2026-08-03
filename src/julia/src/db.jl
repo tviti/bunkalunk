@@ -164,6 +164,7 @@ function select_by_id(db::SQLite.DB, activity_id::Int)
     return only(fingerprints)
 end
 
+# TODO: This file has way too many naming conventions; simplify and unify.
 function activity_start_time(db::SQLite.DB, activity_id::Int)
     result = DBInterface.execute(
         db,
@@ -243,6 +244,7 @@ function select_overlapping(
         query_data[:matcher_version] = MATCHER_VERSION
     end
 
+    query *= " ORDER BY activities.activity_id"
     result = DBInterface.execute(
         db,
         query,
@@ -263,6 +265,7 @@ function select_segments_overlapping_activity(db::SQLite.DB, activity_id::Int)
         SELECT s.* FROM segments s, a
         WHERE s.x_min <= a.x_max AND s.x_max >= a.x_min
         AND s.y_min <= a.y_max AND s.y_max >= a.y_min
+        ORDER BY segment_id
     """
 
     result = DBInterface.execute(
