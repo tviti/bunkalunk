@@ -414,7 +414,7 @@ function run_segment_register(args::ArgDict, ctx::Context)
 end
 
 function segment_remove(name::String; ctx = Context())
-    create_connection!(ctx.db_path) do conn
+    return create_connection!(ctx.db_path) do conn
         DBInterface.transaction(conn) do
             registration = fetch_segment_registration_by_name(conn, name)
             if registration === nothing
@@ -426,7 +426,6 @@ function segment_remove(name::String; ctx = Context())
             remove_segment!(conn, name)
         end
     end
-    return 0
 end
 
 function run_segment_remove(args::ArgDict, ctx::Context)
