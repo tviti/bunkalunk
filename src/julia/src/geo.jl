@@ -8,6 +8,12 @@ using LinearAlgebra
 
 const R_Earth::Float64 = 6371.2e3
 
+meters2miles(m) = m / 1609.344
+
+function linterp(q_1, q_2, t)
+    return (1 - t) * q_1 + t * q_2
+end
+
 struct Ellipsoid
     semimajor_axis::Float64
     semiminor_axis::Float64
@@ -18,7 +24,7 @@ end
 """Constructor returning an `Ellipsoid` based on EPSG:7030 (i.e. the ellipsoid
 reference used by geodetic coordinates in EPSG:4326)
 """
-function WGS84()::Ellipsoid
+function WGS84()
     semimajor_axis = 6378137.0
     semiminor_axis = 6356752.314245
     flatness = 1.0 - semiminor_axis / semimajor_axis
@@ -26,7 +32,7 @@ function WGS84()::Ellipsoid
     return Ellipsoid(semimajor_axis, semiminor_axis, flatness, eccentricity)
 end
 
-function normal_distance(lat::Real, ellipsoid::Ellipsoid)::Real
+function normal_distance(lat::Real, ellipsoid::Ellipsoid)
     return ellipsoid.semimajor_axis / sqrt(1 - ellipsoid.eccentricity^2 * sind(lat)^2)
 end
 
@@ -41,12 +47,7 @@ cross product of `x` and `y` bases yielding `z`.
 
 If `ellipsoid` is omitted, defaults to using `WGS84()`.
 """
-function compute_ecef_r(
-        lat::Real,
-        lon::Real,
-        h::Real,
-        ellipsoid::Ellipsoid
-    )
+function compute_ecef_r(lat::Real, lon::Real, h::Real, ellipsoid::Ellipsoid)
     N = normal_distance(lat, ellipsoid)
     cos_lat = cosd(lat)
     x = (h + N) * cos_lat * cosd(lon)
@@ -55,11 +56,7 @@ function compute_ecef_r(
     return [x, y, z]
 end
 
-function compute_ecef_r(
-        lat::Real,
-        lon::Real,
-        h::Real
-    )
+function compute_ecef_r(lat::Real, lon::Real, h::Real)
     return compute_ecef_r(lat, lon, h, WGS84())
 end
 
@@ -78,7 +75,7 @@ end
         p_1::Vector{<:Real},
         p_2::Vector{<:Real},
         tape_radius::Real
-    )::Union{NamedTuple, Nothing}
+    )
 
 Determine if the edge defined by points `p_1` and `p_2` crosses the *gate*
 defined by a point `s_0`, its normal vector `l`, and its width
@@ -92,7 +89,7 @@ function crosses_gate(
         s_0::Vector{<:Real}, l::Vector{<:Real},
         p_1::Vector{<:Real}, p_2::Vector{<:Real},
         tape_radius::Real,
-    )::Union{NamedTuple, Nothing}
+    )
     # Crossing is affirmed when the leading point lies in the gate's positive
     # half-space, and the trailing point lies in the gate's negative half-space.
     if (p_2 - s_0) ⋅ l > 0 && (p_1 - s_0) ⋅ l < 0
@@ -123,7 +120,7 @@ Check if a given point `p` falls within the cylindrical coridoor defined by
 Returns `true` when `p` is within `radius` of any `polyline` edges. Returns
 `false` otherwise.
 """
-function on_polyline(p::Vector{<:Real}, polyline::Matrix{<:Real}, radius::Real)::Bool
+function on_polyline(p::Vector{<:Real}, polyline::Matrix{<:Real}, radius::Real)
     num_seg = size(polyline, 2)
     for n in 1:(num_seg - 1)
         s_1 = polyline[:, n]
@@ -147,12 +144,7 @@ function on_polyline(p::Vector{<:Real}, polyline::Matrix{<:Real}, radius::Real):
     return false
 end
 
-function linterp(q_1, q_2, t)
-    return (1 - t) * q_1 + t * q_2
-end
-
-# TODO: This function uses (lat, lon) ordering where the rest of the project uses (lon, lat)
-function haversine_distance(p₁::Tuple{Float64, Float64}, p₂::Tuple{Float64, Float64})::Float64
+function haversine_distance(p₁::Tuple{Float64, Float64}, p₂::Tuple{Float64, Float64})
     # p1 and p2 are tuples of (lat, lon) in degrees
     Δϕ = p₂[1] - p₁[1]
     Δλ = p₂[2] - p₁[2]
@@ -162,5 +154,3 @@ function haversine_distance(p₁::Tuple{Float64, Float64}, p₂::Tuple{Float64, 
     θ = 2 * asin(sqrt(havθ))
     return R_Earth * θ
 end
-
-meters2miles(m) = m / 1609.344
