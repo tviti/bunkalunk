@@ -260,7 +260,7 @@ end
 
 @testset "create_connection" begin
     @testset "verifies table schemas created by create_connection" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 cols = DBInterface.execute(db, "PRAGMA table_info(segments)")
                 names = [row[:name] for row in cols]
@@ -286,8 +286,8 @@ end
     end
 
     @testset "errors thrown inside the do-block should propagate out" begin
-        with_tmp_bunk_db!() do dir, db_path
-            @test_throws ErrorException create_connection!(db_path) do db
+        with_tmp_bunk_db!() do _, db_path
+            @test_throws ErrorException create_connection!(db_path) do _
                 error("test error")
             end
         end
@@ -459,7 +459,7 @@ end
     end
 
     @testset "Repeating the same match should add a duplicate" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 insert_dummy_activity!(db, "fingerprint")
                 seed_segments_table!(db)
@@ -544,7 +544,7 @@ end
                 "fingerprint",
                 make_dummy_segment()
             )
-            insert_segment_effort!(db, 5, 1, 123.456, 13, matcher_version, 1, 2)
+            insert_segment_effort!(db, 5, 1, 123.456, 13, Lunk.MATCHER_VERSION, 1, 2)
             rows = select_overlapping(
                 db, 0.5, 0.2, 1.5, 0.8; only_unmatched_to = 1
             )
@@ -561,7 +561,7 @@ end
                 "fingerprint",
                 make_dummy_segment()
             )
-            insert_segment_effort!(db, 5, 1, 123.456, 13, matcher_version - 1, 1, 2)
+            insert_segment_effort!(db, 5, 1, 123.456, 13, Lunk.MATCHER_VERSION - 1, 1, 2)
             rows = select_overlapping(
                 db, 0.5, 0.2, 1.5, 0.8; only_unmatched_to = 1
             )
@@ -659,7 +659,7 @@ end
 
 @testset "fetch_segment_registration all" begin
     @testset "Returns all rows ordered by name" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segments_table!(db)
                 regs = fetch_segment_registration(db)
@@ -679,7 +679,7 @@ end
 
 @testset "fetch_segment_names" begin
     @testset "Happy path and and results ordered by name" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do conn
                 seed_segments_table!(conn)
                 names = fetch_segment_names(conn)
@@ -702,7 +702,7 @@ end
     end
 
     @testset "Unknown segment" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segments_table!(db)
                 @test remove_segment!(db, "nonexistent") === nothing
@@ -714,7 +714,7 @@ end
 
 @testset "remove_segment_efforts" begin
     @testset "Removes the efforts for the given segment_id" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segment_efforts_table!(db)
                 rows = remove_segment_efforts!(db, 2)
@@ -733,7 +733,7 @@ end
     end
 
     @testset "Does nothing for unknown segment_ids" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segment_efforts_table!(db)
                 rows = remove_segment_efforts!(db, 99999)
@@ -749,7 +749,7 @@ end
 
 @testset "remove_segment_efforts (segment_id, activity_id)" begin
     @testset "Removes only efforts matching both segment_id and activity_id" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segment_efforts_table!(db)
                 rows = remove_segment_efforts!(db, 2, 2)
@@ -769,7 +769,7 @@ end
     end
 
     @testset "Does nothing for unknown activity_id" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segment_efforts_table!(db)
                 rows = remove_segment_efforts!(db, 2, 99999)
@@ -783,7 +783,7 @@ end
     end
 
     @testset "Does nothing for unknown segment_id" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segment_efforts_table!(db)
                 rows = remove_segment_efforts!(db, 99999, 1)
@@ -797,7 +797,7 @@ end
     end
 
     @testset "only_stale removes stale efforts and preserves current efforts" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segment_efforts_table!(db)
                 DBInterface.execute(
@@ -811,14 +811,14 @@ end
                         matcher_version,
                         idx_start,
                         idx_end
-                    ) VALUES (2, 2, 99.9, 1238, $(matcher_version - 1), 9, 10)
+                    ) VALUES (2, 2, 99.9, 1238, $(Lunk.MATCHER_VERSION - 1), 9, 10)
                     """
                 )
 
                 rows = remove_segment_efforts!(db, 2, 2; only_stale = true)
                 @test length(rows) == 1
                 @test rows[1][:effort_id] == 5
-                @test rows[1][:matcher_version] == matcher_version - 1
+                @test rows[1][:matcher_version] == Lunk.MATCHER_VERSION - 1
 
                 remaining = DBInterface.execute(
                     db,
@@ -829,7 +829,7 @@ end
                     """
                 )
                 remaining = [NamedTuple(row) for row in remaining]
-                @test remaining == [(effort_id = 2, matcher_version = matcher_version)]
+                @test remaining == [(effort_id = 2, matcher_version = Lunk.MATCHER_VERSION)]
             end
         end
     end
@@ -837,7 +837,7 @@ end
 
 @testset "fetch_segment_registration_by_name" begin
     @testset "Happy path" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segments_table!(db)
                 row = Lunk.fetch_segment_registration_by_name(db, "b")
@@ -850,7 +850,7 @@ end
     end
 
     @testset "Missing segment returns nothing" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segments_table!(db)
                 @test Lunk.fetch_segment_registration_by_name(db, "nonexistent") === nothing
@@ -861,7 +861,7 @@ end
 
 @testset "fetch_segment_registration_by_fingerprint" begin
     @testset "Happy path" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segments_table!(db)
                 row = Lunk.fetch_segment_registration_by_fingerprint(db, "fingerprint-b")
@@ -874,7 +874,7 @@ end
     end
 
     @testset "Missing fingerprint returns nothing" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segments_table!(db)
                 @test Lunk.fetch_segment_registration_by_fingerprint(db, "nonexistent-fp") === nothing
@@ -885,7 +885,7 @@ end
 
 @testset "fetch_segment_registration_by_path" begin
     @testset "Happy path" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segments_table!(db)
                 row = Lunk.fetch_segment_registration_by_path(db, "path/to/b")
@@ -909,7 +909,7 @@ end
 
 @testset "remove_segment by id" begin
     @testset "Happy path" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segments_table!(db)
                 @test length(fetch_segment_names(db)) == 3
@@ -923,7 +923,7 @@ end
     end
 
     @testset "Silent no-op on missing segment_id" begin
-        with_tmp_bunk_db!() do dir, db_path
+        with_tmp_bunk_db!() do _, db_path
             create_connection!(db_path) do db
                 seed_segments_table!(db)
                 @test Lunk.remove_segment!(db, 99999) === nothing
@@ -945,7 +945,7 @@ end
                 @test e[:segment_id] == 2
                 @test e[:elapsed_time_s] == 101.1
                 @test e[:matched_at] == 1235
-                @test e[:matcher_version] == matcher_version
+                @test e[:matcher_version] == Lunk.MATCHER_VERSION
                 @test e[:idx_start] == 3
                 @test e[:idx_end] == 4
                 @test e[:start_time] == 99.999
@@ -977,7 +977,7 @@ end
                 @test e[:segment_id] == 3
                 @test e[:elapsed_time_s] == 100.0
                 @test e[:matched_at] == 1234
-                @test e[:matcher_version] == matcher_version
+                @test e[:matcher_version] == Lunk.MATCHER_VERSION
                 @test e[:idx_start] == 1
                 @test e[:idx_end] == 2
                 @test e[:start_time] == 99.999
@@ -998,7 +998,7 @@ end
                 @test e[:segment_id] == 2
                 @test e[:elapsed_time_s] == 102.2
                 @test e[:matched_at] == 1236
-                @test e[:matcher_version] == matcher_version
+                @test e[:matcher_version] == Lunk.MATCHER_VERSION
                 @test e[:idx_start] == 5
                 @test e[:idx_end] == 6
                 @test e[:start_time] == 99.999

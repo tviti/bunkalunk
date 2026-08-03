@@ -240,7 +240,7 @@ function select_overlapping(
             )
         """
         query_data[:segment_id] = only_unmatched_to
-        query_data[:matcher_version] = matcher_version
+        query_data[:matcher_version] = MATCHER_VERSION
     end
 
     result = DBInterface.execute(
@@ -529,7 +529,7 @@ function remove_segment_efforts!(
 
     if only_stale
         query *= " AND matcher_version < :matcher_version"
-        query_values[:matcher_version] = matcher_version
+        query_values[:matcher_version] = MATCHER_VERSION
     end
 
     query *= " RETURNING *;"

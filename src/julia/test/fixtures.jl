@@ -263,10 +263,10 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
                                              idx_start,
                                              idx_end)
                 VALUES
-                    (1, 3, 100.0, 1234, $matcher_version, 1, 2),
-                    (2, 2, 101.1, 1235, $matcher_version, 3, 4),
-                    (3, 2, 102.2, 1236, $matcher_version, 5, 6),
-                    (4, 1, 103.3, 1237, $matcher_version, 7, 8);
+                    (1, 3, 100.0, 1234, $(Lunk.MATCHER_VERSION), 1, 2),
+                    (2, 2, 101.1, 1235, $(Lunk.MATCHER_VERSION), 3, 4),
+                    (3, 2, 102.2, 1236, $(Lunk.MATCHER_VERSION), 5, 6),
+                    (4, 1, 103.3, 1237, $(Lunk.MATCHER_VERSION), 7, 8);
             """
         )
         return

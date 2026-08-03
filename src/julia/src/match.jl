@@ -2,7 +2,7 @@ using SQLite
 using Dates
 using Lunk
 
-const matcher_version = 20260726
+const MATCHER_VERSION = 20260726
 
 # fixed_height value in [m] above ellipsoid, used project wide in matcher calls
 const FIXED_HEIGHT = 0.0

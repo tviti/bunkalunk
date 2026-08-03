@@ -232,7 +232,7 @@ end
                 if length(efforts) == 1
                     effort = only(efforts)
                     @test isapprox(effort.elapsed_time_s, 20.0; atol = 1.0e-9)
-                    @test effort.matcher_version == Lunk.matcher_version
+                    @test effort.matcher_version == Lunk.MATCHER_VERSION
                     @test effort.idx_start == 1
                     @test effort.idx_end == 4
                 end
@@ -267,7 +267,7 @@ end
                     registration.segment_id,
                     999.0,
                     1234,
-                    Lunk.matcher_version - 1,
+                    Lunk.MATCHER_VERSION - 1,
                     9,
                     10,
                 )
@@ -284,7 +284,7 @@ end
                 @test length(efforts) == 1
                 if length(efforts) == 1
                     effort = only(efforts)
-                    @test effort.matcher_version == Lunk.matcher_version
+                    @test effort.matcher_version == Lunk.MATCHER_VERSION
                     @test isapprox(effort.elapsed_time_s, 20.0; atol = 1.0e-9)
                     @test effort.idx_start == 1
                     @test effort.idx_end == 4

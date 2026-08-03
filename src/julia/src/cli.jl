@@ -543,7 +543,7 @@ function segment_match_transaction!(
             segment_id,
             match.segment_time,
             match.matched_at,
-            matcher_version,
+            MATCHER_VERSION,
             match.idx_start,
             match.idx_end
         )
@@ -701,7 +701,7 @@ function segment_show(
         )
     end
 
-    stale_matcher = [row[:matcher_version] != matcher_version for row in efforts]
+    stale_matcher = [row[:matcher_version] != MATCHER_VERSION for row in efforts]
     if any(stale_matcher)
         @warn (
             "Warning: $(sum(stale_matcher)) of $num_efforts efforts use an old matcher algorithm " *
