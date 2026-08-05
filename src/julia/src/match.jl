@@ -44,6 +44,27 @@ struct MatchResult
     idx_end::Int64
 end
 
+MatchResult(
+    ;
+    activity_date,
+    activity_id,
+    segment_time,
+    matched_at,
+    match_points,
+    match_times,
+    idx_start,
+    idx_end
+) = MatchResult(
+    activity_date,
+    activity_id,
+    segment_time,
+    matched_at,
+    match_points,
+    match_times,
+    idx_start,
+    idx_end
+)
+
 """Preprocessed activity data used by the matcher."""
 struct ActivityContext
     tracks::Matrix{Float64}
@@ -212,14 +233,15 @@ function match_to_activities(
                         push!(
                             matches,
                             MatchResult(
-                                unix2datetime(filtered_cache.start_time),
-                                activity_id,
-                                segment_time,
-                                round(Int, time()),
-                                match_points,
-                                match_times,
-                                idx_start,
-                                cache_filter_map[i + 1]
+                                ;
+                                activity_date = unix2datetime(filtered_cache.start_time),
+                                activity_id = activity_id,
+                                segment_time = segment_time,
+                                matched_at = round(Int, time()),
+                                match_points = match_points,
+                                match_times = match_times,
+                                idx_start = idx_start,
+                                idx_end = cache_filter_map[i + 1]
                             )
                         )
                     end

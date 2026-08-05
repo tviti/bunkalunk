@@ -594,14 +594,15 @@ function make_match_result(
         matched_at::Int64
     )::MatchResult
     return MatchResult(
-        DateTime(2026, 2, 6, 4, 30),
-        activity_id,
-        Float64(segment_time),
-        matched_at,
-        [[0.0, 0.0], [1.0, 1.0]],
-        [10.0, 20.0],
-        1,
-        2
+        ;
+        activity_date = DateTime(2026, 2, 6, 4, 30),
+        activity_id = activity_id,
+        segment_time = Float64(segment_time),
+        matched_at = matched_at,
+        match_points = [[0.0, 0.0], [1.0, 1.0]],
+        match_times = [10.0, 20.0],
+        idx_start = 1,
+        idx_end = 2
     )
 end
 
