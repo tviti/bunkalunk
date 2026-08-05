@@ -814,6 +814,7 @@ end
                 "name" => "c"
             )
             result = @test_logs (:info,) Lunk.run_segment_remove(args, ctx)
+            @test result == 0
             after, registration = create_connection!(ctx.db_path) do db
                 (
                     fetch_segment_efforts_by_name(db, "c"),

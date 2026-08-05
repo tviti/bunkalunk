@@ -424,6 +424,7 @@ function segment_remove(name::String; ctx = Context())
             efforts = remove_segment_efforts!(conn, registration[:segment_id])
             @info "Removed $(length(efforts)) segment efforts"
             remove_segment!(conn, name)
+            return 0
         end
     end
 end
