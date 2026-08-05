@@ -164,20 +164,6 @@ function select_by_id(db::SQLite.DB, activity_id::Int)
     return only(fingerprints)
 end
 
-# TODO: This file has way too many naming conventions; simplify and unify.
-function activity_start_time(db::SQLite.DB, activity_id::Int)
-    result = DBInterface.execute(
-        db,
-        """
-            SELECT start_time FROM activities
-            WHERE activity_id = ?
-        """,
-        [activity_id]
-    )
-    start_times = Float64[row[:start_time] for row in result]
-    return start_times |> only |> unix2datetime
-end
-
 function latest_activity(db::SQLite.DB)
     result = DBInterface.execute(
         db,

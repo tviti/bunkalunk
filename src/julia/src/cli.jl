@@ -958,28 +958,130 @@ function activity_show(; ctx = Context())
     return activity_show(activity_id; ctx = ctx)
 end
 
-function activity_show(activity_id::Int; ctx = Context())
-    start_time, segments = create_connection!(ctx.db_path) do db
-        segment_ids = fetch_segment_ids_matching_activity(db, activity_id)
-        segment_dict = Dict(
-            id => fetch_segment_efforts_by_segment_id(db, id)
-                for id in segment_ids
-        )
-
-        (activity_start_time(db, activity_id), segment_dict)
+function activity_summary(activity_id::Int, activity::CacheData)
+    distance = if activity.distance !== nothing
+        let total_km = activity.distance[end]
+            (
+                total_km = total_km,
+                total_mi = meters2miles(1.0e3 * total_km),
+            )
+        end
+    else
+        nothing
     end
 
-    println(ctx.io, "")
-    println(ctx.io, "  " * repeat("-", 41))
-    println(ctx.io, "   Start time: $start_time")
-    # @printf(ctx.io, "   Distance: %.4f km (%.4f mi)\n", 1.0e-3 * distance, meters2miles(distance))
-    # println(ctx.io, "   $num_efforts efforts total")
-    println(ctx.io, "  " * repeat("-", 41))
-    println(ctx.io, "")
+    median_speed, max_speed = if activity.speed !== nothing
+        let speed = filter(!isnan, activity.speed)
+            (
+                speed |> median,
+                speed |> maximum,
+            )
+        end
+    else
+        (nothing, nothing)
+    end
 
-    row_format = Printf.Format("  %-21s %-8s  %s\n")
-    Printf.format(ctx.io, row_format, "Segment Name", "Rank", "Time")
-    Printf.format(ctx.io, row_format, repeat("-", 19), repeat("-", 8), repeat("-", 12))
+    speed = if median_speed !== nothing
+        (
+            median_kmh = median_speed,
+            median_mph = kmh2mph(median_speed),
+            max_kmh = max_speed,
+            max_mph = kmh2mph(max_speed),
+        )
+    else
+        nothing
+    end
+
+    median_heart_rate, min_heart_rate, max_heart_rate = if activity.heart_rate !== nothing
+        let heart_rate = filter(!isnan, activity.heart_rate)
+            (
+                heart_rate |> median,
+                heart_rate |> minimum,
+                heart_rate |> maximum,
+            )
+        end
+    else
+        (nothing, nothing, nothing)
+    end
+
+    heart_rate = if median_heart_rate !== nothing
+        (
+            median_bpm = median_heart_rate,
+            min_bpm = min_heart_rate,
+            max_bpm = max_heart_rate,
+        )
+    else
+        nothing
+    end
+
+    elevation_gain, elevation_loss = if activity.elevation !== nothing
+        dH = diff(activity.elevation)
+        (
+            dH[dH .> 0] |> sum,
+            dH[dH .< 0] |> sum |> abs,
+        )
+    else
+        (nothing, nothing)
+    end
+
+    elevation = if activity.elevation !== nothing
+        let min_m = minimum(activity.elevation),
+                max_m = maximum(activity.elevation)
+            (
+                min_m = min_m,
+                min_ft = meters2feet(min_m),
+                max_m = max_m,
+                max_ft = meters2feet(max_m),
+                gain_m = elevation_gain,
+                gain_ft = meters2feet(elevation_gain),
+                loss_m = elevation_loss,
+                loss_ft = meters2feet(elevation_loss),
+            )
+        end
+    else
+        nothing
+    end
+
+    return (
+        activity_id = activity_id,
+        start_time = unix2datetime(activity.start_time),
+        sport = activity.sport,
+        distance = distance,
+        speed = speed,
+        heart_rate = heart_rate,
+        elevation = elevation,
+    )
+end
+
+function print_activity_summary(io::IO, summary)
+    println(io, "")
+    println(io, "  " * repeat("-", 41))
+    println(io, "   ", rpad("Start time:", 12), " ", summary.start_time)
+    println(io, "   ", rpad("Activity ID:", 12), " ", summary.activity_id)
+    println(io, "   ", rpad("Sport:", 12), " ", summary.sport)
+    @printf(io, "   %-12s %.4f km (%.4f mi)\n", "Distance:", summary.distance.total_km, summary.distance.total_mi)
+    println(io, "   Elevation:")
+    @printf(io, "     %-10s %.1f m (%.1f ft)\n", "Min:", summary.elevation.min_m, summary.elevation.min_ft)
+    @printf(io, "     %-10s %.1f m (%.1f ft)\n", "Max:", summary.elevation.max_m, summary.elevation.max_ft)
+    @printf(io, "     %-10s %.1f m (%.1f ft)\n", "Gain:", summary.elevation.gain_m, summary.elevation.gain_ft)
+    @printf(io, "     %-10s %.1f m (%.1f ft)\n", "Loss:", summary.elevation.loss_m, summary.elevation.loss_ft)
+    println(io, "   Speed:")
+    @printf(io, "     %-10s %.2f km/h (%.2f mph)\n", "Median:", summary.speed.median_kmh, summary.speed.median_mph)
+    @printf(io, "     %-10s %.2f km/h (%.2f mph)\n", "Max:", summary.speed.max_kmh, summary.speed.max_mph)
+    println(io, "   Heart Rate:")
+    @printf(io, "     %-10s %.1f bpm\n", "Median:", summary.heart_rate.median_bpm)
+    @printf(io, "     %-10s %.1f bpm\n", "Min:", summary.heart_rate.min_bpm)
+    @printf(io, "     %-10s %.1f bpm\n", "Max:", summary.heart_rate.max_bpm)
+    println(io, "  " * repeat("-", 41))
+    println(io, "")
+
+    return
+end
+
+function print_activity_segments(io::IO, activity_id::Int, segments)
+    row_format = Printf.Format("  %-30s %-8s  %s\n")
+    Printf.format(io, row_format, "Segment Name", "Rank", "Time")
+    Printf.format(io, row_format, repeat("-", 25), repeat("-", 8), repeat("-", 12))
 
     for (_, segment_efforts) in segments
         name = segment_efforts[1][:name]
@@ -992,10 +1094,30 @@ function activity_show(activity_id::Int; ctx = Context())
 
         for effort in activity_efforts
             rank_string = "$(effort[:rank])/$num_efforts"
-            Printf.format(ctx.io, row_format, "$name", rank_string, effort[:time])
+            Printf.format(io, row_format, "$name", rank_string, effort[:time])
         end
 
     end
+
+    return
+end
+
+function activity_show(activity_id::Int; ctx = Context())
+    activity, segments = create_connection!(ctx.db_path) do db
+        segment_ids = fetch_segment_ids_matching_activity(db, activity_id)
+        segment_dict = Dict(
+            id => fetch_segment_efforts_by_segment_id(db, id)
+                for id in segment_ids
+        )
+        activity = load_activity(select_by_id(db, activity_id), ctx.activity_store)
+
+        (activity, segment_dict)
+    end
+
+    summary = activity_summary(activity_id, activity)
+    print_activity_summary(ctx.io, summary)
+    print_activity_segments(ctx.io, activity_id, segments)
+
     return 0
 end
 

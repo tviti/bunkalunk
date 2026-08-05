@@ -180,6 +180,31 @@ include("fixtures.jl")
     end
 end
 
+@testset "activity summary" begin
+    activity = CacheData(
+        946598400.0,
+        [0.0, 10.0, 20.0],
+        [1.0, 1.1, 1.2],
+        [2.0, 2.1, 2.2],
+        sport = "cycling",
+        heart_rate = [90.0, NaN, 120.0],
+        elevation = [10.0, 11.0, 12.0],
+        distance = [0.0, 1.0, 2.0],
+        speed = [3.0, 3.1, 3.2],
+    )
+
+    summary = Lunk.activity_summary(1, activity)
+    @test summary.distance.total_km == 2.0
+    @test summary.distance.total_mi ≈ 1.242742384474668
+    @test summary.speed.median_kmh == 3.1
+    @test summary.speed.median_mph ≈ 1.926250695197955
+    @test summary.elevation.min_m == 10.0
+    @test summary.elevation.min_ft ≈ 32.8084
+    @test summary.heart_rate.median_bpm == 105.0
+    @test summary.heart_rate.min_bpm == 90.0
+    @test summary.heart_rate.max_bpm == 120.0
+end
+
 function register_matchable_segment!(conn, dir; name = "segment")
     segment_path = joinpath(dir, name * ".osm")
     write_minimal_osm(segment_path; name = name)
