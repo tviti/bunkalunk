@@ -33,6 +33,30 @@ function load_activity(
     return read_cache(resolve_cache_path(fingerprint, activity_store))
 end
 
+"""
+    MatchResult
+
+Data characterizing an affirmative match of a segment to an activity. Consumers
+are responsible for maintaining a mapping between a `MatchResult` and its
+segment; the container does not carry any key associating it with the segment.
+
+Physical units for all fields follow the activity cache schema.
+
+# Fields
+
+- `activity_date::DateTime`: The activity start time.
+- `activity_id::Int64`: The activity identifier.
+- `segment_time::Float64`: The elapsed time for the segment match.
+- `matched_at::Int64`: The Unix timestamp when the match was computed.
+- `match_points::Vector{Vector{Float64}}`: The 3xN matrix of coordinates that
+  match the segment. The first and last coordinates are the interpolated entry
+  and exit gate crossing points, where the activity track intersects the gates.
+- `match_times::Vector{Float64}`: The times corresponding to `match_points`.
+- `idx_start::Int64`: The index of the first track coordinate bracketing the segment.
+- `idx_end::Int64`: The index of the last track coordinate bracketing the segment.
+  In other words, `idx_start + 1` would be the first track point to lie on the
+  segment, and `idx_end - 1` is the last.
+"""
 struct MatchResult
     activity_date::DateTime
     activity_id::Int64
