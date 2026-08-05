@@ -9,6 +9,8 @@ using LinearAlgebra
 const R_Earth::Float64 = 6371.2e3
 
 meters2miles(m) = m / 1609.344
+meters2feet(m) = m * 3.28084
+kmh2mph(kmh) = 1.0e3 * kmh |> meters2miles
 
 function linterp(q_1, q_2, t)
     return (1 - t) * q_1 + t * q_2
