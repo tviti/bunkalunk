@@ -20,7 +20,7 @@ function load_activities(
         activities::Vector{Tuple{Int, String}},
         activity_store::Union{String, Nothing} = nothing
     )::Dict{Int, CacheData}
-    return Dict(
+    return Dict{Int, CacheData}(
         id => load_activity(fingerprint, activity_store)
             for (id, fingerprint) in activities
     )
