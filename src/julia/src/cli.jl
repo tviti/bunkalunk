@@ -687,7 +687,7 @@ function segment_show(
 
     num_efforts = length(efforts)
     if num_efforts == 0
-        println("No efforts for segment $segment_name")
+        println(ctx.io, "No efforts for segment $segment_name")
         return 0
     end
 
