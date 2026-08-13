@@ -1018,3 +1018,116 @@ end
         end
     end
 end
+
+@testset "fetch_segment_efforts_by_activity_id" begin
+    function with_seeded_efforts_table(f::Function)
+        with_tmp_bunk_db!() do _, db_path
+            create_connection!(db_path) do db
+                seed_segment_efforts_table!(db)
+
+                # Ensure activity 1 matches multiple segments
+                insert_segment_effort!(db, 1, 1, 98.8, 1238, Lunk.MATCHER_VERSION, 9, 10)
+                insert_segment_effort!(db, 1, 2, 99.9, 1239, Lunk.MATCHER_VERSION, 11, 12)
+
+                # Activity matching nothing
+                insert_dummy_activity!(db, "fingerprint-5")
+
+                # Activity matching nothing, and with no sport
+                insert_dummy_activity!(db, "fingerprint-6"; sport = nothing)
+                insert_segment_effort!(db, 6, 1, 104.4, 1240, Lunk.MATCHER_VERSION, 13, 14)
+                insert_dummy_activity!(db, "fingerprint-7"; sport = nothing)
+                insert_segment_effort!(db, 7, 1, 105.5, 1241, Lunk.MATCHER_VERSION, 15, 16)
+
+                f(db)
+            end
+        end
+    end
+
+    @testset "happy path" begin
+        with_tmp_bunk_db!() do _, db_path
+            create_connection!(db_path) do db
+                seed_segment_efforts_table!(db)
+                efforts = Lunk.fetch_segment_efforts_by_activity_id(db, 1)
+                e = only(efforts)
+                @test e[:effort_id] == 1
+                @test e[:activity_id] == 1
+                @test e[:segment_id] == 3
+                @test e[:elapsed_time_s] == 100.0
+                @test e[:matched_at] == 1234
+                @test e[:matcher_version] == Lunk.MATCHER_VERSION
+                @test e[:idx_start] == 1
+                @test e[:idx_end] == 2
+                @test e[:start_time] == 99.999
+                @test e[:name] == "a"
+                @test e[:sport] == "cycling"
+            end
+        end
+    end
+
+    @testset "returns efforts for all matched segments" begin
+        with_seeded_efforts_table() do db
+            activity_id = 1
+            efforts = Lunk.fetch_segment_efforts_by_activity_id(db, activity_id)
+            matched_segment_ids = unique([e[:segment_id] for e in efforts])
+            @test matched_segment_ids == Int64[1, 2, 3]
+            for segment_id in matched_segment_ids
+                segment_efforts = filter((x) -> x[:segment_id] == segment_id, efforts)
+                activity_ids = [e[:activity_id] for e in segment_efforts]
+                @test activity_id in activity_ids
+            end
+        end
+    end
+
+    @testset "excludes activities matching segment but not sport" begin
+        with_seeded_efforts_table() do db
+            activity_id = 1
+            excluded_activity_id = 3
+
+            let results = DBInterface.execute(
+                    db,
+                    "SELECT sport FROM activities WHERE activity_id = ?;",
+                    (excluded_activity_id,)
+                )
+                @test only([r[:sport] for r in results]) == "basket-weaving"
+            end
+
+            efforts = Lunk.fetch_segment_efforts_by_activity_id(db, activity_id)
+            matched_segment_ids = unique([e[:segment_id] for e in efforts])
+            @test matched_segment_ids == Int64[1, 2, 3]
+            activity_ids = [e[:activity_id] for e in efforts]
+            @test !(excluded_activity_id in activity_ids)
+            @test all([e[:sport] for e in efforts] .== "cycling")
+        end
+    end
+
+    @testset "returns empty list on activity_id with no matches" begin
+        with_seeded_efforts_table() do db
+            efforts = Lunk.fetch_segment_efforts_by_activity_id(db, 5)
+            @test isempty(efforts)
+        end
+    end
+
+    @testset "return value is ordered by segment_id, elapsed_time_s" begin
+        with_seeded_efforts_table() do db
+            expected = [(1, 98.8), (1, 103.3), (2, 99.9), (2, 101.1), (3, 100.0)]
+            efforts = Lunk.fetch_segment_efforts_by_activity_id(db, 1)
+            @test [(e[:segment_id], e[:elapsed_time_s]) for e in efforts] == expected
+        end
+    end
+
+    @testset "returns empty list on nonexistent activity" begin
+        with_seeded_efforts_table() do db
+            efforts = Lunk.fetch_segment_efforts_by_activity_id(db, 100)
+            @test isempty(efforts)
+        end
+    end
+
+    @testset "null sport returns rows with null sport" begin
+        with_seeded_efforts_table() do db
+            efforts = Lunk.fetch_segment_efforts_by_activity_id(db, 6)
+            @test length(efforts) == 2
+            @test all(e[:segment_id] == 1 for e in efforts)
+            @test all(e[:sport] === missing for e in efforts)
+        end
+    end
+end

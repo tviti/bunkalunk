@@ -207,7 +207,7 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
     end
 
     function insert_dummy_activity!(
-            conn::SQLite.DB, fingerprint::String; sport::String = "cycling"
+            conn::SQLite.DB, fingerprint::String; sport::Union{String, Nothing} = "cycling"
         )::Nothing
         insert_activity!(
             conn, Dict(

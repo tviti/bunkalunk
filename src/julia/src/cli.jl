@@ -1079,23 +1079,26 @@ function print_activity_summary(io::IO, summary)
     return
 end
 
-function print_activity_segments(io::IO, activity_id::Int, segments)
+function print_activity_segments(
+        io::IO, activity_id::Int, segment_efforts::Dict{Int, Vector{SegmentEffort}}
+    )
     row_format = Printf.Format("  %-30s %-8s  %s\n")
     Printf.format(io, row_format, "Segment Name", "Rank", "Time")
     Printf.format(io, row_format, repeat("-", 25), repeat("-", 8), repeat("-", 12))
 
-    for (_, segment_efforts) in segments
-        name = segment_efforts[1][:name]
-        num_efforts = length(segment_efforts)
+    for (_, efforts) in segment_efforts
         activity_efforts = [
             (rank = i, time = hms2string(e[:elapsed_time_s]))
-                for (i, e) in enumerate(segment_efforts)
+                for (i, e) in enumerate(efforts)
                 if e[:activity_id] == activity_id
         ]
 
-        for effort in activity_efforts
-            rank_string = "$(effort[:rank])/$num_efforts"
-            Printf.format(io, row_format, "$name", rank_string, effort[:time])
+        name = efforts[1][:name]
+        num_efforts = length(efforts)
+
+        for e in activity_efforts
+            rank_string = "$(e[:rank])/$num_efforts"
+            Printf.format(io, row_format, "$name", rank_string, e[:time])
         end
 
     end
@@ -1104,20 +1107,22 @@ function print_activity_segments(io::IO, activity_id::Int, segments)
 end
 
 function activity_show(activity_id::Int; ctx = Context())
-    activity, segments = create_connection!(ctx.db_path) do db
-        segment_ids = fetch_segment_ids_matching_activity(db, activity_id)
-        segment_dict = Dict(
-            id => fetch_segment_efforts_by_segment_id(db, id)
-                for id in segment_ids
+    activity, efforts = create_connection!(ctx.db_path) do db
+        (
+            load_activity(select_by_id(db, activity_id), ctx.activity_store),
+            fetch_segment_efforts_by_activity_id(db, activity_id),
         )
-        activity = load_activity(select_by_id(db, activity_id), ctx.activity_store)
-
-        (activity, segment_dict)
     end
+
+    segment_ids = unique([e[:segment_id] for e in efforts])
+    segment_efforts = Dict(
+        id => filter((x) -> x[:segment_id] == id, efforts)
+            for id in segment_ids
+    )
 
     summary = activity_summary(activity_id, activity)
     print_activity_summary(ctx.io, summary)
-    print_activity_segments(ctx.io, activity_id, segments)
+    print_activity_segments(ctx.io, activity_id, segment_efforts)
 
     return 0
 end

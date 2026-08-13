@@ -589,3 +589,35 @@ function fetch_segment_efforts_by_segment_id(
     result = DBInterface.execute(db, query, Dict(:segment_id => segment_id, :sport => sport))
     return [SegmentEffort(r) for r in result]
 end
+
+function fetch_segment_efforts_by_activity_id(db::SQLite.DB, activity_id::Int64)
+    query = """
+        WITH matched_segments AS (
+            SELECT DISTINCT segment_id FROM segment_efforts
+            WHERE activity_id = :activity_id
+            ORDER BY segment_id
+        ), target_activity AS (
+            SELECT sport FROM activities WHERE activity_id = :activity_id
+        )
+        SELECT
+            se.effort_id,
+            se.activity_id,
+            se.segment_id,
+            se.elapsed_time_s,
+            se.matched_at,
+            se.matcher_version,
+            se.idx_start,
+            se.idx_end,
+            CAST(a.start_time AS REAL) AS start_time,
+            a.sport AS sport,
+            s.name AS name
+        FROM matched_segments
+        JOIN activities a ON a.activity_id = se.activity_id
+        JOIN segment_efforts se ON se.segment_id = s.segment_id
+        JOIN segments s ON s.segment_id = matched_segments.segment_id
+        JOIN target_activity ta on a.sport IS ta.sport
+        ORDER BY se.segment_id, se.elapsed_time_s;
+    """
+    result = DBInterface.execute(db, query, Dict(:activity_id => activity_id))
+    return [SegmentEffort(r) for r in result]
+end
