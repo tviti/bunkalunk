@@ -1,0 +1,5 @@
+[[initialization_options.analysis_overrides]]
+path = "src/**/*.jl"
+
+[[initialization_options.analysis_overrides]]
+path = "test/**/*.jl"
