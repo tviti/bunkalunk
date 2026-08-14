@@ -100,9 +100,7 @@ def seed_source_files_with_decode_state(db_path, fit_path, state):
 
 
 @pytest.fixture(scope="function")
-def registered_source_files_and_activities(
-    fit_path, fit_path_fingerprint, tmp_db_path
-):
+def registered_source_files_and_activities(fit_path, fit_path_fingerprint, tmp_db_path):
     source_file = SourceFile(
         source_path=str(fit_path),
         content_fingerprint=fit_path_fingerprint,
@@ -126,7 +124,7 @@ def registered_source_files_and_activities(
 
 @pytest.fixture(scope="function")
 def registered_source_files_and_activities_with_pinned_cache_version(
-    fit_path, patched_home, tmp_db_path, patch_cache_version
+    fit_path, tmp_db_path, patch_cache_version
 ):
     patch_cache_version(19991201)
 
@@ -155,9 +153,7 @@ def registered_source_files_and_activities_with_pinned_cache_version(
 
 
 @pytest.fixture(scope="function")
-def registered_source_files_with_activity_table(
-    patched_home, tmp_db_path, fake_fit_path
-):
+def registered_source_files_with_activity_table(tmp_db_path, fake_fit_path):
 
     with open(fake_fit_path, "rb") as f:
         content_fingerprint = compute_fingerprint(f)
@@ -187,9 +183,7 @@ def registered_source_files_with_activity_table(
 
 
 class TestAddCommand:
-    def test_add_rejects_unsupported_extension(
-        self, patched_home, monkeypatch, tmp_path, tmp_db_path
-    ):
+    def test_rejects_unsupported_extension(self, monkeypatch, tmp_path, tmp_db_path):
         """bunk add should reject files with unsupported extensions."""
         bad_path = tmp_path / "bad-extension.unfit"
         bad_path.write_bytes(b"not a fit file")
@@ -198,7 +192,7 @@ class TestAddCommand:
         with connect(tmp_db_path) as conn:
             assert get_source_file(conn, str(bad_path)) is None
 
-    def test_add_decode_success(self, patched_home, fit_path, tmp_db_conn):
+    def test_success(self, fit_path, tmp_db_conn):
         """bunk add should decode a valid FIT file end-to-end."""
         return_code = main(["add", str(fit_path.resolve())])
         assert return_code == 0
@@ -217,9 +211,7 @@ class TestAddCommand:
         assert source_file.decode_error is None
         assert len(activities) == 1
 
-    def test_add_decode_failure_no_upsert(
-        self, patched_home, monkeypatch, tmp_path, fit_path, tmp_db_path
-    ):
+    def test_failure_no_upsert(self, monkeypatch, tmp_path, fit_path, tmp_db_path):
         """bunk add should not record a row in source_files if decode fails."""
         patch_read_fit_failure(monkeypatch, fit_path)
         source_path = str(fit_path.resolve())
@@ -230,8 +222,8 @@ class TestAddCommand:
         assert source_file is None
         _assert_no_decode_artifact(fit_path)
 
-    def test_add_db_failure_after_activity_write_rolls_back(
-        self, patched_home, monkeypatch, fit_path, fit_path_fingerprint, tmp_db_path
+    def test_db_failure_after_activity_write_rolls_back(
+        self, monkeypatch, fit_path, fit_path_fingerprint, tmp_db_path
     ):
         """A late DB write failure should roll back DB state and new cache."""
         called = False
@@ -254,7 +246,7 @@ class TestAddCommand:
         assert activities == []
         _assert_no_decode_artifact(fit_path)
 
-    def test_add_unsupported_fit_no_upsert(
+    def test_unsupported_fit_no_upsert(
         self,
         registered_source_files_with_activity_table,
         monkeypatch,
@@ -272,14 +264,12 @@ class TestAddCommand:
             assert not has_source_file(conn, str(fit_path))
             assert [] == _fetch_activities_by_fingerprint(conn, fit_path_fingerprint)
 
-    def test_add_updates_activities_table(self, patched_home, tmp_path, fit_path):
+    def test_updates_activities_table(self, tmp_path, fit_path):
         """bunk add should insert a row into the activities table."""
         return_code = main(["add", str(fit_path.resolve())])
         assert return_code == 0
 
-    def test_add_db_open_failure_cleans_up_cache(
-        self, patched_home, monkeypatch, fit_path
-    ):
+    def test_db_open_failure_cleans_up_cache(self, monkeypatch, fit_path):
         """bunk add should remove the cache artifact when SQLite cannot open."""
         called = False
 
@@ -293,7 +283,7 @@ class TestAddCommand:
         assert called
         _assert_no_decode_artifact(fit_path)
 
-    def test_add_multiple_files_late_failure_keeps_prior_commit(
+    def test_multiple_files_late_failure_keeps_prior_commit(
         self,
         patched_home,
         monkeypatch,
@@ -357,7 +347,7 @@ class TestAddCommand:
         assert first_cache_path.exists()
         assert not second_cache_path.exists()
 
-    def test_add_multiple_files_accepted_extensions(self, patched_home, monkeypatch):
+    def test_multiple_files_accepted_extensions(self, monkeypatch):
         num_calls = 0
 
         def mock_add_file(self, conn, source_path, logger, ctx):
@@ -369,7 +359,7 @@ class TestAddCommand:
         assert 0 == main(["add", "a.fit", "b.fit", "c.fit", "d.fit"])
         assert num_calls == 4
 
-    def test_add_multiple_files_some_bad_extensions(self, patched_home, monkeypatch):
+    def test_multiple_files_some_bad_extensions(self, monkeypatch):
         num_calls = 0
         accepted_files = []
 
@@ -387,7 +377,7 @@ class TestAddCommand:
 
 
 class TestDecodeCommand:
-    def test_decode_rebuilds_pending(self, patched_home, fit_path, tmp_db_path):
+    def test_rebuilds_pending(self, fit_path, tmp_db_path):
         """bunk decode with no path should rebuild pending entries."""
         seed_source_files_with_decode_state(tmp_db_path, fit_path, DecodeState.PENDING)
         assert 0 == main(["decode"])
@@ -396,7 +386,7 @@ class TestDecodeCommand:
         assert sf.decode_state == DecodeState.SUCCESS
         assert sf.decode_error is None
 
-    def test_decode_rebuilds_error(self, patched_home, fit_path, tmp_db_path):
+    def test_rebuilds_error(self, fit_path, tmp_db_path):
         """bunk decode with no path should rebuild error entries."""
         seed_source_files_with_decode_state(tmp_db_path, fit_path, DecodeState.ERROR)
         assert 0 == main(["decode"])
@@ -405,7 +395,7 @@ class TestDecodeCommand:
         assert sf.decode_state == DecodeState.SUCCESS
         assert sf.decode_error is None
 
-    def test_decode_rebuilds_stale(
+    def test_rebuilds_stale(
         self,
         patched_home,
         fit_path,
@@ -432,9 +422,7 @@ class TestDecodeCommand:
         with h5py.File(cache_path, "r") as cache_file:
             assert cache_file.attrs["cache_version"] == 19991231
 
-    def test_decode_rebuilds_missing(
-        self, patched_home, registered_source_files_and_activities, fit_path
-    ):
+    def test_rebuilds_missing(self, registered_source_files_and_activities, fit_path):
         with open(fit_path, "rb") as f:
             content_fingerprint = compute_fingerprint(f)
         activity_store = resolve_activity_store(create=False)
@@ -443,9 +431,7 @@ class TestDecodeCommand:
         assert main(["decode"]) == 0
         assert os.path.exists(cache_path)
 
-    def test_decode_specific_path(
-        self, patched_home, tmp_path, fit_path, fake_fit_path, tmp_db_path
-    ):
+    def test_specific_path(self, tmp_path, fit_path, fake_fit_path, tmp_db_path):
         """bunk decode <path> should rebuild only the given file."""
         with open(fake_fit_path, "rb") as f:
             content_fingerprint = compute_fingerprint(f)
@@ -464,11 +450,11 @@ class TestDecodeCommand:
             sf = get_source_file(conn, str(fake_fit_path))
         assert sf.decode_state == DecodeState.PENDING
 
-    def test_decode_unknown_path_returns_error(self, patched_home, caplog):
+    def test_unknown_path_returns_error(self, caplog):
         """bunk decode <path> should return non-zero for unregistered path."""
         assert 1 == main(["decode", "not/in/source_files"])
 
-    def test_decode_fingerprint_drift_drops_old_row(
+    def test_fingerprint_drift_drops_old_row(
         self, tmp_db_path, fit_path, fit_path_fingerprint
     ):
         """bunk decode should not strand activities rows after fingerprint drift."""
@@ -489,7 +475,7 @@ class TestDecodeCommand:
             assert len(rows) == 1
             assert rows[0]["content_fingerprint"] == new_fingerprint
 
-    def test_decode_fingerprint_drift_leaves_old_row_when_still_referenced(
+    def test_fingerprint_drift_leaves_old_row_when_still_referenced(
         self, tmp_path, tmp_db_path, fit_path, fit_path_fingerprint
     ):
         assert main(["add", str(fit_path)]) == 0
@@ -513,7 +499,7 @@ class TestDecodeCommand:
             assert fit_path_fingerprint in fingerprints
             assert new_fingerprint in fingerprints
 
-    def test_decode_fingerprint_drift_read_failure_leaves_old_activities_row(
+    def test_fingerprint_drift_read_failure_leaves_old_activities_row(
         self, tmp_db_path, monkeypatch, tmp_path, fit_path, fit_path_fingerprint
     ):
         assert main(["add", str(fit_path)]) == 0
@@ -535,9 +521,7 @@ class TestDecodeCommand:
             # New fingerprint doesn't exist
             assert _fetch_activities_by_fingerprint(conn, new_fingerprint) == []
 
-    def test_decode_failure_records_error(
-        self, patched_home, monkeypatch, fit_path, tmp_db_conn
-    ):
+    def test_failure_records_error(self, monkeypatch, fit_path, tmp_db_conn):
         """bunk decode should record ERROR state when decode fails."""
         main(["add", str(fit_path)])
         patch_read_fit_failure(monkeypatch, fit_path)
@@ -553,7 +537,7 @@ class TestDecodeCommand:
         cache_path = resolve_cache_path(source_file.content_fingerprint, activity_store)
         assert cache_path.exists()
 
-    def test_decode_specific_path_success(self, patched_home, fit_path, tmp_db_conn):
+    def test_specific_path_success(self, fit_path, tmp_db_conn):
         """bunk decode <path> should succeed and leave decode_state = success."""
 
         return_code = main(["add", str(fit_path)])
@@ -565,12 +549,13 @@ class TestDecodeCommand:
         assert source_file.decode_state == DecodeState.SUCCESS
         assert source_file.decode_error is None
 
-    def test_decode_removes_unsupported(
-        self, patched_home, monkeypatch, fit_path, tmp_db_conn
-    ):
+    def test_removes_unsupported(self, monkeypatch, fit_path, tmp_db_conn):
         assert 0 == main(["add", str(fit_path)])
         source_file = get_source_file(tmp_db_conn, str(fit_path))
         assert source_file.decode_state == DecodeState.SUCCESS
         patch_read_fit_failure(monkeypatch, fit_path, exc=UnsupportedFITFileType)
         assert 1 == main(["decode", str(fit_path)])
         assert not has_source_file(tmp_db_conn, str(fit_path))
+
+
+
