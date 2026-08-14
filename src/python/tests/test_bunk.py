@@ -555,5 +555,40 @@ class TestDecodeCommand:
         assert 1 == main(["decode", str(added_fit_path)])
         assert not has_source_file(tmp_db_conn, str(added_fit_path))
 
+    def test_fingerprint_drift_leaves_artifact_on_late_failure(
+        self, tmp_db_path, added_fit_path, fit_path_fingerprint, monkeypatch
+    ):
+        new_fingerprint = change_fingerprint_inplace(added_fit_path)
 
+        # Drop the artifact; anything in its place must have been redecoded
+        cache_path = resolve_cache_path(fit_path_fingerprint, resolve_activity_store())
+        os.unlink(cache_path)
+        _assert_no_decode_artifact(added_fit_path)
 
+        called = False
+
+        def mock_list_source_files_by_content_fingerprint(conn, fingerprint):
+            nonlocal called
+            called = True
+            raise RuntimeError("mock late failure")
+
+        monkeypatch.setattr(
+            bunk,
+            "list_source_files_by_content_fingerprint",
+            mock_list_source_files_by_content_fingerprint,
+        )
+
+        assert main(["decode", str(added_fit_path)]) == 1
+        assert called
+        new_cache_path = resolve_cache_path(
+            new_fingerprint, resolve_activity_store(create=False)
+        )
+        assert new_cache_path.exists()
+        with create_connection(tmp_db_path) as conn:
+            result = conn.execute("SELECT * FROM source_files")
+            rows = result.fetchall()
+            assert len(rows) == 1
+            source_file = SourceFile(**rows[0])
+            assert source_file.content_fingerprint == new_fingerprint
+            assert source_file.decode_state == DecodeState.ERROR
+            assert source_file.decode_error == "mock late failure"

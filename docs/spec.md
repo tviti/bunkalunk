@@ -205,8 +205,8 @@ The canonical schema includes:
 - `start_time` file attribute (required)
 - `sport` file attribute (optional)
 
-Failed or interrupted decodes must not leave a completed artifact at the final
-path.
+Failed or interrupted decodes may leave a completed artifact at the final path,
+but will record the error to the `source_files` row.
 
 ## Decode Contract
 
