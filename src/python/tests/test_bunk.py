@@ -69,6 +69,12 @@ def tmp_db_conn(tmp_db_path):
     conn.close
 
 
+@pytest.fixture(scope="function")
+def added_fit_path(fit_path):
+    assert 0 == main(["add", str(fit_path)])
+    return fit_path
+
+
 def _assert_no_decode_artifact(fit_path):
     with open(fit_path, "rb") as f:
         fingerprint = compute_fingerprint(f)
@@ -192,18 +198,15 @@ class TestAddCommand:
         with connect(tmp_db_path) as conn:
             assert get_source_file(conn, str(bad_path)) is None
 
-    def test_success(self, fit_path, tmp_db_conn):
+    def test_success(self, added_fit_path, tmp_db_conn):
         """bunk add should decode a valid FIT file end-to-end."""
-        return_code = main(["add", str(fit_path.resolve())])
-        assert return_code == 0
-
-        with open(fit_path, "rb") as f:
+        with open(added_fit_path, "rb") as f:
             fingerprint = compute_fingerprint(f)
         activity_store = resolve_activity_store(create=False)
         cache_path = resolve_cache_path(fingerprint, activity_store)
         assert cache_path.exists()
 
-        source_file = get_source_file(tmp_db_conn, str(fit_path))
+        source_file = get_source_file(tmp_db_conn, str(added_fit_path))
         activities = _fetch_activities_by_fingerprint(
             tmp_db_conn, source_file.content_fingerprint
         )
@@ -264,10 +267,13 @@ class TestAddCommand:
             assert not has_source_file(conn, str(fit_path))
             assert [] == _fetch_activities_by_fingerprint(conn, fit_path_fingerprint)
 
-    def test_updates_activities_table(self, tmp_path, fit_path):
+    def test_updates_activities_table(
+        self, tmp_db_conn, fit_path, fit_path_fingerprint
+    ):
         """bunk add should insert a row into the activities table."""
-        return_code = main(["add", str(fit_path.resolve())])
-        assert return_code == 0
+        assert 0 == main(["add", str(fit_path.resolve())])
+        activities = _fetch_activities_by_fingerprint(tmp_db_conn, fit_path_fingerprint)
+        assert len(activities) == 1
 
     def test_db_open_failure_cleans_up_cache(self, monkeypatch, fit_path):
         """bunk add should remove the cache artifact when SQLite cannot open."""
@@ -455,13 +461,12 @@ class TestDecodeCommand:
         assert 1 == main(["decode", "not/in/source_files"])
 
     def test_fingerprint_drift_drops_old_row(
-        self, tmp_db_path, fit_path, fit_path_fingerprint
+        self, tmp_db_path, added_fit_path, fit_path_fingerprint
     ):
         """bunk decode should not strand activities rows after fingerprint drift."""
-        assert main(["add", str(fit_path)]) == 0
         # Concatenate the file with itself to spoof a fingerprint change
-        new_fingerprint = change_fingerprint_inplace(fit_path)
-        assert main(["decode", str(fit_path)]) == 0
+        new_fingerprint = change_fingerprint_inplace(added_fit_path)
+        assert main(["decode", str(added_fit_path)]) == 0
         with create_connection(tmp_db_path) as conn:
             assert _fetch_activities_by_fingerprint(conn, fit_path_fingerprint) == []
             activities = _fetch_activities_by_fingerprint(conn, new_fingerprint)
@@ -476,11 +481,10 @@ class TestDecodeCommand:
             assert rows[0]["content_fingerprint"] == new_fingerprint
 
     def test_fingerprint_drift_leaves_old_row_when_still_referenced(
-        self, tmp_path, tmp_db_path, fit_path, fit_path_fingerprint
+        self, tmp_path, tmp_db_path, added_fit_path, fit_path_fingerprint
     ):
-        assert main(["add", str(fit_path)]) == 0
         alias_path = tmp_path / "alias.fit"
-        shutil.copy(fit_path, alias_path)
+        shutil.copy(added_fit_path, alias_path)
         assert main(["add", str(alias_path)]) == 0
         # Verify only one cache entry was made
         with create_connection(tmp_db_path) as conn:
@@ -489,8 +493,8 @@ class TestDecodeCommand:
             assert len(activities) == 1
             assert activities[0]["source_fingerprint"] == fit_path_fingerprint
         # Concatenate the file with itself to spoof a fingerprint change
-        new_fingerprint = change_fingerprint_inplace(fit_path)
-        assert main(["decode", str(fit_path)]) == 0
+        new_fingerprint = change_fingerprint_inplace(added_fit_path)
+        assert main(["decode", str(added_fit_path)]) == 0
         with create_connection(tmp_db_path) as conn:
             results = conn.execute("SELECT * FROM activities")
             activities = results.fetchall()
@@ -500,13 +504,12 @@ class TestDecodeCommand:
             assert new_fingerprint in fingerprints
 
     def test_fingerprint_drift_read_failure_leaves_old_activities_row(
-        self, tmp_db_path, monkeypatch, tmp_path, fit_path, fit_path_fingerprint
+        self, tmp_db_path, monkeypatch, tmp_path, added_fit_path, fit_path_fingerprint
     ):
-        assert main(["add", str(fit_path)]) == 0
         # Concatenate the file with itself to spoof a fingerprint change
-        new_fingerprint = change_fingerprint_inplace(fit_path)
-        patch_read_fit_failure(monkeypatch, fit_path)
-        assert main(["decode", str(fit_path)]) == 1
+        new_fingerprint = change_fingerprint_inplace(added_fit_path)
+        patch_read_fit_failure(monkeypatch, added_fit_path)
+        assert main(["decode", str(added_fit_path)]) == 1
         with create_connection(tmp_db_path) as conn:
             activities = _fetch_activities_by_fingerprint(conn, fit_path_fingerprint)
             assert len(activities) == 1
@@ -521,12 +524,11 @@ class TestDecodeCommand:
             # New fingerprint doesn't exist
             assert _fetch_activities_by_fingerprint(conn, new_fingerprint) == []
 
-    def test_failure_records_error(self, monkeypatch, fit_path, tmp_db_conn):
+    def test_failure_records_error(self, monkeypatch, added_fit_path, tmp_db_conn):
         """bunk decode should record ERROR state when decode fails."""
-        main(["add", str(fit_path)])
-        patch_read_fit_failure(monkeypatch, fit_path)
-        assert main(["decode", str(fit_path)]) == 1
-        source_file = get_source_file(tmp_db_conn, str(fit_path))
+        patch_read_fit_failure(monkeypatch, added_fit_path)
+        assert main(["decode", str(added_fit_path)]) == 1
+        source_file = get_source_file(tmp_db_conn, str(added_fit_path))
         activities = _fetch_activities_by_fingerprint(
             tmp_db_conn, source_file.content_fingerprint
         )
@@ -537,25 +539,21 @@ class TestDecodeCommand:
         cache_path = resolve_cache_path(source_file.content_fingerprint, activity_store)
         assert cache_path.exists()
 
-    def test_specific_path_success(self, fit_path, tmp_db_conn):
+    def test_specific_path_success(self, added_fit_path, tmp_db_conn):
         """bunk decode <path> should succeed and leave decode_state = success."""
-
-        return_code = main(["add", str(fit_path)])
-        assert return_code == 0
-        return_code = main(["decode", str(fit_path)])
+        return_code = main(["decode", str(added_fit_path)])
         assert return_code == 0
 
-        source_file = get_source_file(tmp_db_conn, str(fit_path))
+        source_file = get_source_file(tmp_db_conn, str(added_fit_path))
         assert source_file.decode_state == DecodeState.SUCCESS
         assert source_file.decode_error is None
 
-    def test_removes_unsupported(self, monkeypatch, fit_path, tmp_db_conn):
-        assert 0 == main(["add", str(fit_path)])
-        source_file = get_source_file(tmp_db_conn, str(fit_path))
+    def test_removes_unsupported(self, monkeypatch, added_fit_path, tmp_db_conn):
+        source_file = get_source_file(tmp_db_conn, str(added_fit_path))
         assert source_file.decode_state == DecodeState.SUCCESS
-        patch_read_fit_failure(monkeypatch, fit_path, exc=UnsupportedFITFileType)
-        assert 1 == main(["decode", str(fit_path)])
-        assert not has_source_file(tmp_db_conn, str(fit_path))
+        patch_read_fit_failure(monkeypatch, added_fit_path, exc=UnsupportedFITFileType)
+        assert 1 == main(["decode", str(added_fit_path)])
+        assert not has_source_file(tmp_db_conn, str(added_fit_path))
 
 
 
