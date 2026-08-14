@@ -1,27 +1,9 @@
 #!/usr/bin/env python3
 
-"""
-Bunk: the Bunkalunk source manager CLI.
+"""Bunk: the Bunkalunk source manager CLI.
 
-This module provides the command-line interface for Bunkalunk source file
-management and decoding operations.
+Command-line interface for Bunkalunk source file management and decoding.
 
-Per the system spec, this module handles:
-- Accepting explicit user-supplied local activity file paths
-- Managing the source-file index in SQLite
-- Decoding supported file formats into canonical HDF5 representation
-- Computing content fingerprints for source files
-
-This module does NOT handle:
-- Syncing files from devices or vendor platforms
-- Copying files into a project-owned raw archive
-- Defining a canonical raw-file storage layout
-- Backup or retention of user raw files
-- Semantic deduplication of files representing the same real-world ride
-- Vendor-specific proprietary API integrations
-- Recursive directory ingestion
-- Segment matching or analysis result computation
-- Serving or exporting analysis results
 """
 
 from __future__ import annotations
