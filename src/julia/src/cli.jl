@@ -691,16 +691,6 @@ function segment_show(
         return 0
     end
 
-    max_hours_ago = 24.0
-    today = datetime2unix(Dates.now())
-    stale = [today - row[:matched_at] > max_hours_ago * 3600 for row in efforts]
-    if any(stale)
-        @warn (
-            "Warning: $(sum(stale)) of $num_efforts efforts are older than " *
-                "$max_hours_ago hours, re-run `lunk segment match` to ensure efforts are up to date"
-        )
-    end
-
     stale_matcher = [row[:matcher_version] != MATCHER_VERSION for row in efforts]
     if any(stale_matcher)
         @warn (
