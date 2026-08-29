@@ -95,6 +95,15 @@ def test_write_cache_rejects_non_string_sport(
         write_cache(cache_path, cache_data)
 
 
+def test_write_cache_omits_missing_sport_attr(
+    tmp_path, cache_path, cache_data, patch_cache_version
+):
+    cache_data.sport = None
+    write_cache(cache_path, cache_data)
+    with h5py.File(cache_path, "r") as cache_file:
+        assert "sport" not in cache_file.attrs.keys()
+
+
 def test_resolve_cache_path_creates_parents(tmp_path):
     fingerprint = "abcdef123456"
     shard_dir = tmp_path / fingerprint[0:2]

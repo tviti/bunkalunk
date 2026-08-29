@@ -1,6 +1,6 @@
 using HDF5
 
-const CACHE_VERSION = 20260701
+const CACHE_VERSION = 20260828
 
 struct CacheVersionMismatch <: Exception
     version::Int64
