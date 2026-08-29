@@ -79,6 +79,7 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
             dir
             ;
             filename = "cache",
+            cache_version = Lunk.CACHE_VERSION,
             start_time = 946598400.0,
             sport::Union{String, Nothing} = "basket-weaving",
             time = Float64[0.0, 0.1, 0.2],
@@ -99,6 +100,7 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
             elevation !== nothing && (file["elevation"] = elevation)
             distance !== nothing && (file["distance"] = distance)
             speed !== nothing && (file["speed"] = speed)
+            attributes(file)["cache_version"] = cache_version
             attributes(file)["start_time"] = start_time
             sport !== nothing && (attributes(file)["sport"] = sport)
         end

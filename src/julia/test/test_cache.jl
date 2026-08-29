@@ -12,6 +12,7 @@ function make_cache_file_no_sport(dir)
         file["longitude"] = [2.0, 2.1, 2.2]
         file["heart_rate"] = [99.0, 99.0, 99.0]
         attributes(file)["start_time"] = 946598400.0
+        attributes(file)["cache_version"] = Lunk.CACHE_VERSION
     end
     return path
 end
@@ -24,39 +25,49 @@ function make_cache_file_no_heart_rate(dir)
         file["longitude"] = [2.0, 2.1, 2.2]
         attributes(file)["start_time"] = 946598400.0
         attributes(file)["sport"] = "basket-weaving"
+        attributes(file)["cache_version"] = Lunk.CACHE_VERSION
     end
     return path
 end
 
 @testset "read_cache" begin
-    mktempdir() do dir
-        cache_path = make_cache_file(dir)
-        cache_data = read_cache(cache_path)
-        @test cache_data.start_time == 946598400.0
-        @test cache_data.sport == "basket-weaving"
-        @test cache_data.time == [0.0, 0.1, 0.2]
-        @test cache_data.latitude == [1.0, 1.1, 1.2]
-        @test cache_data.longitude == [2.0, 2.1, 2.2]
-        @test cache_data.heart_rate == [99.0, 99.0, 99.0]
-        @test cache_data.elevation == [10.0, 11.0, 12.0]
-        @test cache_data.distance == [0.0, 1.0, 2.0]
-        @test cache_data.speed == [3.0, 3.1, 3.2]
+    @testset "all fields" begin
+        mktempdir() do dir
+            cache_path = make_cache_file(dir)
+            cache_data = read_cache(cache_path)
+            @test cache_data.start_time == 946598400.0
+            @test cache_data.sport == "basket-weaving"
+            @test cache_data.time == [0.0, 0.1, 0.2]
+            @test cache_data.latitude == [1.0, 1.1, 1.2]
+            @test cache_data.longitude == [2.0, 2.1, 2.2]
+            @test cache_data.heart_rate == [99.0, 99.0, 99.0]
+            @test cache_data.elevation == [10.0, 11.0, 12.0]
+            @test cache_data.distance == [0.0, 1.0, 2.0]
+            @test cache_data.speed == [3.0, 3.1, 3.2]
+        end
     end
-end
 
-@testset "read_cache sport absent" begin
-    mktempdir() do dir
-        cache_path = make_cache_file_no_sport(dir)
-        cache_data = read_cache(cache_path)
-        @test cache_data.sport === nothing
+    @testset "throws CacheVersionMismatch error on version mismatch" begin
+        mktempdir() do dir
+            cache_path = make_cache_file(dir; cache_version = Lunk.CACHE_VERSION - 1)
+            @test_throws Lunk.CacheVersionMismatch read_cache(cache_path)
+        end
     end
-end
 
-@testset "read_cache heart_rate absent" begin
-    mktempdir() do dir
-        cache_path = make_cache_file_no_heart_rate(dir)
-        cache_data = read_cache(cache_path)
-        @test cache_data.heart_rate === nothing
+    @testset "sets sport to nothing when absent" begin
+        mktempdir() do dir
+            cache_path = make_cache_file_no_sport(dir)
+            cache_data = read_cache(cache_path)
+            @test cache_data.sport === nothing
+        end
+    end
+
+    @testset "sets heart rate to nothing when absent" begin
+        mktempdir() do dir
+            cache_path = make_cache_file_no_heart_rate(dir)
+            cache_data = read_cache(cache_path)
+            @test cache_data.heart_rate === nothing
+        end
     end
 end
 

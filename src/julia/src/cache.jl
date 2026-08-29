@@ -1,5 +1,15 @@
 using HDF5
 
+const CACHE_VERSION = 20260701
+
+struct CacheVersionMismatch <: Exception
+    version::Int64
+end
+
+function Base.showerror(io::IO, e::CacheVersionMismatch)
+    return print(io, "Expected cache version $CACHE_VERSION but got $(e.version)")
+end
+
 struct CacheData
     start_time::Float64
     time::Vector{Float64}
@@ -56,6 +66,13 @@ end
 function read_cache(file_path::String)
     return h5open(file_path, "r") do file
         file_attrs = attrs(file)
+
+        let cache_version = file_attrs["cache_version"]
+            cache_version == CACHE_VERSION || throw(
+                CacheVersionMismatch(cache_version)
+            )
+        end
+
         CacheData(
             file_attrs["start_time"],
             read(file, "time"),
