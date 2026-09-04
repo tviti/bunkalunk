@@ -45,8 +45,8 @@ let
   lunkBuildDevSysimage = pkgs.writeShellScriptBin "build-dev-sysimage" ''
     unset JULIA_PROJECT
     mkdir -p ${project_root}/src/julia/build
-    exec julia --project=${project_root}/src/julia/scripts \
-      ${project_root}/src/julia/scripts/build_sysimage.jl \
+    exec julia --project=${project_root}/src/julia/scripts/dev_sysimage \
+      ${project_root}/src/julia/scripts/dev_sysimage/build.jl \
       ${project_root}/src/julia/build/dev_sysimage.so
   '';
 

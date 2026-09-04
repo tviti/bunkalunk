@@ -6,7 +6,7 @@ using TOML
 const SCRIPT_DIR = abspath(@__DIR__)
 const SCRIPT_PROJECT = joinpath(SCRIPT_DIR, "Project.toml")
 const MANIFEST_TOML = joinpath(SCRIPT_DIR, "Manifest.toml")
-const SYSIMAGE_PATH = isempty(ARGS) ? error("usage: build_sysimage.jl <output-path>") : abspath(ARGS[1])
+const SYSIMAGE_PATH = isempty(ARGS) ? error("usage: build.jl <output-path>") : abspath(ARGS[1])
 const HASH_PATH = SYSIMAGE_PATH * ".sha256"
 
 # PackageCompiler itself can't be in a sysimage it builds; TOML is a stdlib.

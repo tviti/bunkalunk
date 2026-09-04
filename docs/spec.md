@@ -309,6 +309,21 @@ src/
 	  segments.jl      — segment file decoders/parsers
 	test/
 	  runtest.jl       — julia test-suite entrypoint
+	scripts/
+	  dev_sysimage/     — development sysimage build environment and script
+	    Project.toml
+	    Manifest.toml
+	    build.jl
+	  test_sysimage/    — test sysimage build environment and script
+	    Project.toml
+	    Manifest.toml
+	    build.jl
+	  app/              — application build environment and script
+	    Project.toml
+	    Manifest.toml
+	    build.jl
+	  precompile/       — workloads shared by build products
+	    lunk_cli.jl
   python/
     pyproject.toml
     bunkalunk/

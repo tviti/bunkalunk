@@ -1270,6 +1270,10 @@ function main(argv::Vector{String} = ARGS)
     return exit(exit_code)
 end
 
+function julia_main()::Cint
+    return main()
+end
+
 if abspath(PROGRAM_FILE) == @__FILE__
     main()
 end

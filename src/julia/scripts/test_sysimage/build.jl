@@ -4,8 +4,8 @@ using SHA
 using TOML
 
 const TEST_PROJECT = abspath(@__DIR__)
-const SYSIMAGE_PATH = isempty(ARGS) ? error("usage: build_test_sysimage.jl <output-path>") : abspath(ARGS[1])
-const PRECOMPILE_FILE = joinpath(TEST_PROJECT, "precompile_execution_file.jl")
+const SYSIMAGE_PATH = isempty(ARGS) ? error("usage: build.jl <output-path>") : abspath(ARGS[1])
+const PRECOMPILE_FILE = joinpath(TEST_PROJECT, "..", "precompile", "lunk_cli.jl")
 const TEST_PROJECT_TOML = joinpath(TEST_PROJECT, "Project.toml")
 const TEST_MANIFEST_TOML = joinpath(TEST_PROJECT, "Manifest.toml")
 const HASH_PATH = SYSIMAGE_PATH * ".sha256"
