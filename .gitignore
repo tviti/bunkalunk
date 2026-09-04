@@ -14,3 +14,5 @@
 /opencode.json
 */**/TAGS
 /src/julia/test/Manifest.toml
+/src/python/build/
+/build/

@@ -19,6 +19,9 @@ bunk  = "bunkalunk.bunk:main"
 where = ["."]
 include = ["bunkalunk*"]
 
+[tool.setuptools.package-data]
+bunkalunk = ["db/schema.sql"]
+
 [tool.mypy]
 # Look in the 'typings' folder for library stubs
 # mypy_path = "./typings"
