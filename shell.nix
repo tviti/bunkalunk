@@ -30,8 +30,7 @@ let
 
   lunkJuliaCtags = pkgs.writeShellScriptBin "julia-ctags" ''
     exec ctags -R \
-      --languages=Julia \
-      --output-format=etags \
+      --languages=Julia --output-format=etags \
       -f "${build_root}/julia/TAGS" \
       "${project_root}/src/julia/src" \
       "${project_root}/src/julia/test" \
