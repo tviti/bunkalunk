@@ -443,6 +443,21 @@ function remove_segment!(db::SQLite.DB, segment_id::Integer)
     return only(registrations)
 end
 
+function fetch_segment_registration_by_id(
+        db::SQLite.DB, segment_id::Int64
+    )
+    result = DBInterface.execute(
+        db,
+        "SELECT * FROM segments WHERE segment_id = ?",
+        [segment_id]
+    )
+    registrations = [SegmentRegistration(r) for r in result]
+    if isempty(registrations)
+        return nothing
+    end
+    return only(registrations)
+end
+
 function fetch_segment_registration_by_name(
         db::SQLite.DB, name::String
     )

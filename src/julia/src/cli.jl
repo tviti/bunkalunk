@@ -1102,23 +1102,34 @@ function print_activity_segments(
 end
 
 function activity_show(activity_id::Int; ctx = Context())
-    activity, efforts = create_connection!(ctx.db_path) do db
-        (
-            load_activity(select_by_id(db, activity_id), ctx.activity_store),
-            fetch_segment_efforts_by_activity_id(db, activity_id),
+    activity, efforts, registrations = create_connection!(ctx.db_path) do db
+        efforts = fetch_segment_efforts_by_activity_id(db, activity_id)
+
+        segment_ids = unique([e[:segment_id] for e in efforts])
+
+        activity = load_activity(select_by_id(db, activity_id), ctx.activity_store)
+        efforts = Dict(
+            id => filter((x) -> x[:segment_id] == id, efforts)
+                for id in segment_ids
         )
+        registrations = [fetch_segment_registration_by_id(db, id) for id in segment_ids]
+
+        (activity, efforts, registrations)
     end
-
-    segment_ids = unique([e[:segment_id] for e in efforts])
-
-    segment_efforts = Dict(
-        id => filter((x) -> x[:segment_id] == id, efforts)
-            for id in segment_ids
-    )
 
     summary = activity_summary(activity_id, activity)
     print_activity_summary(ctx.io, summary)
-    print_activity_segments(ctx.io, activity_id, segment_efforts)
+    print_activity_segments(ctx.io, activity_id, efforts)
+
+    errors = [
+        is_stale_segment(
+                reg[:name], reg[:definition_path], reg[:definition_fingerprint]
+            ) for reg in registrations
+    ]
+
+    if any(errors)
+        return 1
+    end
 
     return 0
 end

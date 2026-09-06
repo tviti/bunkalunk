@@ -205,23 +205,24 @@ end
     @test summary.heart_rate.max_bpm == 120.0
 end
 
-function register_matchable_segment!(conn, dir; name = "segment")
-    segment_path = joinpath(dir, name * ".osm")
-    write_minimal_osm(segment_path; name = name)
-    fingerprint = open(segment_path, "r") do f
-        compute_fingerprint(f)
-    end
-    insert_segment!(
-        conn,
-        name,
-        abspath(segment_path),
-        fingerprint,
-        make_synthetic_segment()
-    )
-    return fetch_segment_registration_by_name(conn, name)
-end
-
 @testset "activity_match" begin
+
+    function register_matchable_segment!(conn, dir; name = "segment")
+        segment_path = joinpath(dir, name * ".osm")
+        write_minimal_osm(segment_path; name = name)
+        fingerprint = open(segment_path, "r") do f
+            compute_fingerprint(f)
+        end
+        insert_segment!(
+            conn,
+            name,
+            abspath(segment_path),
+            fingerprint,
+            make_synthetic_segment()
+        )
+        return fetch_segment_registration_by_name(conn, name)
+    end
+
     @testset "Happy path" begin
         with_tempdir_context() do ctx, dir
             create_connection!(ctx.db_path) do conn
@@ -577,4 +578,58 @@ end
             end
         end
     end
+end
+
+@testset "activity_show" begin
+
+    @testset "returns error on one stale segment" begin
+        with_tempdir_context() do ctx, dir
+            create_bunk_tables!(ctx.db_path)
+            create_connection!(ctx.db_path) do conn
+                # Seed function writes table with dummy paths and fingerprints,
+                # so they won't match unless we set them ourselves
+                seed_segment_efforts_table!(conn)
+
+                # Segment with incorrect fingerprint
+                let segment_path = joinpath(dir, "a.osm")
+                    write_minimal_osm(segment_path; name = "a")
+                    DBInterface.execute(
+                        conn,
+                        "UPDATE segments SET definition_path = ? WHERE name = 'a';",
+                        (segment_path,)
+                    )
+                end
+
+                # Segment with correct fingerprint
+                let segment_path = joinpath(dir, "c.osm")
+                    write_minimal_osm(segment_path; name = "c")
+                    fingerprint = open(segment_path) do f
+                        compute_fingerprint(f)
+                    end
+                    DBInterface.execute(
+                        conn,
+                        """
+                        UPDATE segments
+                        SET definition_path = ?, definition_fingerprint = ?
+                        WHERE name = 'c';
+                        """,
+                        (segment_path, fingerprint)
+                    )
+                end
+
+                # Ensure activity 1 matches multiple segments
+                insert_segment_effort!(conn, 1, 1, 98.8, 1238, Lunk.MATCHER_VERSION, 9, 10)
+
+                make_registered_cache_file!(
+                    conn, dir; fingerprint = "fingerprint-1", do_insert = false
+                )
+            end
+
+            result = @test_logs (:error, r"Segment a changed.*") begin
+                Lunk.activity_show(1; ctx = ctx)
+            end
+            @test result == 1
+        end
+    end
+
 end

@@ -123,22 +123,25 @@ if !@isdefined(BUNK_TEST_FIXTURES_INCLUDED)
             x_min = 2.0,
             x_max = 2.2,
             y_min = 1.0,
-            y_max = 1.2
+            y_max = 1.2,
+            do_insert = true
         )
-        insert_activity!(
-            conn,
-            Dict(
-                :source_fingerprint => fingerprint,
-                :start_time => start_time,
-                :ride_tag => nothing,
-                :sport => sport,
-                :cache_version => 20260624,
-                :x_min => x_min,
-                :x_max => x_max,
-                :y_min => y_min,
-                :y_max => y_max
+        if do_insert
+            insert_activity!(
+                conn,
+                Dict(
+                    :source_fingerprint => fingerprint,
+                    :start_time => start_time,
+                    :ride_tag => nothing,
+                    :sport => sport,
+                    :cache_version => 20260624,
+                    :x_min => x_min,
+                    :x_max => x_max,
+                    :y_min => y_min,
+                    :y_max => y_max
+                )
             )
-        )
+        end
         cache_dir = joinpath(dir, fingerprint[1:2])
         mkpath(cache_dir)
         return make_cache_file(
