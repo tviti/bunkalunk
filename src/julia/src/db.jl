@@ -388,16 +388,6 @@ SegmentEffort(r::SQLite.Row) = SegmentEffort(
     )
 )
 
-function fetch_segment_registration(db::SQLite.DB, name::String)
-    result = DBInterface.execute(
-        db,
-        "SELECT * FROM segments WHERE name = ?",
-        [name]
-    )
-    registrations = [SegmentRegistration(r) for r in result]
-    return only(registrations)
-end
-
 function fetch_segment_registration(db::SQLite.DB)
     result = DBInterface.execute(
         db,

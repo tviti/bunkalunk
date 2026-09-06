@@ -314,7 +314,7 @@ end
                 @test Lunk.run_segment_register(args, ctx) == 0
 
                 old_sid = create_connection!(ctx.db_path) do conn
-                    row = fetch_segment_registration(conn, "myseg")
+                    row = fetch_segment_registration_by_name(conn, "myseg")
                     row[:segment_id]
                 end
                 create_connection!(ctx.db_path) do conn
@@ -425,7 +425,7 @@ end
                 @test Lunk.run_segment_register(args, ctx) == 0
 
                 old_sid = create_connection!(ctx.db_path) do conn
-                    row = fetch_segment_registration(conn, "myseg")
+                    row = fetch_segment_registration_by_name(conn, "myseg")
                     row[:segment_id]
                 end
 
@@ -520,6 +520,19 @@ end
             @test Lunk.run_segment_match(args, ctx) == 0
             @test isfile(export_path)
             @test isfile(joinpath(dir, "out.csvt"))
+        end
+    end
+
+    @testset "Returns error when no segment found" begin
+        with_tempdir_context() do ctx, dir
+            args = Dict{String, Any}(
+                "name" => "nonexistent segment",
+                "export" => nothing
+            )
+            result = @test_logs (:error, r"No segment with name.*") begin
+                Lunk.run_segment_match(args, ctx)
+            end
+            @test result == 1
         end
     end
 

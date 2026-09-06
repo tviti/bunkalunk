@@ -636,27 +636,6 @@ end
     end
 end
 
-@testset "fetch_segment_registration" begin
-    @testset "Happy path" begin
-        with_tmp_bunk_db!() do dir, db_path
-            create_connection!(db_path) do db
-                insert_segment!(
-                    db,
-                    "segment",
-                    "path/to/segment",
-                    "fingerprint",
-                    make_dummy_segment()
-                )
-                reg = fetch_segment_registration(db, "segment")
-                @test reg[:segment_id] == 1
-                @test reg[:name] == "segment"
-                @test reg[:definition_path] == "path/to/segment"
-                @test reg[:definition_fingerprint] == "fingerprint"
-            end
-        end
-    end
-end
-
 @testset "fetch_segment_registration all" begin
     @testset "Returns all rows ordered by name" begin
         with_tmp_bunk_db!() do _, db_path

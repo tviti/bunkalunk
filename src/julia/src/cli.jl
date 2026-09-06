@@ -579,7 +579,12 @@ function segment_match(
     end
 
     return create_connection!(ctx.db_path) do db_conn
-        segment_reg = fetch_segment_registration(db_conn, segment_name)
+        segment_reg = fetch_segment_registration_by_name(db_conn, segment_name)
+        if segment_reg === nothing
+            @error "No segment with name \"$segment_name\""
+            return 1
+        end
+
         segment_id = segment_reg[:segment_id]
         definition_path = segment_reg[:definition_path]
 
@@ -1105,6 +1110,7 @@ function activity_show(activity_id::Int; ctx = Context())
     end
 
     segment_ids = unique([e[:segment_id] for e in efforts])
+
     segment_efforts = Dict(
         id => filter((x) -> x[:segment_id] == id, efforts)
             for id in segment_ids
