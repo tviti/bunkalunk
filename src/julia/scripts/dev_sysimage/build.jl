@@ -26,6 +26,9 @@ let current_hash = bytes2hex(sha256(vcat(
     end
 
     Pkg.activate(SCRIPT_PROJECT)
+    # PackageCompiler's child processes inherit JULIA_PROJECT from the shell.
+    # Pin it here so they do not precompile the unrelated source project.
+    ENV["JULIA_PROJECT"] = SCRIPT_DIR
     Pkg.instantiate()
 
     create_sysimage(
