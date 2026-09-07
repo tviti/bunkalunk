@@ -53,6 +53,7 @@ pkgs.mkShell {
   ]
   ++ (with pkgs;
     [
+      pandoc
       universal-ctags
       ruff
       sqlite
