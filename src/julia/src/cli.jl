@@ -1081,9 +1081,12 @@ function print_activity_segments(
     Printf.format(io, row_format, "Segment Name", "Rank", "Time")
     Printf.format(io, row_format, repeat("-", 25), repeat("-", 8), repeat("-", 12))
 
+    output_rows = String[]
+    effort_start_idxs = Int64[]
+
     for (_, efforts) in segment_efforts
         activity_efforts = [
-            (rank = i, time = hms2string(e[:elapsed_time_s]))
+            (rank = i, time = hms2string(e[:elapsed_time_s]), idx_start = e[:idx_start])
                 for (i, e) in enumerate(efforts)
                 if e[:activity_id] == activity_id
         ]
@@ -1093,9 +1096,16 @@ function print_activity_segments(
 
         for e in activity_efforts
             rank_string = "$(e[:rank])/$num_efforts"
-            Printf.format(io, row_format, "$name", rank_string, e[:time])
+            push!(output_rows, Printf.format(row_format, "$name", rank_string, e[:time]))
+            push!(effort_start_idxs, e[:idx_start])
         end
 
+    end
+
+    output_order = sortperm(effort_start_idxs)
+    output_rows = output_rows[output_order]
+    for row in output_rows
+        print(io, row)
     end
 
     return
