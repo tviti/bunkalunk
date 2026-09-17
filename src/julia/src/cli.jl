@@ -1077,6 +1077,11 @@ end
 function print_activity_segments(
         io::IO, activity_id::Int, segment_efforts::Dict{Int, Vector{SegmentEffort}}
     )
+    if isempty(segment_efforts)
+        println(io, "No segments are matched to this activity")
+        return
+    end
+
     row_format = Printf.Format("  %-30s %-8s  %s\n")
     Printf.format(io, row_format, "Segment Name", "Rank", "Time")
     Printf.format(io, row_format, repeat("-", 25), repeat("-", 8), repeat("-", 12))
@@ -1118,7 +1123,7 @@ function activity_show(activity_id::Int; ctx = Context())
         segment_ids = unique([e[:segment_id] for e in efforts])
 
         activity = load_activity(select_by_id(db, activity_id), ctx.activity_store)
-        efforts = Dict(
+        efforts = Dict{Int64, Vector{SegmentEffort}}(
             id => filter((x) -> x[:segment_id] == id, efforts)
                 for id in segment_ids
         )
