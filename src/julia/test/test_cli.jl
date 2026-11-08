@@ -817,26 +817,101 @@ end
 end
 
 @testset "segment_remove" begin
-    @testset "happy path" begin
+    @testset "remove one" begin
         with_tempdir_context() do ctx, dir
-            before = create_connection!(ctx.db_path) do db
+            create_connection!(ctx.db_path) do db
                 seed_segment_efforts_table!(db)
-                fetch_segment_efforts_by_name(db, "c")
+                @test length(fetch_segment_efforts_by_name(db, "c")) > 0
+                @test fetch_segment_registration_by_name(db, "c") !== nothing
             end
-            @test length(before) > 0
             args = Dict{String, Any}(
-                "name" => "c"
+                "names" => String["c"]
             )
             result = @test_logs (:info,) Lunk.run_segment_remove(args, ctx)
             @test result == 0
-            after, registration = create_connection!(ctx.db_path) do db
+            efforts_c, registration = create_connection!(ctx.db_path) do db
                 (
                     fetch_segment_efforts_by_name(db, "c"),
                     fetch_segment_registration_by_name(db, "c"),
                 )
             end
-            @test length(after) == 0
+            @test length(efforts_c) == 0
             @test registration === nothing
+        end
+    end
+
+    @testset "unrelated efforts and registrations are retained" begin
+        with_tempdir_context() do ctx, dir
+            before = create_connection!(ctx.db_path) do db
+                seed_segment_efforts_table!(db)
+                (
+                    efforts_a = fetch_segment_efforts_by_name(db, "a"),
+                    efforts_b = fetch_segment_efforts_by_name(db, "b"),
+                    registration_a = fetch_segment_registration_by_name(db, "a"),
+                    registration_b = fetch_segment_registration_by_name(db, "b"),
+                )
+            end
+            args = Dict{String, Any}(
+                "names" => String["c"]
+            )
+            result = @test_logs (:info,) Lunk.run_segment_remove(args, ctx)
+            @test result == 0
+            after = create_connection!(ctx.db_path) do db
+                (
+                    efforts_a = fetch_segment_efforts_by_name(db, "a"),
+                    efforts_b = fetch_segment_efforts_by_name(db, "b"),
+                    registration_a = fetch_segment_registration_by_name(db, "a"),
+                    registration_b = fetch_segment_registration_by_name(db, "b"),
+                )
+            end
+            @test before == after
+        end
+    end
+
+    @testset "remove multiple" begin
+        with_tempdir_context() do ctx, dir
+            create_connection!(ctx.db_path) do db
+                seed_segment_efforts_table!(db)
+            end
+            args = Dict{String, Any}(
+                "names" => String["c", "b"]
+            )
+            result = @test_logs (:info,) (:info,) Lunk.run_segment_remove(args, ctx)
+            @test result == 0
+            create_connection!(ctx.db_path) do db
+                @test length(fetch_segment_efforts_by_name(db, "b")) == 0
+                @test length(fetch_segment_efforts_by_name(db, "c")) == 0
+                @test fetch_segment_registration_by_name(db, "b") == nothing
+                @test fetch_segment_registration_by_name(db, "c") == nothing
+            end
+        end
+    end
+
+    @testset "non-existent segment fails the transaction" begin
+        with_tempdir_context() do ctx, dir
+            before = create_connection!(ctx.db_path) do db
+                seed_segment_efforts_table!(db)
+                (
+                    efforts_a = fetch_segment_efforts_by_name(db, "a"),
+                    efforts_b = fetch_segment_efforts_by_name(db, "b"),
+                    registration_a = fetch_segment_registration_by_name(db, "a"),
+                    registration_b = fetch_segment_registration_by_name(db, "b"),
+                )
+            end
+            args = Dict{String, Any}(
+                "names" => String["c", "b", "d"]
+            )
+            result = @test_logs (:info,) (:info,) (:error,) Lunk.run_segment_remove(args, ctx)
+            @test result == 1
+            after = create_connection!(ctx.db_path) do db
+                (
+                    efforts_a = fetch_segment_efforts_by_name(db, "a"),
+                    efforts_b = fetch_segment_efforts_by_name(db, "b"),
+                    registration_a = fetch_segment_registration_by_name(db, "a"),
+                    registration_b = fetch_segment_registration_by_name(db, "b"),
+                )
+            end
+            @test before == after
         end
     end
 end

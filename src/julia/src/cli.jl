@@ -127,9 +127,11 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
     end
 
     @add_arg_table! segment_settings["remove"] begin
-        "name"
+        "names"
+        nargs = '+'
         required = true
         action = :store_arg
+        arg_type = String
         help = "Segment name"
     end
 
@@ -413,25 +415,41 @@ function run_segment_register(args::ArgDict, ctx::Context)
     return segment_register(path; name = name, force = force, ctx = ctx)
 end
 
-function segment_remove(name::String; ctx = Context())
+function segment_remove_transaction(
+        conn::DBInterface.Connection, names::AbstractVector{<:AbstractString}
+    )
+    for name in names
+        registration = fetch_segment_registration_by_name(conn, name)
+        if registration === nothing
+            throw(ArgumentError("No segment found by name $name"))
+        end
+        efforts = remove_segment_efforts!(conn, registration[:segment_id])
+        @info "Removed $(length(efforts)) segment efforts"
+        remove_segment!(conn, name)
+    end
+    return
+end
+
+function segment_remove(
+        names::AbstractVector{<:AbstractString}; ctx = Context()
+    )
     return create_connection!(ctx.db_path) do conn
-        DBInterface.transaction(conn) do
-            registration = fetch_segment_registration_by_name(conn, name)
-            if registration === nothing
-                @info "No segment found by name $name"
-                return 1
+        try
+            DBInterface.transaction(conn) do
+                segment_remove_transaction(conn, names)
             end
-            efforts = remove_segment_efforts!(conn, registration[:segment_id])
-            @info "Removed $(length(efforts)) segment efforts"
-            remove_segment!(conn, name)
             return 0
+        catch e
+            showerror(ctx.io, e)
+            @error "Did not remove any segments or efforts"
+            return 1
         end
     end
 end
 
 function run_segment_remove(args::ArgDict, ctx::Context)
-    name::String = args["name"]
-    return segment_remove(name; ctx = ctx)
+    names::AbstractVector{<:AbstractString} = args["names"]
+    return segment_remove(names; ctx = ctx)
 end
 
 function segment_list(; ctx = Context())
@@ -1138,8 +1156,8 @@ function activity_show(activity_id::Int; ctx = Context())
 
     errors = [
         is_stale_segment(
-                reg[:name], reg[:definition_path], reg[:definition_fingerprint]
-            ) for reg in registrations
+            reg[:name], reg[:definition_path], reg[:definition_fingerprint]
+        ) for reg in registrations
     ]
 
     if any(errors)
