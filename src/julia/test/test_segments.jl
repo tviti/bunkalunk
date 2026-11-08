@@ -296,7 +296,10 @@ end
         """
         mktempdir() do dir
             path = write_test_segment(dir, json, extension = ".geojson")
-            @test_throws ArgumentError read_segment(path)
+            segment = @test_logs (:warn,) read_segment(path)
+            @test segment.name == ""
+            @test segment.latitude == [2.25, 3.25]
+            @test segment.longitude == [1.5, 2.5]
         end
     end
 
