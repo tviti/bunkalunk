@@ -914,4 +914,37 @@ end
             @test before == after
         end
     end
+
+    function table_isempty(db, name)
+        q = "SELECT EXISTS (SELECT 1 FROM \"$name\")"
+        return first(DBInterface.execute(db, q))[1] == 0
+    end
+
+    @testset "--all removes all" begin
+        with_tempdir_context() do ctx, dir
+            create_connection!(ctx.db_path) do db
+                seed_segment_efforts_table!(db)
+            end
+            args = Dict{String, Any}(
+                "all" => true
+            )
+            result = @test_logs (:info,) (:info,) (:info,) Lunk.run_segment_remove(args, ctx)
+            @test result == 0
+
+            create_connection!(ctx.db_path) do db
+                @test table_isempty(db, "segments")
+                @test table_isempty(db, "segment_efforts")
+            end
+        end
+    end
+
+    @testset "fails with no names without --all" begin
+        with_tempdir_context() do ctx, dir
+            args = Dict{String, Any}(
+                "names" => String[]
+            )
+            result = @test_logs (:error,) Lunk.run_segment_remove(args, ctx)
+            @test result == 1
+        end
+    end
 end

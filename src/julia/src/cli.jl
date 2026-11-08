@@ -128,11 +128,15 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
 
     @add_arg_table! segment_settings["remove"] begin
         "names"
-        nargs = '+'
-        required = true
+        nargs = '*'
         action = :store_arg
         arg_type = String
-        help = "Segment name"
+        help = "Segment name. Required unless --all is passed"
+
+        "--all"
+        required = false
+        action = :store_true
+        help = "Remove all segments and efforts"
     end
 
     @add_arg_table! segment_settings["match"] begin
@@ -430,9 +434,7 @@ function segment_remove_transaction(
     return
 end
 
-function segment_remove(
-        names::AbstractVector{<:AbstractString}; ctx = Context()
-    )
+function segment_remove(names::AbstractVector{<:AbstractString}; ctx = Context())
     return create_connection!(ctx.db_path) do conn
         try
             DBInterface.transaction(conn) do
@@ -448,7 +450,21 @@ function segment_remove(
 end
 
 function run_segment_remove(args::ArgDict, ctx::Context)
-    names::AbstractVector{<:AbstractString} = args["names"]
+    all::Bool = get(args, "all", false)
+
+    if all
+        names = create_connection!(ctx.db_path) do db
+            fetch_segment_names(db)
+        end
+    else
+        names::AbstractVector{<:AbstractString} = args["names"]
+    end
+
+    if length(names) == 0
+        @error "Command requires at least one segment to act on"
+        return 1
+    end
+
     return segment_remove(names; ctx = ctx)
 end
 
