@@ -134,7 +134,6 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
         help = "Segment name. Required unless --all is passed"
 
         "--all"
-        required = false
         action = :store_true
         help = "Remove all segments and efforts"
     end
