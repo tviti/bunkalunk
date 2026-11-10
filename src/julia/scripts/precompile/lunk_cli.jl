@@ -119,7 +119,7 @@ bad_match_export_path = joinpath(PRECOMPILE_BUNK_HOME, "segment-match.txt")
 activity_export_path = joinpath(PRECOMPILE_BUNK_HOME, "activity.csv")
 
 Lunk.main(["activity", "match", "1"])
-Lunk.main(["activity", "match", "1", "--update"])
+Lunk.main(["activity", "match", "1", "--no-update"])
 Lunk.main(["activity", "match"])
 Lunk.main(["activity", "show", "1"])
 Lunk.main(["activity", "show"])

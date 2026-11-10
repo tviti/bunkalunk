@@ -196,9 +196,9 @@ function add_activities_argtable!(settings::ArgParseSettings)::Nothing
         arg_type = Int
         help = "The activity to match, omit to match most recent"
 
-        "--update"
+        "--no-update"
         action = :store_true
-        help = "Update each matched segment's rankings"
+        help = "Don't update each matched segment's rankings"
     end
 
     @add_arg_table! activity_settings["show"] begin
@@ -973,7 +973,7 @@ end
 
 function run_activity_match(args::ArgDict, ctx::Context)
     activity_id = args["activity_id"]
-    update = args["update"]
+    update = !args["no-update"]
     if activity_id === nothing
         return activity_match(; ctx = ctx, update = update)
     end
