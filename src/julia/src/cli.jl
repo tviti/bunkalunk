@@ -163,6 +163,11 @@ function add_segment_argtable!(settings::ArgParseSettings)::Nothing
         default = 10
         help = "Number of efforts to show"
 
+        "--all", "-a"
+        action = :store_true
+        # default = false
+        help = "Show all efforts (--top setting will be ignored)"
+
         "--sport", "-s"
         required = false
         action = :store_arg
@@ -686,8 +691,14 @@ end
 
 function run_segment_show(args::ArgDict, ctx::Context)
     segment_name::String = args["name"]
-    top::Int = args["top"]
     sport::Union{String, Nothing} = args["sport"]
+
+    if args["all"]
+        top = nothing
+    else
+        top = args["top"]
+    end
+
     return segment_show(segment_name; top = top, sport = sport, ctx = ctx)
 end
 
@@ -699,7 +710,7 @@ Show a table of segment efforts for `segment_name`
 function segment_show(
         segment_name::String;
         ctx = Context(),
-        top = Int64(10),
+        top::Union{Int64, Nothing} = 10,
         sport::Union{String, Nothing} = nothing
     )
 
@@ -758,13 +769,15 @@ function segment_show(
     Printf.format(ctx.io, row_format, "Rank", "Activity Date", "Time")
     Printf.format(ctx.io, row_format, repeat("-", 4), repeat("-", 19), repeat("-", 12))
 
+    limit = something(top, num_efforts)
+    
     i = 1
     for (; start_time, elapsed_time_s) in efforts
         start_time_iso = unix2datetime(start_time)
         hms_string = hms2string(elapsed_time_s)
         Printf.format(ctx.io, row_format, i, start_time_iso, hms_string)
         i = i + 1
-        if i > top
+        if i > limit
             break
         end
     end
