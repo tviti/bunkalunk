@@ -9,6 +9,9 @@ Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 SQLite = "0aa819cd-b072-5ff4-a722-6bc24af294d9"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
+[sources]
+Lunk = {path = ".."}
+
 [compat]
 Infiltrator = "1.9.10"
 Revise = "3.14.2"
